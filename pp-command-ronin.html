@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PP Command — Ronin</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:      #0F172A;
+  --panel:   #16213B;
+  --panel-2: #1C2A48;
+  --border:  rgba(255,255,255,.08);
+  --border-2:rgba(255,255,255,.14);
+  --text:    #E8E6E0;
+  --sub:     #8B93A6;
+  --faint:   #5B6478;
+  --teal:    #2563EB;
+  --gold:    #9A7840;
+  --green:   #4C9A5C;
+  --amber:   #D9A441;
+  --red:     #E0574A;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+  --sans: 'DM Sans', sans-serif;
+  --serif: 'Playfair Display', serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px}
+.app{display:grid;grid-template-columns:200px 1fr;height:100vh}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:4px}
+
+.sidebar{background:#0B1424;border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 0}
+.brand{padding:4px 18px 18px;border-bottom:1px solid var(--border);margin-bottom:8px}
+.brand-word{font-family:var(--serif);font-weight:600;font-size:17px;letter-spacing:.3px}
+.brand-word b{color:var(--teal)}
+.brand-sub{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.08em;margin-top:3px;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 18px;color:var(--sub);cursor:pointer;border-left:3px solid transparent;font-size:13px;transition:.12s}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,.03)}
+.nav-item.active{color:var(--text);border-left-color:var(--teal);background:rgba(37,99,235,.1)}
+.nav-icon{width:16px;text-align:center;font-size:13px;opacity:.85}
+.nav-badge{margin-left:auto;background:var(--red);color:#fff;font-family:var(--mono);font-size:9px;font-weight:600;border-radius:99px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.sidebar-foot{margin-top:auto;padding:14px 18px 4px;border-top:1px solid var(--border)}
+.live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);margin-right:6px;box-shadow:0 0 0 0 rgba(76,154,92,.6);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(76,154,92,.45)}70%{box-shadow:0 0 0 6px rgba(76,154,92,0)}100%{box-shadow:0 0 0 0 rgba(76,154,92,0)}}
+.foot-label{font-family:var(--mono);font-size:10px;color:var(--sub)}
+.gear{cursor:pointer;color:var(--faint);font-size:12px;margin-top:8px;display:inline-block}
+.gear:hover{color:var(--text)}
+
+.main{overflow-y:auto;padding:26px 34px 60px}
+.page-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:20px}
+.page-title{font-family:var(--serif);font-size:24px;font-weight:600}
+.page-sub{font-family:var(--mono);font-size:11px;color:var(--sub);margin-top:3px}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:26px}
+.tile{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:16px 18px}
+.tile-label{font-size:10.5px;color:var(--sub);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.tile-value{font-family:var(--mono);font-size:26px;font-weight:600}
+.tile-value.warn{color:var(--amber)}
+.tile-value.danger{color:var(--red)}
+.tile-value.ok{color:var(--green)}
+
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:6px;margin-bottom:20px;overflow:hidden}
+.panel-head{padding:12px 16px;border-bottom:1px solid var(--border);font-size:12.5px;font-weight:600;color:var(--sub);text-transform:uppercase;letter-spacing:.05em;display:flex;justify-content:space-between;align-items:center}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;padding:9px 16px;border-bottom:1px solid var(--border)}
+td{padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px}
+tr:last-child td{border-bottom:none}
+.mono{font-family:var(--mono)}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10.5px;font-family:var(--mono);font-weight:600}
+.pill.ok{background:rgba(76,154,92,.16);color:var(--green)}
+.pill.warn{background:rgba(217,164,65,.16);color:var(--amber)}
+.pill.danger{background:rgba(224,87,74,.16);color:var(--red)}
+.pill.info{background:rgba(37,99,235,.16);color:#7AA2F7}
+.pill.muted{background:rgba(255,255,255,.06);color:var(--sub)}
+
+.log{font-family:var(--mono);font-size:12px;line-height:1.6}
+.log-entry{display:flex;flex-wrap:wrap;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);border-left:3px solid var(--faint);align-items:center}
+.log-entry.approval{border-left-color:var(--amber)}
+.log-entry.completed{border-left-color:var(--green)}
+.log-entry.declined{border-left-color:var(--red)}
+.log-time{color:var(--faint);flex-shrink:0;width:130px}
+.log-dir{flex-shrink:0;width:118px;color:var(--sub)}
+.log-body{flex:1;color:var(--text);min-width:220px}
+.log-body .tag{color:var(--amber)}
+.log-note{color:var(--sub);font-size:11px;margin-top:2px}
+
+.btn{background:var(--teal);color:#fff;border:none;padding:8px 14px;border-radius:4px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--sans)}
+.btn:hover{filter:brightness(1.1)}
+.btn.ghost{background:transparent;border:1px solid var(--border-2);color:var(--text)}
+.btn.small{padding:5px 10px;font-size:11.5px}
+.btn.danger{background:var(--red)}
+input,select,textarea{background:var(--bg);border:1px solid var(--border-2);color:var(--text);padding:8px 10px;border-radius:4px;font-family:var(--sans);font-size:13px;width:100%}
+label{font-size:11px;color:var(--sub);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:5px}
+.field{margin-bottom:12px}
+.row{display:flex;gap:10px}
+.row > *{flex:1}
+
+.empty{padding:34px 16px;text-align:center;color:var(--faint);font-size:13px}
+.hidden{display:none !important}
+
+#settings-overlay,#request-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:200}
+#settings-overlay.show,#request-overlay.show{display:flex}
+.settings-card{background:var(--panel);border:1px solid var(--border-2);border-radius:8px;padding:26px;width:420px;max-width:92vw}
+.settings-title{font-family:var(--serif);font-size:19px;margin-bottom:4px}
+.settings-sub{font-size:12px;color:var(--sub);margin-bottom:18px}
+
+.hierarchy-note{font-family:var(--mono);font-size:10.5px;color:var(--faint);padding:10px 16px;border-top:1px solid var(--border)}
+
+/* ── Ronin floating launcher + widget (reachable from any tab) ── */
+#ronin-launcher{position:fixed;bottom:24px;right:24px;width:54px;height:54px;border-radius:50%;background:var(--teal);color:#fff;border:none;cursor:pointer;font-family:var(--serif);font-size:20px;box-shadow:0 6px 20px rgba(0,0,0,.4);z-index:150;display:flex;align-items:center;justify-content:center;transition:.15s}
+#ronin-launcher:hover{filter:brightness(1.1);transform:scale(1.04)}
+#ronin-launcher .launcher-badge{position:absolute;top:-3px;right:-3px;background:var(--red);color:#fff;font-family:var(--mono);font-size:9px;font-weight:600;border-radius:99px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--bg)}
+#ronin-widget{position:fixed;bottom:90px;right:24px;width:360px;max-width:calc(100vw - 32px);height:480px;max-height:calc(100vh - 130px);background:var(--panel);border:1px solid var(--border-2);border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.5);display:none;flex-direction:column;overflow:hidden;z-index:151}
+#ronin-widget.show{display:flex}
+.ronin-widget-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--panel-2)}
+.ronin-widget-title{font-family:var(--serif);font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+.ronin-widget-title .live-dot{margin-right:0}
+.ronin-widget-close{cursor:pointer;color:var(--faint);font-size:16px;background:none;border:none}
+.ronin-widget-close:hover{color:var(--text)}
+.ronin-widget-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.ronin-widget-foot{padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px}
+.ronin-widget-expand{font-family:var(--mono);font-size:10px;color:var(--sub);cursor:pointer}
+.ronin-widget-expand:hover{color:var(--text)}
+@media (max-width:820px){
+  #ronin-launcher{bottom:76px}
+  #ronin-widget{bottom:140px;right:12px}
+}
+
+@media (max-width:820px){
+  .app{grid-template-columns:1fr}
+  .sidebar{position:fixed;bottom:0;left:0;right:0;flex-direction:row;padding:6px 4px;z-index:100;overflow-x:auto}
+  .brand,.sidebar-foot{display:none}
+  .nav-item{flex-direction:column;gap:2px;padding:6px 10px;border-left:none;border-top:3px solid transparent;font-size:10px;white-space:nowrap}
+  .nav-item.active{border-top-color:var(--teal)}
+  .main{padding:18px 16px 90px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="sidebar">
+    <div class="brand">
+      <div class="brand-word">PP <b>Command</b></div>
+      <div class="brand-sub" id="org-name-label">loading…</div>
+    </div>
+    <div class="nav-item active" data-tab="overview"><span class="nav-icon">◆</span>Overview</div>
+    <div class="nav-item" data-tab="chat"><span class="nav-icon">◈</span>Chat with Ronin</div>
+    <div class="nav-item" data-tab="sites"><span class="nav-icon">▤</span>Sites</div>
+    <div class="nav-item" data-tab="messages"><span class="nav-icon">≡</span>Ronin log</div>
+    <div class="nav-item" data-tab="notifications"><span class="nav-icon">●</span>Notifications<span class="nav-badge hidden" id="notif-badge">0</span></div>
+    <div class="nav-item" data-tab="invoices"><span class="nav-icon">▧</span>Invoices</div>
+    <div class="nav-item" data-tab="email"><span class="nav-icon">✉</span>Email</div>
+    <div class="nav-item" data-tab="siteviewer"><span class="nav-icon">◎</span>Site viewer</div>
+    <div class="nav-item" data-tab="finance"><span class="nav-icon">$</span>Finance</div>
+    <div class="nav-item" data-tab="payroll"><span class="nav-icon">▣</span>Payroll</div>
+    <div class="sidebar-foot">
+      <div class="foot-label"><span class="live-dot" id="live-dot"></span><span id="live-label">storage ready</span></div>
+      <span class="gear" onclick="openSettings()">⚙ organisation settings</span>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- Overview -->
+    <section id="tab-overview">
+      <div class="page-head">
+        <div><div class="page-title">Overview</div><div class="page-sub" id="overview-sub">— sites reporting</div></div>
+        <button class="btn ghost" onclick="renderAll()">↻ Refresh</button>
+      </div>
+      <div class="tiles" id="overview-tiles"></div>
+      <div class="panel">
+        <div class="panel-head">Per-site snapshot</div>
+        <div id="overview-sites-table"></div>
+      </div>
+    </section>
+
+    <!-- Chat with Ronin -->
+    <section id="tab-chat" class="hidden">
+      <div class="page-head">
+        <div><div class="page-title">Chat with Ronin</div><div class="page-sub">grounded in this org's live report, messages, notifications and invoices — Ronin can act, not just answer</div></div>
+      </div>
+      <div class="panel" style="display:flex;flex-direction:column;height:calc(100vh - 210px)">
+        <div id="chat-messages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px"></div>
+        <div id="chat-typing" class="hidden" style="padding:0 16px 10px;font-family:var(--mono);font-size:11.5px;color:var(--sub)">Ronin is thinking…</div>
+        <div style="padding:12px 14px;border-top:1px solid var(--border);display:flex;gap:8px">
+          <input id="chat-input" placeholder="Ask Ronin about your sites…" onkeydown="if(event.key==='Enter')sendChatMessage()">
+          <button class="btn" onclick="sendChatMessage()">Send</button>
+        </div>
+        <div class="hierarchy-note">Gavin (per-site) → <b style="color:var(--text)">Ronin</b> (this org, PP Command) → Canopy (PP company-wide, across every org)</div>
+      </div>
+    </section>
+
+    <!-- Sites -->
+    <section id="tab-sites" class="hidden">
+      <div class="page-head"><div class="page-title">Sites</div></div>
+      <div class="panel">
+        <div class="panel-head">Link a cafe</div>
+        <div style="padding:16px">
+          <div class="page-sub" style="margin-bottom:12px">Each cafe's own Perpetual Pantries app already has its own identity. Generate a one-time code here and give it to that cafe — their app enters it and links itself in with its own venue ID. In this demo build (no live cafe app wired up yet), use "Simulate cafe linking" to act out what happens once a real cafe enters the code.</div>
+          <div class="field"><label>Site name (optional hint)</label><input id="link-name-hint" placeholder="e.g. Fitzroy — helps you recognise the code below"></div>
+          <button class="btn" onclick="generateLinkCode()">Generate link code</button>
+        </div>
+      </div>
+      <div id="new-link-code-panel" class="panel hidden">
+        <div class="panel-head">New link code</div>
+        <div style="padding:16px">
+          <div class="row">
+            <input id="new-link-code-value" readonly class="mono" style="font-size:18px;text-align:center;letter-spacing:2px">
+            <button class="btn ghost small" onclick="copyLinkCode()">Copy</button>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">Pending codes</div>
+        <div id="link-codes-table"></div>
+      </div>
+      <div class="panel"><div class="panel-head">Linked sites</div><div id="sites-table"></div></div>
+    </section>
+
+    <!-- Messages / Ronin log -->
+    <section id="tab-messages" class="hidden">
+      <div class="page-head">
+        <div><div class="page-title">Ronin log</div><div class="page-sub">every request Ronin sends a site's Gavin, and every response</div></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn ghost" onclick="openCoordinateRequest()">⇄ Coordinate sites</button>
+          <button class="btn" onclick="openSendRequest()">+ Send request</button>
+        </div>
+      </div>
+      <div class="panel" id="canopy-requests-panel"><div class="panel-head">Requests from Perpetual Pantries (Canopy) — need your approval</div><div id="canopy-requests-list"></div></div>
+      <div class="panel"><div class="log" id="messages-log"></div></div>
+    </section>
+
+    <!-- Notifications -->
+    <section id="tab-notifications" class="hidden">
+      <div class="page-head"><div class="page-title">Notifications</div></div>
+      <div class="panel"><div id="notifications-list"></div></div>
+    </section>
+
+    <!-- Invoices -->
+    <section id="tab-invoices" class="hidden">
+      <div class="page-head"><div class="page-title">Invoices &amp; delivery dockets</div></div>
+      <div class="panel"><div id="invoices-table"></div></div>
+    </section>
+
+    <!-- Email -->
+    <section id="tab-email" class="hidden">
+      <div class="page-head"><div class="page-title">Email connections</div></div>
+      <div class="panel">
+        <div class="panel-head">Connect a site's inbox</div>
+        <div style="padding:16px">
+          <div class="row">
+            <div class="field"><label>Site</label><select id="email-connect-site"></select></div>
+            <div class="field"><label>Provider</label>
+              <select id="email-connect-provider">
+                <option value="gmail">Gmail / Google Workspace</option>
+                <option value="outlook">Outlook / Microsoft 365</option>
+                <option value="imap">Other (IMAP)</option>
+                <option value="mock">Mock (demo/testing)</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn" onclick="connectEmail()">Connect</button>
+          <div class="page-sub" style="margin-top:10px">In this demo build, "Connect" simulates a successful OAuth/IMAP handshake instantly — no real inbox is touched.</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">Connections</div>
+        <div id="email-table"></div>
+      </div>
+    </section>
+
+    <!-- Site viewer -->
+    <section id="tab-siteviewer" class="hidden">
+      <div class="page-head">
+        <div><div class="page-title">Site viewer</div><div class="page-sub">read-only mirror of a cafe's own Perpetual Pantries data — Command cannot write anything back to it</div></div>
+      </div>
+      <div class="panel">
+        <div style="padding:16px">
+          <div class="row">
+            <div class="field"><label>Site</label><select id="viewer-site-select"></select></div>
+          </div>
+          <button class="btn" onclick="loadSiteViewer()">Load</button>
+        </div>
+      </div>
+      <div id="viewer-content"></div>
+    </section>
+
+    <!-- Finance -->
+    <section id="tab-finance" class="hidden">
+      <div class="page-head"><div class="page-title">Finance</div></div>
+      <div class="tiles" id="finance-tiles"></div>
+      <div class="panel">
+        <div class="panel-head">Per-site totals</div>
+        <div id="finance-table"></div>
+      </div>
+    </section>
+
+    <!-- Payroll -->
+    <section id="tab-payroll" class="hidden">
+      <div class="page-head">
+        <div><div class="page-title">Payroll</div><div class="page-sub">one employing entity, one pay run across every site — centralised here rather than run per-venue</div></div>
+        <button class="btn" onclick="runPayroll()">Run payroll for this period</button>
+      </div>
+      <div class="panel" style="border-color:var(--amber)">
+        <div class="panel-head" style="color:var(--amber)">Prototype figures only</div>
+        <div style="padding:14px 16px" class="page-sub">PAYG and super shown here are a flat-rate estimate for wiring up the data flow — not a compliant STP2/PAYG calculation. Real rates, thresholds and ABA export stay in the per-venue PPpayroll engine until this is properly built out.</div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">Employing entity</div>
+        <div style="padding:16px">
+          <div class="row">
+            <div class="field"><label>Entity name</label><input id="payroll-entity-name" placeholder="e.g. Demo Café Group Pty Ltd"></div>
+            <div class="field"><label>ABN</label><input id="payroll-entity-abn" placeholder="11 digit ABN"></div>
+          </div>
+          <button class="btn ghost small" onclick="savePayrollEntity()">Save</button>
+        </div>
+      </div>
+      <div class="tiles" id="payroll-tiles"></div>
+      <div class="panel">
+        <div class="panel-head">Staff across all sites (this period)</div>
+        <div id="payroll-staff-table"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">Pay run history</div>
+        <div id="payroll-runs-table"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- Ronin floating launcher (reachable from every tab) -->
+<button id="ronin-launcher" onclick="toggleRoninWidget()" title="Chat with Ronin">◈<span class="launcher-badge hidden" id="ronin-launcher-badge">0</span></button>
+<div id="ronin-widget">
+  <div class="ronin-widget-head">
+    <div class="ronin-widget-title"><span class="live-dot"></span>Ronin</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="ronin-widget-expand" onclick="expandRoninWidget()">open full view</span>
+      <button class="ronin-widget-close" onclick="toggleRoninWidget()">✕</button>
+    </div>
+  </div>
+  <div class="ronin-widget-body" id="ronin-widget-messages"></div>
+  <div id="ronin-widget-typing" class="hidden" style="padding:0 14px 8px;font-family:var(--mono);font-size:11px;color:var(--sub)">Ronin is thinking…</div>
+  <div class="ronin-widget-foot">
+    <input id="ronin-widget-input" placeholder="Ask Ronin…" onkeydown="if(event.key==='Enter')sendChatMessage('widget')">
+    <button class="btn small" onclick="sendChatMessage('widget')">Send</button>
+  </div>
+</div>
+
+<!-- Settings overlay -->
+<div id="request-overlay">
+  <div class="settings-card">
+    <div class="settings-title" id="req-title">Send request</div>
+    <input type="hidden" id="req-mode" value="send">
+    <div class="field"><label>Site</label><select id="req-site-a"></select></div>
+    <div class="field hidden" id="req-site-b-wrap"><label>Other site</label><select id="req-site-b"></select></div>
+    <div class="field" id="req-intent-wrap"><label>Intent (short, e.g. check_par_levels_for_promo)</label><input id="req-intent" placeholder="check_par_levels_for_promo"></div>
+    <div class="field"><label>Describe the request</label><input id="req-note" placeholder="One plain-English sentence"></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="req-approval" checked> Requires the site manager's approval before Gavin acts</label><div class="page-sub" style="margin-top:4px">Anything touching stock, orders, pricing, staffing or money is gated automatically even if unticked.</div></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn ghost" onclick="closeRequestModal()">Cancel</button>
+      <button class="btn" onclick="submitRequestModal()">Send</button>
+    </div>
+  </div>
+</div>
+<div id="settings-overlay">
+  <div class="settings-card">
+    <div class="settings-title">Organisation settings</div>
+    <div class="settings-sub">This build stores everything locally for one organisation — no separate server to point at.</div>
+    <div class="field"><label>Organisation name</label><input id="set-orgname" placeholder="e.g. Fitzroy Coffee Group"></div>
+    <div class="field"><label>PP server URL</label><input id="set-server-url" placeholder="https://api.perpetualpantries.example" autocomplete="off"></div>
+    <div class="field"><label>Org API key (from PPcanopy, shown once when the client was created)</label><input id="set-org-key" type="password" placeholder="ppo_…" autocomplete="off"></div>
+    <div class="field"><label>Anthropic API key (Ronin)</label><input id="set-apikey" type="password" placeholder="sk-ant-… — not needed inside a claude.ai artifact" autocomplete="off"></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="set-demomode"> Demo mode (allows simulated linking and fabricated inbox results)</label></div>
+    <div class="page-sub" id="set-storage-note" style="margin-bottom:4px"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn ghost" onclick="closeSettings()">Cancel</button>
+      <button class="btn" onclick="saveSettings()">Save</button>
+    </div>
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+      <div class="page-sub" style="margin-bottom:8px">Wipe everything and reload the starter demo data.</div>
+      <button class="btn danger" style="width:100%" onclick="resetDemoData()">Reset demo data</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+// Storage layer — one org's worth of PP Command state, persisted via
+// window.storage. Replaces the mocked-up /command/... backend calls from
+// the original static prototype.
+// ══════════════════════════════════════════════════════════════════════════
+const STATE_KEY = 'ppcommand_state_v1';
+
+// ── PP backend client. When a server URL + org key are set (Settings), all org data comes from and
+// goes to the backend; STATE becomes a cache of the last server response. Without them the console
+// runs standalone/demo exactly as before.
+const SERVER = {
+  url(){ try { return (localStorage.getItem('ppcommand_api_url') || '').replace(/\/+$/, ''); } catch(e){ return ''; } },
+  key(){ try { return localStorage.getItem('ppcommand_org_key') || ''; } catch(e){ return ''; } },
+  on(){ return !!(this.url() && this.key()); },
+  async req(method, path, body){
+    const r = await fetch(this.url() + path, { method, headers: { 'Content-Type': 'application/json', 'X-Org-Key': this.key() }, body: body ? JSON.stringify(body) : undefined });
+    const data = await r.json().catch(() => ({}));
+    if (r.status === 401) { toastMsg('PP server rejected the org key — check Settings.'); }
+    return { ok: r.ok, status: r.status, data };
+  },
+  async load(){
+    const [org, sites, msgs, notifs, canopy, labour] = await Promise.all([
+      this.req('GET', '/api/org'), this.req('GET', '/api/org/sites'), this.req('GET', '/api/org/messages?limit=300'),
+      this.req('GET', '/api/org/notifications'), this.req('GET', '/api/org/canopy-requests'), this.req('GET', '/api/org/labour'),
+    ]);
+    if (!org.ok) throw new Error(org.data.error || 'server error');
+    const prev = STATE || {};
+    STATE = {
+      orgName: org.data.name, orgId: org.data.id, serverMode: true, demoMode: false,
+      sites: sites.data.sites || [],
+      linkCodes: (await this.req('GET', '/api/org/link-codes')).data.codes || [],
+      messages: (msgs.data.messages || []).map(m => ({ ...m, direction: m.direction, created_at: m.created_at })),
+      notifications: notifs.data.notifications || [],
+      canopyRequests: canopy.data.requests || [],
+      labour: labour.data,
+      invoices: prev.invoices || [], emailConnections: prev.emailConnections || [], financeEntries: prev.financeEntries || {},
+      payroll: prev.payroll || { entity: { name: org.data.name, abn: '' }, payRuns: [] },
+      chat: prev.chat || [],
+    };
+  },
+};
+async function refreshFromServer(){ if (!SERVER.on()) return; try { await SERVER.load(); await saveState(true); renderAll(true); } catch(e){ toastMsg('Server refresh failed: ' + e.message); } }
+let STATE = null;
+let saveTimer = null;
+
+// Storage adapter — claude.ai artifact storage when present, otherwise
+// localStorage (hosted / file://), otherwise in-memory for the session.
+const _memStore = {};
+const STORE = {
+  backend: (typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function') ? 'artifact'
+          : (function(){ try { localStorage.setItem('__pp_t','1'); localStorage.removeItem('__pp_t'); return 'local'; } catch(e){ return 'memory'; } })(),
+  async get(key){
+    if (this.backend === 'artifact') { const r = await window.storage.get(key, false); return r ? r.value : null; }
+    if (this.backend === 'local') return localStorage.getItem(key);
+    return _memStore[key] ?? null;
+  },
+  async set(key, value){
+    if (this.backend === 'artifact') return window.storage.set(key, value, false);
+    if (this.backend === 'local') return localStorage.setItem(key, value);
+    _memStore[key] = value;
+  },
+};
+
+// Demo mode — when on, "Simulate cafe linking" and inbox sync may fabricate
+// data. Off by default for anything but the seeded demo org.
+function isDemoMode(){ return !!(STATE && STATE.demoMode); }
+
+function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2, 9); }
+function nowIso(){ return new Date().toISOString(); }
+
+function seedState(){
+  const fitzroyId = uid('site');
+  const brunswickId = uid('site');
+  const state = {
+    orgName: 'Demo Café Group',
+    sites: [
+      {
+        id: fitzroyId, name: 'Fitzroy', venue_id: 'venue_8841', linked_at: nowIso(),
+        // Snapshot shape = what PP's PP_API.pushSnapshot() actually promotes.
+        snapshot: { revenue_week: 18420, gp_pct: 64, labour_pct: 29, covers_week: 1240, open_orders: 2, stock_out: 1, stock_low: 3, stock_out_items: ['Oat milk 1L'], stock_low_items: ['Espresso beans 1kg','Almond croissant (frozen)','Sourdough loaf'], stock_value: 6120, loyalty: { total_members: 84, active_members: 31 }, received_at: nowIso() },
+        // ocData = only what a site deliberately promotes to Command (menu items). Never inventory, recipes, suppliers or staff.
+        ocData: {
+          oc_menu_data: [ {name:'Flat White', sellingPrice:5.0, category:'Coffee'}, {name:'Almond Croissant', sellingPrice:6.5, category:'Food'}, {name:'Oat Latte', sellingPrice:5.5, category:'Coffee'} ],
+        },
+        // sharedPayroll = staff hours/rates the site has explicitly opted to share for org-level payroll. Off unless the site enables it in PP.
+        sharedPayroll: [
+          { name:'J. Nguyen', role:'Manager', hourly_rate_cents: 3400, hours_this_period: 76 },
+          { name:'R. Costa', role:'Barista', hourly_rate_cents: 2800, hours_this_period: 62 },
+        ],
+      },
+      {
+        id: brunswickId, name: 'Brunswick', venue_id: 'venue_2290', linked_at: nowIso(),
+        snapshot: { revenue_week: 14980, gp_pct: 61, labour_pct: 33, covers_week: 980, open_orders: 1, stock_out: 0, stock_low: 1, stock_out_items: [], stock_low_items: ['Sourdough loaf'], stock_value: 4870, loyalty: { total_members: 52, active_members: 19 }, received_at: nowIso() },
+        ocData: {
+          oc_menu_data: [ {name:'Flat White', sellingPrice:5.0, category:'Coffee'}, {name:'Sourdough Toast', sellingPrice:9.0, category:'Food'} ],
+        },
+        sharedPayroll: [
+          { name:'P. Alvarez', role:'Manager', hourly_rate_cents: 3600, hours_this_period: 80 },
+          { name:'S. Kim', role:'Barista', hourly_rate_cents: 2750, hours_this_period: 58 },
+        ],
+      },
+    ],
+    linkCodes: [],
+    messages: [
+      { id: uid('msg'), site_id: fitzroyId, direction: 'gavin_to_ronin', intent: 'weekly_report', requires_manager_approval: false, status: 'completed', note: 'Weekly snapshot pushed automatically.', created_at: nowIso() },
+    ],
+    notifications: [
+      { id: uid('notif'), type: 'task_done', subject: 'Fitzroy weekly report received', body: 'Revenue $18,420, GP 64%.', status: 'unread', created_at: nowIso() },
+    ],
+    invoices: [
+      { id: uid('inv'), supplier_name: 'Bean & Co Roasters', site_id: fitzroyId, doc_type: 'invoice', amount_cents: 42000, status: 'pending_review', received_at: nowIso() },
+      { id: uid('inv'), supplier_name: 'Metro Dairy', site_id: brunswickId, doc_type: 'delivery_docket', amount_cents: null, status: 'matched', received_at: nowIso() },
+    ],
+    emailConnections: [
+      { id: uid('email'), site_id: fitzroyId, site_name: 'Fitzroy', provider: 'gmail', external_account_email: 'orders@fitzroycafe.example', status: 'connected', last_synced_at: nowIso() },
+    ],
+    // Manual placeholders until PP Pay data flows up — labelled as such in the Finance tab.
+    financeEntries: { [fitzroyId]: 214000, [brunswickId]: 168500 },
+    demoMode: true,
+    payroll: {
+      entity: { name: 'Demo Café Group Pty Ltd', abn: '' },
+      payRuns: [],
+    },
+    chat: [],
+  };
+  return state;
+}
+
+async function loadState(){
+  try {
+    const r = await STORE.get(STATE_KEY);
+    STATE = r ? JSON.parse(r) : seedState();
+  } catch (e) {
+    STATE = seedState();
+  }
+  if (SERVER.on()) { try { await SERVER.load(); } catch(e){ console.warn('server load failed, using cache', e); STATE.serverMode = true; } }
+  else STATE.serverMode = false;
+  if (!STATE.chat) STATE.chat = [];
+  if (!STATE.payroll) STATE.payroll = { entity: { name: STATE.orgName || 'Untitled entity', abn: '' }, payRuns: [] };
+  if (STATE.demoMode === undefined) STATE.demoMode = STATE.orgName === 'Demo Café Group';
+  // Migrate any pre-boundary state: move staff out of ocData into the
+  // explicitly promoted sharedPayroll block, drop inventory/suppliers.
+  STATE.sites.forEach(site => {
+    if (site.ocData) {
+      if (site.ocData.oc_staff && !site.sharedPayroll) site.sharedPayroll = site.ocData.oc_staff;
+      site.ocData = { oc_menu_data: (site.ocData.oc_menu_data || []).map(m => ({ name: m.name, sellingPrice: m.sellingPrice ?? m.price ?? 0, category: m.category || '' })) };
+    }
+  });
+  await saveState(true);
+}
+
+async function saveState(immediate){
+  clearTimeout(saveTimer);
+  const doSave = async () => {
+    try { capState(); await STORE.set(STATE_KEY, JSON.stringify(STATE)); }
+    catch (e) { console.error('Storage save failed (' + STORE.backend + ')', e); }
+  };
+  if (immediate) { await doSave(); return; }
+  saveTimer = setTimeout(doSave, 250);
+}
+
+// Keep the single JSON blob bounded (item 15 in the audit).
+function capState(){
+  if (STATE.notifications.length > 500) STATE.notifications = STATE.notifications.slice(0, 500);
+  if (STATE.messages.length > 1000) STATE.messages = STATE.messages.slice(-1000);
+  if (STATE.chat.length > 200) STATE.chat = STATE.chat.slice(-200);
+}
+
+async function resetDemoData(){
+  if (!confirm('This wipes all current Ronin data for this org and reloads the starter demo. Continue?')) return;
+  STATE = seedState();
+  await saveState(true);
+  closeSettings();
+  renderAll();
+}
+
+// ── Settings ─────────────────────────────────────────────────────────────
+function openSettings(){
+  document.getElementById('set-orgname').value = STATE.orgName || '';
+  document.getElementById('set-apikey').value = getRoninKey() ? 'sk-ant-…(saved)' : '';
+  document.getElementById('set-server-url').value = SERVER.url();
+  document.getElementById('set-org-key').value = SERVER.key() ? '(saved)' : '';
+  document.getElementById('set-demomode').checked = !!STATE.demoMode;
+  document.getElementById('set-storage-note').textContent = (SERVER.on() ? 'Server mode · ' : 'Standalone · ') + 'Storage: ' + (STORE.backend === 'artifact' ? 'claude.ai artifact' : STORE.backend === 'local' ? 'this browser (localStorage)' : 'memory only — nothing persists');
+  document.getElementById('settings-overlay').classList.add('show');
+}
+function closeSettings(){ document.getElementById('settings-overlay').classList.remove('show'); }
+async function saveSettings(){
+  STATE.orgName = document.getElementById('set-orgname').value.trim() || 'Untitled organisation';
+  STATE.demoMode = document.getElementById('set-demomode').checked;
+  const k = document.getElementById('set-apikey').value.trim();
+  if (k && !k.includes('(saved)')) { try { localStorage.setItem('ppcommand_api_key', k); } catch(e){} }
+  if (!k) { try { localStorage.removeItem('ppcommand_api_key'); } catch(e){} }
+  const su = document.getElementById('set-server-url').value.trim(); const ok = document.getElementById('set-org-key').value.trim();
+  try { su ? localStorage.setItem('ppcommand_api_url', su.replace(/\/+$/, '')) : localStorage.removeItem('ppcommand_api_url'); } catch(e){}
+  if (ok && ok !== '(saved)') { try { localStorage.setItem('ppcommand_org_key', ok); } catch(e){} }
+  if (!ok) { try { localStorage.removeItem('ppcommand_org_key'); } catch(e){} }
+  if (SERVER.on()) { try { await SERVER.load(); toastMsg('Connected to PP server as ' + STATE.orgName); } catch(e){ toastMsg('Could not reach server: ' + e.message); } }
+  await saveState(true);
+  closeSettings();
+  renderAll();
+}
+
+// ── Nav ──────────────────────────────────────────────────────────────────
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.main section').forEach(s => s.classList.add('hidden'));
+    document.getElementById('tab-' + el.dataset.tab).classList.remove('hidden');
+    if (el.dataset.tab === 'siteviewer') populateViewerSiteSelect();
+    if (el.dataset.tab === 'email') populateEmailSiteSelect();
+  });
+});
+
+function fmtMoney(cents){ return '$' + ((cents||0)/100).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}); }
+function fmtTime(t){ return t ? t.replace('T',' ').slice(0,16) : '—'; }
+function escapeHtml(s){ const d=document.createElement('div'); d.textContent = s==null?'':String(s); return d.innerHTML; }
+function siteName(id){ return (STATE.sites.find(s=>s.id===id)||{}).name || 'unknown site'; }
+
+// ══════════════════════════════════════════════════════════════════════════
+// Overview
+// ══════════════════════════════════════════════════════════════════════════
+function computeOrgTotals(){
+  const sites = STATE.sites;
+  const reporting = sites.filter(s => s.snapshot);
+  const n = reporting.length || 1;
+  // GP% and labour% are revenue-weighted so a large site counts for more than a small one.
+  const totals = reporting.reduce((acc, s) => {
+    const sn = s.snapshot, rev = sn.revenue_week || 0;
+    acc.revenue_week += rev;
+    acc.gp_w += (sn.gp_pct || 0) * rev;      acc.gp_sum += (sn.gp_pct || 0);
+    acc.labour_w += (sn.labour_pct || 0) * rev; acc.labour_sum += (sn.labour_pct || 0);
+    acc.covers_week += sn.covers_week || 0;
+    acc.stock_out += sn.stock_out || 0;
+    acc.stock_low += sn.stock_low || 0;
+    acc.stock_value += sn.stock_value || 0;
+    acc.loyalty_members += (sn.loyalty && sn.loyalty.total_members) || 0;
+    acc.open_orders += sn.open_orders || 0;
+    return acc;
+  }, { revenue_week:0, gp_w:0, gp_sum:0, labour_w:0, labour_sum:0, covers_week:0, stock_out:0, stock_low:0, stock_value:0, loyalty_members:0, open_orders:0 });
+  const R = totals.revenue_week;
+  return {
+    site_count: sites.length,
+    reporting_sites: reporting.length,
+    totals: {
+      revenue_week: R,
+      avg_gp_pct: Math.round(R > 0 ? totals.gp_w / R : totals.gp_sum / n),
+      avg_labour_pct: Math.round(R > 0 ? totals.labour_w / R : totals.labour_sum / n),
+      covers_week: totals.covers_week,
+      stock_out: totals.stock_out,
+      stock_low: totals.stock_low,
+      stock_value: totals.stock_value,
+      loyalty_members: totals.loyalty_members,
+      open_orders: totals.open_orders,
+    },
+  };
+}
+
+function renderOverview(){
+  const report = computeOrgTotals();
+  document.getElementById('overview-sub').textContent = `${report.reporting_sites} of ${report.site_count} sites reporting`;
+  const t = report.totals;
+  document.getElementById('overview-tiles').innerHTML = `
+    <div class="tile"><div class="tile-label">Revenue (7d)</div><div class="tile-value">${fmtMoney(t.revenue_week*100)}</div></div>
+    <div class="tile"><div class="tile-label">Avg GP%</div><div class="tile-value ${t.avg_gp_pct<60?'warn':'ok'}">${t.avg_gp_pct}%</div></div>
+    <div class="tile"><div class="tile-label">Avg labour%</div><div class="tile-value ${t.avg_labour_pct>32?'warn':'ok'}">${t.avg_labour_pct}%</div></div>
+    <div class="tile"><div class="tile-label">Stock out</div><div class="tile-value ${t.stock_out>0?'danger':'ok'}">${t.stock_out}</div></div>
+    <div class="tile"><div class="tile-label">Stock low</div><div class="tile-value ${t.stock_low>0?'warn':'ok'}">${t.stock_low}</div></div>
+    <div class="tile"><div class="tile-label">Covers (7d)</div><div class="tile-value">${(t.covers_week||0).toLocaleString()}</div></div>
+    <div class="tile"><div class="tile-label">Stock value</div><div class="tile-value">${fmtMoney((t.stock_value||0)*100)}</div></div>
+    <div class="tile"><div class="tile-label">Loyalty members</div><div class="tile-value">${t.loyalty_members||0}</div></div>
+    <div class="tile"><div class="tile-label">Open orders</div><div class="tile-value">${t.open_orders||0}</div></div>
+  `;
+  const rows = STATE.sites.map(s => {
+    if (!s.snapshot) return `<tr><td>${escapeHtml(s.name)}</td><td colspan="5" class="mono" style="color:var(--faint)">no snapshot pushed yet</td></tr>`;
+    const sn = s.snapshot;
+    return `<tr>
+      <td>${escapeHtml(s.name)}</td>
+      <td class="mono">${fmtMoney(sn.revenue_week*100)}</td>
+      <td class="mono">${sn.gp_pct}%</td>
+      <td class="mono">${sn.labour_pct}%</td>
+      <td>${sn.stock_out>0?`<span class="pill danger" title="${escapeHtml((sn.stock_out_items||[]).join(', '))}">${sn.stock_out} out</span>`:'<span class="pill ok">ok</span>'}${sn.stock_low>0?` <span class="pill warn" title="${escapeHtml((sn.stock_low_items||[]).join(', '))}">${sn.stock_low} low</span>`:''}</td>
+      <td class="mono" style="color:var(--faint)">${fmtTime(sn.received_at)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('overview-sites-table').innerHTML = STATE.sites.length
+    ? `<table><tr><th>Site</th><th>Revenue</th><th>GP%</th><th>Labour%</th><th>Stock</th><th>Last snapshot</th></tr>${rows}</table>`
+    : `<div class="empty">No sites yet.</div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Sites / link codes
+// ══════════════════════════════════════════════════════════════════════════
+function renderSites(){
+  document.getElementById('sites-table').innerHTML = STATE.sites.length
+    ? `<table><tr><th>Name</th><th>Venue ID (cafe's own)</th><th>Linked</th></tr>${STATE.sites.map(s=>`<tr><td>${escapeHtml(s.name)}</td><td class="mono">${escapeHtml(s.venue_id)}</td><td class="mono" style="color:var(--faint)">${fmtTime(s.linked_at)}</td></tr>`).join('')}</table>`
+    : `<div class="empty">No sites linked yet — generate a link code above and give it to a cafe.</div>`;
+  STATE.linkCodes.forEach(c => { if (c.status === 'pending' && !linkCodeIsLive(c)) c.status = 'expired'; });
+  const pending = STATE.linkCodes.filter(c => c.status === 'pending');
+  document.getElementById('link-codes-table').innerHTML = pending.length
+    ? `<table><tr><th>Code</th><th>Hint</th><th>Created</th><th>Expires</th><th></th></tr>${pending.map(c=>`<tr>
+        <td class="mono">${c.code}</td>
+        <td>${escapeHtml(c.hint||'—')}</td>
+        <td class="mono" style="color:var(--faint)">${fmtTime(c.created_at)}</td>
+        <td class="mono" style="color:var(--faint)">${fmtTime(c.expires_at)}</td>
+        <td style="display:flex;gap:6px">
+          ${isDemoMode() ? `<button class="btn small" onclick="simulateLinking('${c.id}')">Simulate cafe linking</button>` : ''}
+          <button class="btn small ghost" onclick="revokeLinkCode('${c.id}')">Revoke</button>
+        </td>
+      </tr>`).join('')}</table>`
+    : `<div class="empty">No pending codes.</div>`;
+}
+
+async function generateLinkCode(){
+  const hint = document.getElementById('link-name-hint').value.trim();
+  if (SERVER.on()) {
+    const r = await SERVER.req('POST', '/api/org/link-codes', { hint });
+    if (!r.ok) return toastMsg('Could not create code: ' + (r.data.error || r.status));
+    document.getElementById('link-name-hint').value = '';
+    document.getElementById('new-link-code-panel').classList.remove('hidden');
+    document.getElementById('new-link-code-value').value = r.data.code;
+    await refreshFromServer(); return;
+  }
+  const code = secureCode(8);
+  STATE.linkCodes.push({ id: uid('code'), code, hint, status: 'pending', created_at: nowIso(), expires_at: new Date(Date.now() + 24*3600*1000).toISOString() });
+  await saveState(true);
+  document.getElementById('link-name-hint').value = '';
+  document.getElementById('new-link-code-panel').classList.remove('hidden');
+  document.getElementById('new-link-code-value').value = code;
+  renderSites();
+}
+function copyLinkCode(){
+  const el = document.getElementById('new-link-code-value');
+  el.select();
+  navigator.clipboard?.writeText(el.value);
+}
+async function revokeLinkCode(id){
+  if (SERVER.on()) { await SERVER.req('DELETE', '/api/org/link-codes/' + id); return refreshFromServer(); }
+  STATE.linkCodes = STATE.linkCodes.filter(c => c.id !== id);
+  await saveState(true);
+  renderSites();
+}
+function secureCode(len){
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
+  const buf = new Uint8Array(len);
+  (window.crypto || window.msCrypto).getRandomValues(buf);
+  return Array.from(buf, b => alphabet[b % alphabet.length]).join('');
+}
+function linkCodeIsLive(c){ return c.status === 'pending' && (!c.expires_at || new Date(c.expires_at) > new Date()); }
+
+// ── PP ↔ Command linking contract ─────────────────────────────────────────
+// A café's PP app calls the backend with { code, venue: { venue_id, cafe_name, ... } }.
+// The backend validates the code (pending, unexpired, single-use), creates the
+// site, marks the code used, and returns { token, site_id, org_name }. This is
+// the client-side equivalent for a local/artifact build. PP's PP_API.authenticate()
+// should be pointed at the same endpoint once the backend exists.
+async function redeemLinkCode(code, venue){
+  const c = STATE.linkCodes.find(x => x.code === String(code || '').trim().toUpperCase());
+  if (!c) return { ok: false, error: 'unknown code' };
+  if (!linkCodeIsLive(c)) return { ok: false, error: c.status === 'used' ? 'code already used' : 'code expired' };
+  if (!venue || !venue.venue_id) return { ok: false, error: 'venue_id required' };
+  if (STATE.sites.some(s => s.venue_id === venue.venue_id)) return { ok: false, error: 'venue already linked' };
+  const site = {
+    id: uid('site'), name: venue.cafe_name || c.hint || 'New site', venue_id: venue.venue_id, linked_at: nowIso(),
+    snapshot: null, ocData: { oc_menu_data: [] }, sharedPayroll: [],
+  };
+  STATE.sites.push(site);
+  c.status = 'used'; c.used_at = nowIso(); c.site_id = site.id;
+  await saveState(true);
+  return { ok: true, site_id: site.id, org_name: STATE.orgName };
+}
+
+// Accept a snapshot from a site's PP app — same payload PP_API.pushSnapshot() sends.
+async function receiveSnapshot(venue_id, snapshot){
+  const site = STATE.sites.find(s => s.venue_id === venue_id);
+  if (!site) return { ok: false, error: 'venue not linked' };
+  site.snapshot = { ...snapshot, received_at: nowIso() };
+  if (Array.isArray(snapshot.menu_items)) site.ocData.oc_menu_data = snapshot.menu_items.map(m => ({ name: m.name, sellingPrice: m.sellingPrice ?? m.price ?? 0, category: m.category || '' }));
+  if (Array.isArray(snapshot.shared_payroll)) site.sharedPayroll = snapshot.shared_payroll;
+  STATE.notifications.unshift({ id: uid('notif'), type: 'task_done', subject: `${site.name} snapshot received`, body: `Revenue ${fmtMoney((snapshot.revenue_week||0)*100)}, GP ${snapshot.gp_pct||0}%.`, status: 'unread', created_at: nowIso() });
+  await saveState(true);
+  return { ok: true };
+}
+
+// Demo-only: act out a café redeeming the code, with fabricated figures.
+async function simulateLinking(codeId){
+  if (!isDemoMode()) return alert('Simulated linking is only available in demo mode (Settings).');
+  const code = STATE.linkCodes.find(c => c.id === codeId);
+  if (!code) return;
+  const name = code.hint || 'New site';
+  const r = await redeemLinkCode(code.code, { venue_id: 'venue_' + Math.floor(1000+Math.random()*8999), cafe_name: name });
+  if (!r.ok) return alert('Link failed: ' + r.error);
+  await receiveSnapshot(STATE.sites.find(s => s.id === r.site_id).venue_id, {
+    revenue_week: Math.round(8000 + Math.random()*15000),
+    gp_pct: Math.round(55 + Math.random()*15),
+    labour_pct: Math.round(24 + Math.random()*14),
+    covers_week: Math.round(500 + Math.random()*900),
+    stock_out: Math.random()<0.3 ? 1 : 0, stock_low: Math.round(Math.random()*4),
+    stock_out_items: [], stock_low_items: [], stock_value: Math.round(3000 + Math.random()*5000),
+    loyalty: { total_members: Math.round(Math.random()*80), active_members: Math.round(Math.random()*30) },
+    menu_items: [ {name:'Flat White', sellingPrice:5.0, category:'Coffee'} ],
+    shared_payroll: [ { name:'New manager', role:'Manager', hourly_rate_cents: 3300, hours_this_period: Math.round(40+Math.random()*40) } ],
+  });
+  renderAll();
+  toastMsg(`${name} linked (demo).`);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Ronin log (Ronin ↔ Gavin messages)
+// ══════════════════════════════════════════════════════════════════════════
+function coordSiblingSiteName(m){
+  if (!m.coordination_id) return null;
+  const sibling = STATE.messages.find(x => x.coordination_id === m.coordination_id && x.id !== m.id && x.direction === 'ronin_to_gavin');
+  return sibling ? siteName(sibling.site_id) : null;
+}
+
+function renderCanopyRequests(){
+  const el = document.getElementById('canopy-requests-list'); if (!el) return;
+  const list = STATE.canopyRequests || [];
+  el.innerHTML = list.length ? `<table><tr><th>Request</th><th>Status</th><th>When</th><th></th></tr>${list.map(r => `<tr>
+      <td>${escapeHtml(r.request_text)}${r.response_text ? `<div class="page-sub" style="margin-top:2px">Reply: ${escapeHtml(r.response_text)}</div>` : ''}</td>
+      <td><span class="pill ${r.status==='awaiting_approval'?'warn':r.status==='declined'?'danger':'ok'}">${escapeHtml(r.status)}</span></td>
+      <td class="mono" style="color:var(--faint)">${fmtTime(r.created_at)}</td>
+      <td>${r.status==='awaiting_approval' ? `<div style="display:flex;gap:6px"><button class="btn small" onclick="respondCanopy('${r.id}','approved')">Approve</button><button class="btn small ghost" onclick="respondCanopy('${r.id}','answered')">Answer…</button><button class="btn small ghost" onclick="respondCanopy('${r.id}','declined')">Decline</button></div>` : ''}</td>
+    </tr>`).join('')}</table>` : `<div class="empty">No requests from Canopy.</div>`;
+}
+async function respondCanopy(id, status){
+  let text;
+  if (status === 'answered') { text = prompt('Reply to Perpetual Pantries:'); if (text === null) return; }
+  if (!SERVER.on()) return toastMsg('Server mode required.');
+  const r = await SERVER.req('POST', '/api/org/canopy-requests/' + id + '/respond', { status, response_text: text });
+  toastMsg(r.ok ? 'Recorded.' : (r.data.error || 'Failed'));
+  refreshFromServer();
+}
+function renderMessages(){
+  renderCanopyRequests();
+  const list = [...STATE.messages].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+  document.getElementById('messages-log').innerHTML = list.length
+    ? list.map(m => {
+        const cls = m.status === 'awaiting_approval' ? 'approval'
+                  : m.status === 'completed' ? 'completed'
+                  : m.status === 'declined' ? 'declined' : '';
+        const dir = m.direction === 'ronin_to_gavin' ? 'ronin → gavin' : 'gavin → ronin';
+        const actions = m.status === 'awaiting_approval'
+          ? `<div style="display:flex;gap:6px;margin-top:6px">
+              ${(STATE.serverMode && !(STATE.sites.find(s => s.id === m.site_id) || {}).org_may_approve) ? '<span class="pill muted">waiting for the site manager to approve in their PP app</span>' : `<button class="btn small" onclick="approveGavinRequest('${m.id}')">Approve (as site manager)</button>`}
+              <button class="btn small ghost" onclick="declineGavinRequest('${m.id}')">Decline</button>
+             </div>` : '';
+        const coordName = m.direction === 'ronin_to_gavin' ? coordSiblingSiteName(m) : null;
+        return `<div class="log-entry ${cls}">
+          <div class="log-time">${fmtTime(m.created_at)}</div>
+          <div class="log-dir">${dir}</div>
+          <div class="log-body">
+            <span class="tag">${escapeHtml(m.intent)}</span> — ${escapeHtml(siteName(m.site_id))}
+            ${m.requires_manager_approval ? ' <span class="pill warn">needs approval</span>' : ''}
+            <span class="pill muted">${m.status}</span>
+            ${coordName ? ` <span class="pill info">⇄ coordinated with ${escapeHtml(coordName)}</span>` : ''}
+            ${m.note ? `<div class="log-note">${escapeHtml(m.note)}</div>` : ''}
+            ${actions}
+          </div>
+        </div>`;
+      }).join('')
+    : `<div class="empty">No messages yet.</div>`;
+}
+
+// ── Request modal (replaces the prompt()/confirm() chains, which are blocked
+// in iframes/file:// and unusable on mobile) ──────────────────────────────
+function siteOptions(){ return STATE.sites.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join(''); }
+function openRequestModal(mode){
+  const isCoord = mode === 'coordinate';
+  if (!STATE.sites.length) return toastMsg('Link a site first.');
+  if (isCoord && STATE.sites.length < 2) return toastMsg('Need at least two linked sites to coordinate.');
+  document.getElementById('req-title').textContent = isCoord ? 'Coordinate two sites' : 'Send request to a site';
+  document.getElementById('req-mode').value = mode;
+  document.getElementById('req-site-a').innerHTML = siteOptions();
+  document.getElementById('req-site-b').innerHTML = siteOptions();
+  if (isCoord) document.getElementById('req-site-b').selectedIndex = 1;
+  document.getElementById('req-site-b-wrap').classList.toggle('hidden', !isCoord);
+  document.getElementById('req-intent-wrap').classList.toggle('hidden', isCoord);
+  document.getElementById('req-intent').value = '';
+  document.getElementById('req-note').value = '';
+  document.getElementById('req-approval').checked = true;
+  document.getElementById('request-overlay').classList.add('show');
+  setTimeout(() => document.getElementById(isCoord ? 'req-note' : 'req-intent').focus(), 30);
+}
+function closeRequestModal(){ document.getElementById('request-overlay').classList.remove('show'); }
+async function serverSend(site_id, intent, note, requires_manager_approval){
+  const r = await SERVER.req('POST', '/api/org/messages', { site_id, intent, note, requires_manager_approval });
+  if (!r.ok) throw new Error(r.data.error || ('HTTP ' + r.status));
+  return r.data.message;
+}
+async function serverCoordinate(site_a_id, site_b_id, request, requires_manager_approval){
+  const r = await SERVER.req('POST', '/api/org/messages/coordinate', { site_a_id, site_b_id, request, requires_manager_approval });
+  if (!r.ok) throw new Error(r.data.error || ('HTTP ' + r.status));
+  return r.data;
+}
+async function submitRequestModal(){
+  const mode = document.getElementById('req-mode').value;
+  const a = document.getElementById('req-site-a').value;
+  const note = document.getElementById('req-note').value.trim();
+  const needsApproval = document.getElementById('req-approval').checked;
+  if (!note) return toastMsg('Describe the request first.');
+  if (SERVER.on()) {
+    try {
+      if (mode === 'coordinate') { const b = document.getElementById('req-site-b').value; if (a === b) return toastMsg('Pick two different sites.'); await serverCoordinate(a, b, note, needsApproval); }
+      else { const intent = (document.getElementById('req-intent').value.trim() || 'general_request').toLowerCase().replace(/[^a-z0-9]+/g,'_'); await serverSend(a, intent, note, needsApproval); }
+      closeRequestModal(); await refreshFromServer(); toastMsg('Sent to the site.');
+    } catch(e){ toastMsg('Could not send: ' + e.message); }
+    return;
+  }
+  if (mode === 'coordinate') {
+    const b = document.getElementById('req-site-b').value;
+    if (a === b) return toastMsg('Pick two different sites.');
+    const siteA = STATE.sites.find(s => s.id === a), siteB = STATE.sites.find(s => s.id === b);
+    const coordId = uid('coord');
+    createGavinMessage(siteA.id, 'coordinate_with_' + siteB.name.toLowerCase().replace(/\s+/g,'_'), note, needsApproval, [], coordId);
+    createGavinMessage(siteB.id, 'coordinate_with_' + siteA.name.toLowerCase().replace(/\s+/g,'_'), note, needsApproval, [], coordId);
+  } else {
+    const intent = (document.getElementById('req-intent').value.trim() || 'general_request').toLowerCase().replace(/[^a-z0-9]+/g,'_');
+    createGavinMessage(a, intent, note, needsApproval, []);
+  }
+  await saveState(true);
+  closeRequestModal();
+  renderAll();
+}
+function openSendRequest(){ openRequestModal('send'); }
+function openCoordinateRequest(){ openRequestModal('coordinate'); }
+
+function toastMsg(text){
+  let el = document.getElementById('pp-toast');
+  if (!el) { el = document.createElement('div'); el.id = 'pp-toast'; el.style.cssText = 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--panel-2);color:var(--text);border:1px solid var(--border-2);padding:10px 16px;border-radius:8px;font-size:13px;z-index:300;box-shadow:0 6px 24px rgba(0,0,0,.35)'; document.body.appendChild(el); }
+  el.textContent = text; el.style.display = 'block';
+  clearTimeout(el._t); el._t = setTimeout(() => el.style.display = 'none', 2600);
+}
+
+// Shared, synchronous — used both by manual UI actions and by Ronin's own
+// tool calls, so every path (human or agent) produces the same log entry,
+// the same approval gate, and the same notification. Nothing bypasses this.
+const APPROVAL_KEYWORDS = /\b(stock|order|par|price|pricing|menu|roster|shift|staff|wage|pay|invoice|refund|discount|transfer|send|move|supplier|purchase|delete|remove)\b/i;
+function needsApprovalByRule(intent, note){ const norm = v => String(v||'').replace(/[_\-]+/g,' '); return APPROVAL_KEYWORDS.test(norm(intent)) || APPROVAL_KEYWORDS.test(norm(note)); }
+
+function createGavinMessage(site_id, intent, note, requires_manager_approval, actionsTaken, coordination_id){
+  const site = STATE.sites.find(s => s.id === site_id);
+  if (!site) return null;
+  // Code-level gate: anything stock/order/pricing/staffing/money-shaped requires
+  // approval regardless of what the caller (human or Ronin) passed.
+  if (needsApprovalByRule(intent, note)) requires_manager_approval = true;
+  const msg = {
+    id: uid('msg'), site_id, direction: 'ronin_to_gavin', intent, note,
+    requires_manager_approval: !!requires_manager_approval,
+    status: requires_manager_approval ? 'awaiting_approval' : 'sent', created_at: nowIso(),
+  };
+  if (coordination_id) msg.coordination_id = coordination_id;
+  STATE.messages.push(msg);
+  if (requires_manager_approval) {
+    STATE.notifications.unshift({
+      id: uid('notif'), type: 'ronin_approval_request',
+      subject: `Ronin needs approval — ${site.name}`,
+      body: `${intent}: ${note}`, status: 'unread', created_at: nowIso(),
+    });
+  } else {
+    msg.status = 'completed';
+    const reply = {
+      id: uid('msg'), site_id, direction: 'gavin_to_ronin', intent,
+      note: `Done — ${note}`, requires_manager_approval: false, status: 'completed',
+      created_at: nowIso(),
+    };
+    if (coordination_id) reply.coordination_id = coordination_id;
+    STATE.messages.push(reply);
+    STATE.notifications.unshift({
+      id: uid('notif'), type: 'task_done',
+      subject: `${site.name} completed: ${intent}`,
+      body: note, status: 'unread', created_at: nowIso(),
+    });
+  }
+  if (actionsTaken) actionsTaken.push({ site: site.name, intent, messageId: msg.id, status: msg.status });
+  return msg;
+}
+
+async function sendGavinRequest(site_id, intent, note, requires_manager_approval){
+  if (SERVER.on()) { const m = await serverSend(site_id, intent, note, requires_manager_approval); await refreshFromServer(); return m; }
+  const msg = createGavinMessage(site_id, intent, note, requires_manager_approval);
+  await saveState(true);
+  return msg;
+}
+
+async function approveGavinRequest(id){
+  if (SERVER.on()) { const r = await SERVER.req('POST', '/api/org/messages/' + id + '/approve', {}); toastMsg(r.ok ? 'Approved on behalf of the site.' : (r.data.error || 'Could not approve') + ' — the site manager approves this on their own PP screen.'); return refreshFromServer(); }
+  const msg = STATE.messages.find(m => m.id === id);
+  if (!msg) return;
+  msg.status = 'completed';
+  const reply = {
+    id: uid('msg'), site_id: msg.site_id, direction: 'gavin_to_ronin', intent: msg.intent,
+    note: `Approved and done — ${msg.note}`, requires_manager_approval: false, status: 'completed',
+    created_at: nowIso(),
+  };
+  if (msg.coordination_id) reply.coordination_id = msg.coordination_id;
+  STATE.messages.push(reply);
+  STATE.notifications.unshift({
+    id: uid('notif'), type: 'task_done', subject: `${siteName(msg.site_id)} completed: ${msg.intent}`,
+    body: msg.note || '', status: 'unread', created_at: nowIso(),
+  });
+  await saveState(true);
+  renderAll();
+}
+async function declineGavinRequest(id){
+  if (SERVER.on()) { const r = await SERVER.req('POST', '/api/org/messages/' + id + '/decline', {}); toastMsg(r.ok ? 'Declined.' : (r.data.error || 'Could not decline')); return refreshFromServer(); }
+  const msg = STATE.messages.find(m => m.id === id);
+  if (!msg) return;
+  msg.status = 'declined';
+  await saveState(true);
+  renderAll();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Notifications
+// ══════════════════════════════════════════════════════════════════════════
+function renderNotifications(){
+  const list = [...STATE.notifications].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+  const unread = list.filter(n => n.status === 'unread');
+  document.getElementById('notif-badge').textContent = unread.length;
+  document.getElementById('notif-badge').classList.toggle('hidden', unread.length === 0);
+  document.getElementById('notifications-list').innerHTML = list.length
+    ? `<table><tr><th>Type</th><th>Subject</th><th>Status</th><th>When</th><th></th></tr>` +
+      list.map(n => `<tr>
+        <td><span class="pill ${n.type==='ronin_approval_request'?'warn':'info'}">${n.type==='ronin_approval_request'?'approval':'task done'}</span></td>
+        <td>${escapeHtml(n.subject)}<div class="page-sub" style="margin-top:2px">${escapeHtml(n.body||'')}</div></td>
+        <td><span class="pill ${n.status==='unread'?'danger':'muted'}">${n.status}</span></td>
+        <td class="mono" style="color:var(--faint)">${fmtTime(n.created_at)}</td>
+        <td>${n.status==='unread'?`<button class="btn small ghost" onclick="markRead('${n.id}')">Mark read</button>`:''}</td>
+      </tr>`).join('') + `</table>`
+    : `<div class="empty">No notifications.</div>`;
+}
+async function markRead(id){
+  if (SERVER.on()) { await SERVER.req('POST', '/api/org/notifications/' + id + '/read', {}); return refreshFromServer(); }
+  const n = STATE.notifications.find(n => n.id === id);
+  if (n) n.status = 'read';
+  await saveState(true);
+  renderAll();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Invoices
+// ══════════════════════════════════════════════════════════════════════════
+function renderInvoices(){
+  document.getElementById('invoices-table').innerHTML = STATE.invoices.length
+    ? `<table><tr><th>Supplier</th><th>Site</th><th>Type</th><th>Amount</th><th>Status</th><th>Received</th></tr>` +
+      STATE.invoices.map(i => `<tr>
+        <td>${escapeHtml(i.supplier_name)}</td>
+        <td>${escapeHtml(siteName(i.site_id))}</td>
+        <td><span class="pill muted">${i.doc_type.replace('_',' ')}</span></td>
+        <td class="mono">${i.amount_cents ? fmtMoney(i.amount_cents) : '—'}</td>
+        <td><span class="pill ${i.status==='pending_review'?'warn':'ok'}">${i.status.replace('_',' ')}</span></td>
+        <td class="mono" style="color:var(--faint)">${fmtTime(i.received_at)}</td>
+      </tr>`).join('') + `</table>`
+    : `<div class="empty">No invoices yet.</div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Email connections (mocked — no real inbox access in this build)
+// ══════════════════════════════════════════════════════════════════════════
+function populateEmailSiteSelect(){
+  const sel = document.getElementById('email-connect-site');
+  if (sel) sel.innerHTML = STATE.sites.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+}
+function renderEmail(){
+  document.getElementById('email-table').innerHTML = STATE.emailConnections.length
+    ? `<table><tr><th>Site</th><th>Provider</th><th>Account</th><th>Status</th><th>Last synced</th><th></th></tr>` +
+      STATE.emailConnections.map(c => `<tr>
+        <td>${escapeHtml(siteName(c.site_id))}</td>
+        <td class="mono">${c.provider}</td>
+        <td>${escapeHtml(c.external_account_email||'—')}</td>
+        <td><span class="pill ${c.status==='connected'?'ok':c.status==='pending'?'warn':'muted'}">${c.status}</span></td>
+        <td class="mono" style="color:var(--faint)">${fmtTime(c.last_synced_at)}</td>
+        <td>${c.status==='connected'?`<button class="btn small ghost" onclick="syncEmail('${c.id}')">Sync now</button>`:''}</td>
+      </tr>`).join('') + `</table>`
+    : `<div class="empty">No email connections yet.</div>`;
+}
+async function connectEmail(){
+  const site_id = document.getElementById('email-connect-site').value;
+  const provider = document.getElementById('email-connect-provider').value;
+  if (!site_id) return alert('Link a site first.');
+  STATE.emailConnections.push({
+    id: uid('email'), site_id, provider,
+    external_account_email: provider === 'mock' ? 'demo@mock.inbox' : `orders@${siteName(site_id).toLowerCase().replace(/\s+/g,'')}.example`,
+    status: 'connected', last_synced_at: nowIso(),
+  });
+  await saveState(true);
+  renderAll();
+}
+async function syncEmail(id){
+  const c = STATE.emailConnections.find(c => c.id === id);
+  if (!c) return;
+  c.last_synced_at = nowIso();
+  if (!isDemoMode()) { await saveState(true); toastMsg('Inbox sync needs the backend OAuth connection — nothing fetched.'); renderAll(); return; }
+  const found = Math.random() < 0.5 ? 1 : 0;
+  if (found) {
+    STATE.invoices.unshift({
+      id: uid('inv'), supplier_name: 'New Supplier Pty Ltd', site_id: c.site_id, doc_type: 'invoice',
+      amount_cents: Math.round(10000 + Math.random()*40000), status: 'pending_review', received_at: nowIso(),
+    });
+  }
+  await saveState(true);
+  toastMsg(`Scanned inbox (demo), found ${found} new invoice(s).`);
+  renderAll();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Site viewer — read-only mirror of a cafe's own oc_* data
+// ══════════════════════════════════════════════════════════════════════════
+// Only keys a site deliberately promotes are ever shown or handed to Ronin.
+// Inventory, recipes/BOMs, suppliers and staff stay inside the site's own PP.
+const COMMAND_VISIBLE_KEYS = ['oc_menu_data'];
+const VIEWER_LABELS = { oc_menu_data: 'Menu items (name · price · category)' };
+function promotedData(site){
+  const out = {};
+  COMMAND_VISIBLE_KEYS.forEach(k => { if (site.ocData && site.ocData[k] !== undefined) out[k] = site.ocData[k]; });
+  return out;
+}
+function renderViewerValue(key, value){
+  if (Array.isArray(value) && value.length && typeof value[0] === 'object' && value[0] !== null) {
+    const cols = Object.keys(value[0]).slice(0, 8);
+    return `<table><tr>${cols.map(c=>`<th>${escapeHtml(c)}</th>`).join('')}</tr>${
+      value.slice(0, 200).map(row => `<tr>${cols.map(c=>`<td>${escapeHtml(row[c] ?? '')}</td>`).join('')}</tr>`).join('')
+    }</table>`;
+  }
+  if (Array.isArray(value) && value.length === 0) return `<div class="empty">empty</div>`;
+  return `<pre style="padding:14px 16px;white-space:pre-wrap;font-family:var(--mono);font-size:12px;color:var(--sub);margin:0">${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+}
+function populateViewerSiteSelect(){
+  const sel = document.getElementById('viewer-site-select');
+  if (sel) sel.innerHTML = STATE.sites.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+}
+function loadSiteViewer(){
+  const siteId = document.getElementById('viewer-site-select').value;
+  const site = STATE.sites.find(s => s.id === siteId);
+  const el = document.getElementById('viewer-content');
+  if (!site || !site.ocData) {
+    el.innerHTML = `<div class="panel"><div class="empty">No data synced from this site yet.</div></div>`;
+    return;
+  }
+  const data = promotedData(site);
+  const keys = Object.keys(data);
+  const sn = site.snapshot || {};
+  el.innerHTML = `<div class="panel" style="border-color:var(--amber)"><div class="panel-head" style="color:var(--amber)">Read-only — synced ${fmtTime(sn.received_at)}, may not reflect activity since. Command sees only what this site promotes: menu items, weekly aggregates and alert counts — never inventory levels, recipes, suppliers or staff records.</div></div>` +
+    `<div class="panel"><div class="panel-head">Weekly snapshot</div>${renderViewerValue('snapshot', { revenue_week: sn.revenue_week, gp_pct: sn.gp_pct, labour_pct: sn.labour_pct, covers_week: sn.covers_week, stock_out: sn.stock_out, stock_low: sn.stock_low, stock_out_items: sn.stock_out_items, stock_low_items: sn.stock_low_items, stock_value: sn.stock_value, loyalty: sn.loyalty })}</div>` +
+    keys.map(k => `<div class="panel"><div class="panel-head">${VIEWER_LABELS[k] || k}</div>${renderViewerValue(k, data[k])}</div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Finance
+// ══════════════════════════════════════════════════════════════════════════
+function renderFinance(){
+  const perSite = STATE.financeEntries || {};
+  const companyTotal = Object.values(perSite).reduce((a,b) => a + b, 0);
+  document.getElementById('finance-tiles').innerHTML = `
+    <div class="tile"><div class="tile-label">Company-level</div><div class="tile-value ${companyTotal<0?'warn':'ok'}">${fmtMoney(companyTotal)}</div></div>
+    <div class="tile"><div class="tile-label">Source</div><div class="tile-value" style="font-size:12px;color:var(--faint);font-weight:400;line-height:1.4">Manual entries — not yet fed by PP Pay. Figures here are placeholders until invoice/payment data flows up from sites.</div></div>
+  `;
+  document.getElementById('finance-table').innerHTML = STATE.sites.length
+    ? `<table><tr><th>Site</th><th>Total</th></tr>${STATE.sites.map(s => {
+        const cents = perSite[s.id];
+        return `<tr><td>${escapeHtml(s.name)}</td><td class="mono">${cents!==undefined ? fmtMoney(cents) : '<span style="color:var(--faint)">no entries yet</span>'}</td></tr>`;
+      }).join('')}</table>`
+    : `<div class="empty">No sites yet.</div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Payroll — centralised at org level: one employing entity, one pay run
+// covering staff across every site, fed by each site's own oc_staff mirror.
+// ══════════════════════════════════════════════════════════════════════════
+const SUPER_GUARANTEE_RATE = 0.12; // SG 12% from 1 Jul 2025
+function payrollStaffLines(){
+  const lines = [];
+  STATE.sites.forEach(s => {
+    (s.sharedPayroll || []).forEach(st => {
+      const rate = st.hourly_rate_cents || 0;
+      const hours = st.hours_this_period || 0;
+      lines.push({ site_id: s.id, site_name: s.name, name: st.name, role: st.role, hours, rate_cents: rate, gross_cents: Math.round(rate * hours) });
+    });
+  });
+  return lines;
+}
+function payrollTotals(lines){
+  const gross = lines.reduce((a,l) => a + l.gross_cents, 0);
+  // Prototype estimate only. Real figures must come from the shared server-side
+  // payroll engine (PP's calcPAYG/calcSuper + HIGA penalties), not a flat rate.
+  const payg = Math.round(gross * 0.19);
+  const superAmt = Math.round(gross * SUPER_GUARANTEE_RATE);
+  return { gross_cents: gross, payg_cents: payg, super_cents: superAmt, net_cents: gross - payg };
+}
+function renderPayroll(){
+  document.getElementById('payroll-entity-name').value = STATE.payroll.entity.name || '';
+  document.getElementById('payroll-entity-abn').value = STATE.payroll.entity.abn || '';
+
+  const lines = payrollStaffLines();
+  const totals = payrollTotals(lines);
+  document.getElementById('payroll-tiles').innerHTML = `
+    <div class="tile"><div class="tile-label">Projected gross</div><div class="tile-value">${fmtMoney(totals.gross_cents)}</div></div>
+    <div class="tile"><div class="tile-label">Est. PAYG</div><div class="tile-value warn">${fmtMoney(totals.payg_cents)}</div></div>
+    <div class="tile"><div class="tile-label">Est. super</div><div class="tile-value">${fmtMoney(totals.super_cents)}</div></div>
+    <div class="tile"><div class="tile-label">Est. net pay</div><div class="tile-value ok">${fmtMoney(totals.net_cents)}</div></div>
+    <div class="tile"><div class="tile-label">Staff across sites</div><div class="tile-value">${lines.length}</div></div>
+  `;
+  document.getElementById('payroll-staff-table').innerHTML = lines.length
+    ? `<table><tr><th>Name</th><th>Role</th><th>Site</th><th>Hours</th><th>Rate</th><th>Gross</th></tr>${lines.map(l => `<tr>
+        <td>${escapeHtml(l.name)}</td><td>${escapeHtml(l.role)}</td><td>${escapeHtml(l.site_name)}</td>
+        <td class="mono">${l.hours}</td><td class="mono">${fmtMoney(l.rate_cents)}/hr</td><td class="mono">${fmtMoney(l.gross_cents)}</td>
+      </tr>`).join('')}</table>`
+    : `<div class="empty">No staff hours shared yet — sites opt in to org-level payroll from their own PP app.</div>`;
+
+  const runs = [...STATE.payroll.payRuns].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+  document.getElementById('payroll-runs-table').innerHTML = runs.length
+    ? `<table><tr><th>Run</th><th>Staff</th><th>Gross</th><th>PAYG</th><th>Super</th><th>Net</th><th>Status</th></tr>${runs.map(r => `<tr>
+        <td class="mono" style="color:var(--faint)">${fmtTime(r.created_at)}</td>
+        <td class="mono">${r.lines.length}</td>
+        <td class="mono">${fmtMoney(r.totals.gross_cents)}</td>
+        <td class="mono">${fmtMoney(r.totals.payg_cents)}</td>
+        <td class="mono">${fmtMoney(r.totals.super_cents)}</td>
+        <td class="mono">${fmtMoney(r.totals.net_cents)}</td>
+        <td><span class="pill ok">${r.status}</span></td>
+      </tr>`).join('')}</table>`
+    : `<div class="empty">No pay runs yet.</div>`;
+}
+async function savePayrollEntity(){
+  STATE.payroll.entity.name = document.getElementById('payroll-entity-name').value.trim();
+  STATE.payroll.entity.abn = document.getElementById('payroll-entity-abn').value.trim();
+  await saveState(true);
+  renderPayroll();
+}
+async function runPayroll(){
+  const lines = payrollStaffLines();
+  if (!lines.length) return alert('No staff hours to pay yet.');
+  const totals = payrollTotals(lines);
+  if (!confirm(`Run payroll for ${lines.length} staff across ${STATE.sites.length} site(s)? Estimated net pay ${fmtMoney(totals.net_cents)}.\n\nThis is a prototype figure only — not a compliant STP2 lodgment.`)) return;
+  STATE.payroll.payRuns.push({ id: uid('payrun'), created_at: nowIso(), status: 'processed (prototype)', lines, totals });
+  await saveState(true);
+  renderPayroll();
+  alert('Pay run recorded.');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Chat with Ronin — real tool-calling AI agent, scoped to this org only.
+// Hierarchy: Gavin (per-site) → Ronin (this org / PP Command) → Canopy
+// (PP company-wide, across every org — built separately). Ronin never
+// reaches outside this org's own sites, matching that hierarchy.
+// ══════════════════════════════════════════════════════════════════════════
+// API access. Inside a claude.ai artifact the platform proxies api.anthropic.com
+// and injects auth; anywhere else a key must be set in Settings (stored locally).
+// Long-term this should go through the PP backend so no key sits in a browser.
+const RONIN_API_URL = 'https://api.anthropic.com/v1/messages';
+function getRoninKey(){ try { return localStorage.getItem('ppcommand_api_key') || ''; } catch(e){ return ''; } }
+function roninHeaders(){
+  const h = { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01' };
+  const k = getRoninKey();
+  if (k) { h['x-api-key'] = k; h['anthropic-dangerous-direct-browser-access'] = 'true'; }
+  else if (STORE.backend !== 'artifact') throw new Error('No API key set — open Settings and paste an Anthropic API key.');
+  return h;
+}
+
+const RONIN_TOOLS = [
+  { name: 'list_canopy_requests', description: "Requests Perpetual Pantries' own company agent (Canopy) has asked of this org. Each needs this org's operator to approve, decline or answer — Ronin never acts on one without that.", input_schema: { type: 'object', properties: { status: { type: 'string', enum: ['awaiting_approval','approved','declined','answered'] } } } },
+  { name: 'respond_to_canopy_request', description: "Record the operator's decision on a Canopy request: approve, decline, or answer with text. Only call this after the operator has told you their decision in this conversation.", input_schema: { type: 'object', properties: { request_id: { type: 'string' }, status: { type: 'string', enum: ['approved','declined','answered'] }, response_text: { type: 'string' } }, required: ['request_id','status'] } },
+  {
+    name: 'get_org_overview',
+    description: "Aggregated metrics across every site in this org: total weekly revenue, average GP%, average labour%, stock-out/low counts, open orders.",
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'list_sites',
+    description: 'List every site linked to this org, with id, name and venue id.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_site_detail',
+    description: "One site's latest promoted snapshot (weekly revenue, GP%, labour%, covers, stock-out/low counts and item names, stock value, loyalty totals) plus its menu items with prices. Inventory levels, recipes, suppliers and staff records are NOT available to Ronin — they stay inside the site's own PP; ask that site's Gavin via send_gavin_request if needed.",
+    input_schema: { type: 'object', properties: { site_id: { type: 'string', description: 'Site id, from list_sites' } }, required: ['site_id'] },
+  },
+  {
+    name: 'send_gavin_request',
+    description: "Send a request down from Ronin to a specific site's Gavin assistant — to check something, adjust something, or run a task. Set requires_manager_approval true for anything touching stock levels, orders, pricing, staffing or money; that site's own manager must approve before Gavin acts. Read-only checks can skip approval.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        site_id: { type: 'string' },
+        intent: { type: 'string', description: 'short snake_case description, e.g. check_par_levels_for_promo' },
+        note: { type: 'string', description: 'one plain-English sentence describing the request' },
+        requires_manager_approval: { type: 'boolean' },
+      },
+      required: ['site_id', 'intent', 'note', 'requires_manager_approval'],
+    },
+  },
+  {
+    name: 'get_notifications',
+    description: 'Notifications for this org, optionally filtered by status.',
+    input_schema: { type: 'object', properties: { status: { type: 'string', enum: ['unread', 'read'] } } },
+  },
+  {
+    name: 'get_ronin_log',
+    description: 'Recent Ronin ↔ Gavin messages across the org (requests sent and their outcomes).',
+    input_schema: { type: 'object', properties: { site_id: { type: 'string', description: 'optional — filter to one site' } } },
+  },
+  {
+    name: 'get_invoices',
+    description: "Invoices and delivery dockets received across the org's sites, optionally filtered by status.",
+    input_schema: { type: 'object', properties: { status: { type: 'string' } } },
+  },
+  {
+    name: 'get_finance_rollup',
+    description: 'Company-level and per-site finance rollup totals.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_payroll_summary',
+    description: "Centralised payroll for this org: current staff hours across every site (this pay period) with projected gross/PAYG/super/net, plus past pay run history. Figures are a flat-rate prototype estimate, not compliant STP2 — say so if asked about accuracy.",
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'coordinate_between_sites',
+    description: "Relay a coordination request between two of this org's own sites — e.g. one venue covering a stock shortfall or a shift for another. This is the only way sites should ever interact with each other; their Gavin assistants never talk directly. Both sites get a logged request from Ronin (visible in the Ronin log, linked together), and each site's manager approval applies independently if requires_manager_approval is set — appropriate for anything moving stock, staff or money between venues.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        site_a_id: { type: 'string', description: 'first site, from list_sites' },
+        site_b_id: { type: 'string', description: 'second site, from list_sites' },
+        request: { type: 'string', description: 'plain-English description of what the two sites are coordinating' },
+        requires_manager_approval: { type: 'boolean' },
+      },
+      required: ['site_a_id', 'site_b_id', 'request', 'requires_manager_approval'],
+    },
+  },
+];
+
+async function executeRoninTool(name, input, actionsTaken){
+  if (SERVER.on()) {
+    try {
+      if (name === 'send_gavin_request') { const m = await serverSend(input.site_id, input.intent, input.note, !!input.requires_manager_approval); if (actionsTaken) actionsTaken.push({ site: siteName(m.site_id), intent: m.intent, messageId: m.id, status: m.status }); return { ok: true, message_id: m.id, status: m.status, note: m.status === 'awaiting_approval' ? 'The site manager must approve this on their own PP screen before Gavin acts.' : 'Sent to Gavin; the site will reply when done.' }; }
+      if (name === 'coordinate_between_sites') { const r = await serverCoordinate(input.site_a_id, input.site_b_id, input.request, !!input.requires_manager_approval); r.messages.forEach(m => actionsTaken && actionsTaken.push({ site: siteName(m.site_id), intent: m.intent, messageId: m.id, status: m.status })); return { ok: true, coordination_id: r.coordination_id, status: r.messages[0].status }; }
+      if (name === 'list_canopy_requests') { const r = await SERVER.req('GET', '/api/org/canopy-requests' + (input.status ? '?status=' + encodeURIComponent(input.status) : '')); return r.data; }
+      if (name === 'respond_to_canopy_request') { const r = await SERVER.req('POST', '/api/org/canopy-requests/' + input.request_id + '/respond', { status: input.status, response_text: input.response_text }); return r.ok ? { ok: true } : { error: r.data.error }; }
+      if (name === 'get_org_overview') { const r = await SERVER.req('GET', '/api/org/overview'); return r.data; }
+    } catch(e){ return { error: e.message }; }
+  }
+  if (name === 'list_canopy_requests') return { requests: (STATE.canopyRequests || []).filter(r => !input.status || r.status === input.status) };
+  if (name === 'respond_to_canopy_request') return { error: 'Only available in server mode.' };
+  switch (name) {
+    case 'get_org_overview':
+      return computeOrgTotals();
+    case 'list_sites':
+      return { sites: STATE.sites.map(s => ({ id: s.id, name: s.name, venue_id: s.venue_id })) };
+    case 'get_site_detail': {
+      const site = STATE.sites.find(s => s.id === input.site_id);
+      if (!site) return { error: 'site not found' };
+      return { name: site.name, venue_id: site.venue_id, snapshot: site.snapshot, promoted: promotedData(site) };
+    }
+    case 'send_gavin_request': {
+      const msg = createGavinMessage(input.site_id, input.intent, input.note, input.requires_manager_approval, actionsTaken);
+      if (!msg) return { error: 'site not found' };
+      return { ok: true, message_id: msg.id, status: msg.status };
+    }
+    case 'coordinate_between_sites': {
+      const siteA = STATE.sites.find(s => s.id === input.site_a_id);
+      const siteB = STATE.sites.find(s => s.id === input.site_b_id);
+      if (!siteA || !siteB) return { error: 'one or both sites not found' };
+      if (siteA.id === siteB.id) return { error: 'site_a and site_b must be different sites' };
+      const coordId = uid('coord');
+      const msgA = createGavinMessage(siteA.id, 'coordinate_with_' + siteB.name.toLowerCase().replace(/\s+/g,'_'), input.request, input.requires_manager_approval, actionsTaken, coordId);
+      const msgB = createGavinMessage(siteB.id, 'coordinate_with_' + siteA.name.toLowerCase().replace(/\s+/g,'_'), input.request, input.requires_manager_approval, actionsTaken, coordId);
+      return { ok: true, coordination_id: coordId, site_a_message_id: msgA.id, site_b_message_id: msgB.id, status: msgA.status };
+    }
+    case 'get_notifications': {
+      let list = STATE.notifications;
+      if (input.status) list = list.filter(n => n.status === input.status);
+      return { notifications: list.slice(0, 30) };
+    }
+    case 'get_ronin_log': {
+      let list = STATE.messages;
+      if (input.site_id) list = list.filter(m => m.site_id === input.site_id);
+      return { messages: list.slice(-30) };
+    }
+    case 'get_invoices': {
+      let list = STATE.invoices;
+      if (input.status) list = list.filter(i => i.status === input.status);
+      return { invoices: list };
+    }
+    case 'get_finance_rollup': {
+      const perSite = STATE.financeEntries || {};
+      return { company_level_cents: Object.values(perSite).reduce((a,b)=>a+b,0), per_site_cents: perSite };
+    }
+    case 'get_payroll_summary': {
+      const lines = payrollStaffLines();
+      const totals = payrollTotals(lines);
+      return { entity: STATE.payroll.entity, current_period: { staff: lines, totals }, past_runs: STATE.payroll.payRuns.slice(-5), note: 'PAYG/super are a flat-rate prototype estimate, not a compliant STP2 calculation' };
+    }
+    default:
+      return { error: 'unknown tool ' + name };
+  }
+}
+
+function chatBubble(role, content){
+  const isUser = role === 'user';
+  return `<div style="align-self:${isUser?'flex-end':'flex-start'};max-width:75%">
+    <div style="font-family:var(--mono);font-size:10px;color:var(--faint);margin-bottom:3px;text-align:${isUser?'right':'left'}">${isUser?'you':'ronin'}</div>
+    <div style="background:${isUser?'var(--teal)':'var(--panel-2)'};color:${isUser?'#fff':'var(--text)'};padding:10px 13px;border-radius:8px;white-space:pre-wrap;font-size:13px;line-height:1.5">${escapeHtml(content)}</div>
+  </div>`;
+}
+
+// Chat surfaces: the full "Chat with Ronin" tab, and the floating widget
+// reachable from any tab. Both read/write the same STATE.chat.
+const CHAT_SURFACES = [
+  { messages: 'chat-messages', typing: 'chat-typing', input: 'chat-input' },
+  { messages: 'ronin-widget-messages', typing: 'ronin-widget-typing', input: 'ronin-widget-input' },
+];
+
+function renderChat(){
+  CHAT_SURFACES.forEach(s => {
+    const el = document.getElementById(s.messages);
+    if (!el) return;
+    el.innerHTML = STATE.chat.length
+      ? STATE.chat.map(m => chatBubble(m.role, m.content)).join('')
+      : `<div class="empty">No conversation yet — ask Ronin something about your sites below.</div>`;
+    el.scrollTop = el.scrollHeight;
+  });
+}
+
+function setTyping(on){
+  CHAT_SURFACES.forEach(s => {
+    const el = document.getElementById(s.typing);
+    if (el) el.classList.toggle('hidden', !on);
+  });
+}
+
+function appendActionLine(a){
+  const label = a.status === 'awaiting_approval' ? 'awaiting manager approval' : 'completed';
+  const html = `<div style="align-self:flex-start;font-family:var(--mono);font-size:11px;color:var(--amber);border-left:2px solid var(--amber);padding-left:8px">→ sent to ${escapeHtml(a.site)}: ${escapeHtml(a.intent)} — ${label} (see Ronin log)</div>`;
+  CHAT_SURFACES.forEach(s => {
+    const el = document.getElementById(s.messages);
+    if (!el) return;
+    el.insertAdjacentHTML('beforeend', html);
+    el.scrollTop = el.scrollHeight;
+  });
+}
+
+function toggleRoninWidget(){
+  const w = document.getElementById('ronin-widget');
+  const opening = !w.classList.contains('show');
+  w.classList.toggle('show');
+  if (opening) {
+    renderChat();
+    document.getElementById('ronin-launcher-badge').classList.add('hidden');
+    setTimeout(() => document.getElementById('ronin-widget-input')?.focus(), 50);
+  }
+}
+function expandRoninWidget(){
+  document.getElementById('ronin-widget').classList.remove('show');
+  document.querySelector('.nav-item[data-tab="chat"]').click();
+}
+
+async function sendChatMessage(source){
+  const inputId = source === 'widget' ? 'ronin-widget-input' : 'chat-input';
+  const input = document.getElementById(inputId);
+  const message = input.value.trim();
+  if (!message) return;
+  input.value = '';
+
+  STATE.chat.push({ role: 'user', content: message });
+  await saveState(true);
+  renderChat();
+  setTyping(true);
+
+  try {
+    const actionsTaken = [];
+    const sys = `You are Ronin, the AI operations assistant for "${STATE.orgName}" inside PP Command. Requests from Perpetual Pantries' own agent, Canopy, arrive via list_canopy_requests; never act on or answer one until the operator here decides, then record it with respond_to_canopy_request. You sit above each individual site's own assistant, Gavin — Gavin runs one cafe day-to-day, you oversee every site in this org. Above you sits Canopy, PP's own company-wide agent, which you never interact with directly. Sites never talk to each other's Gavin directly — if two sites need to coordinate (covering stock, staff, or anything else between venues), you relay it via coordinate_between_sites so it's logged and each site's manager approval still applies. Use your tools to ground every answer in this org's real data rather than guessing. Keep replies concise and operational. When you send a request to a site's Gavin, or coordinate between two sites, always say plainly in your reply what you asked and whether it needs manager approval.`;
+
+    // Conversation memory: the last 10 turns before this message.
+    const history = STATE.chat.slice(-11, -1).filter(m => m.content && !/^Error/.test(m.content)).map(m => ({ role: m.role, content: m.content }));
+    let working = [...history, { role: 'user', content: message }];
+    let finalText = '';
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45000);
+    for (let i = 0; i < 6; i++) {
+      const resp = await fetch(RONIN_API_URL, {
+        method: 'POST',
+        headers: roninHeaders(),
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1000,
+          system: sys,
+          tools: RONIN_TOOLS,
+          messages: working,
+        }),
+      });
+      const data = await resp.json();
+      if (data.error) { finalText = 'Error: ' + data.error.message; break; }
+      const content = data.content || [];
+      const toolUses = content.filter(b => b.type === 'tool_use');
+      const texts = content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+      if (texts) finalText += (finalText ? '\n' : '') + texts;
+      if (!toolUses.length) break;
+      working.push({ role: 'assistant', content });
+      const toolResults = [];
+      for (const tu of toolUses) toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(await executeRoninTool(tu.name, tu.input, actionsTaken)) });
+      working.push({ role: 'user', content: toolResults });
+    }
+
+    clearTimeout(timer);
+    STATE.chat.push({ role: 'assistant', content: finalText || '(no response)' });
+    await saveState(true);
+    setTyping(false);
+    renderChat();
+    actionsTaken.forEach(appendActionLine);
+    const widgetOpen = document.getElementById('ronin-widget').classList.contains('show');
+    const tabActive = !document.getElementById('tab-chat').classList.contains('hidden');
+    if (!widgetOpen && !tabActive) {
+      document.getElementById('ronin-launcher-badge').textContent = '1';
+      document.getElementById('ronin-launcher-badge').classList.remove('hidden');
+    }
+    renderAll(true); // refresh other tabs since tools may have mutated state
+  } catch (e) {
+    setTyping(false);
+    STATE.chat.push({ role: 'assistant', content: 'Error reaching Ronin: ' + (e.name === 'AbortError' ? 'timed out after 45s' : e.message) });
+    await saveState(true);
+    renderChat();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Render everything
+// ══════════════════════════════════════════════════════════════════════════
+function renderAll(skipChat){
+  document.getElementById('org-name-label').textContent = STATE.orgName || 'org';
+  renderOverview();
+  renderSites();
+  renderMessages();
+  renderNotifications();
+  renderInvoices();
+  populateEmailSiteSelect();
+  renderEmail();
+  renderFinance();
+  renderPayroll();
+  if (!skipChat) renderChat();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('request-overlay').classList.contains('show') && e.target.tagName === 'INPUT') submitRequestModal();
+  if (e.key === 'Escape') { closeRequestModal(); closeSettings(); }
+});
+
+(async function init(){
+  await loadState();
+  renderAll();
+  if (SERVER.on()) setInterval(refreshFromServer, 60 * 1000);
+})();
+</script>
+</body>
+</html>
