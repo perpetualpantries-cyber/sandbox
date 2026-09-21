@@ -1341,6 +1341,8 @@ select.ob-input option{background:#0D1828;color:white}
   <!-- Loyalty program content rendered by renderLoyalty() -->
 </div>
 
+<div class="page" id="page-morningbrief"></div>
+
 <div class="page" id="page-events">
 
   <div class="tabs" id="evts-tabs" style="margin-bottom:0">
@@ -2534,7 +2536,7 @@ function sSup(){localStorage.setItem('oc_suppliers',JSON.stringify(sup));}
 function supName(sid){if(!sid)return'House-made';return sup[sid]?.name||sid;}
 let supplierOrders=JSON.parse(localStorage.getItem('oc_supplier_orders')||'[]');
 function saveSupplierOrders(){localStorage.setItem('oc_supplier_orders',JSON.stringify(supplierOrders));}
-const PAGES={dashboard:['📊 Dashboard','Overview · Alerts · Activity'],inventory:['📦 Inventory','All stock items · levels · costs'],suppliers:['🏭 Suppliers','Directory · contacts · price comparison · contingency'],orders:['📋 Orders','Pending reorders · manual PO builder · order history'],deliveries:['🚚 Deliveries','Delivery dockets'],alerts:['🔔 Alerts','Stock warnings'],history:['🕐 History','All movements'],wastage:['🗑️ Wastage','Log accidental waste · yield & trim losses'],temp_logs:['🌡️ Temperature Logs','FSANZ Standard 3.2.2 · fridge/freezer/hot-holding checks · audit trail'],pos:['🖥️ POS Orders','Import Lightspeed CSV · auto-deduct stock · reorder emails'],reports:['📈 Reports & Stocktake','Analytics · variance analysis · stock counts · audit trail'],calendar:['📅 Schedule','Order calendar · staff roster · labour costs'],integrations:['🔗 Connected Apps','All linked tools and files'],loyalty:["🎁 Loyalty","Members · points · rewards · tiers"],settings:["⚙️ Settings",'Configuration'],events:['🍽️ Events','Catering events · menus · headcount · purchase orders'],menu:['🍴 Menu','Named menus · dish pricing · margins'],admin:['🔐 Admin','Cafe details · email directory · key contacts'],ppfinance:['💳 PP Pay  ·  💰 PP Payroll','Supplier payments, invoices & payroll']};
+const PAGES={dashboard:['📊 Dashboard','Overview · Alerts · Activity'],inventory:['📦 Inventory','All stock items · levels · costs'],suppliers:['🏭 Suppliers','Directory · contacts · price comparison · contingency'],orders:['📋 Orders','Pending reorders · manual PO builder · order history'],deliveries:['🚚 Deliveries','Delivery dockets'],alerts:['🔔 Alerts','Stock warnings'],history:['🕐 History','All movements'],wastage:['🗑️ Wastage','Log accidental waste · yield & trim losses'],temp_logs:['🌡️ Temperature Logs','FSANZ Standard 3.2.2 · fridge/freezer/hot-holding checks · audit trail'],pos:['🖥️ POS Orders','Import Lightspeed CSV · auto-deduct stock · reorder emails'],reports:['📈 Reports & Stocktake','Analytics · variance analysis · stock counts · audit trail'],calendar:['📅 Schedule','Order calendar · staff roster · labour costs'],integrations:['🔗 Connected Apps','All linked tools and files'],loyalty:["🎁 Loyalty","Members · points · rewards · tiers"],settings:["⚙️ Settings",'Configuration'],events:['🍽️ Events','Catering events · menus · headcount · purchase orders'],menu:['🍴 Menu','Named menus · dish pricing · margins'],admin:['🔐 Admin','Cafe details · email directory · key contacts'],morningbrief:['🌅 Morning Brief','Shift-start handover · safety · calendar · notices · web'],ppfinance:['💳 PP Pay  ·  💰 PP Payroll','Supplier payments, invoices & payroll']};
 function rPage(n){if(n==='dashboard')rDash();else if(n==='inventory')rInv();else if(n==='ppfinance'){if(typeof pfSection==='function'){
   // Smart-open: if there are email invoices needing attention, land on the Email tab
   let landOnEmail = false;
@@ -2552,7 +2554,7 @@ function rPage(n){if(n==='dashboard')rDash();else if(n==='inventory')rInv();else
       if (emailTabBtn) ppayTab('email', emailTabBtn);
     }, 100);
   }
-}}else if(n==='suppliers'){rSup();if(_activeSupTab==='pricing')rContingency();}else if(n==='orders'||n==='manual_order'){rOrders();if(n==='manual_order')switchOrderTab('manual',document.getElementById('ord-tab-manual'));}else if(n==='deliveries')rDeliveries();else if(n==='alerts')rAlerts();else if(n==='history')rHistory();else if(n==='wastage')rWastage();else if(n==='temp_logs'){if(typeof rTempLogs==='function')rTempLogs();}else if(n==='pos')rPOS();else if(n==='reports'){rReports();if(_rptMainTab==='stocktake')rStocktake();}else if(n==='calendar')rCalendar();else if(n==='admin')rAdmin();else if(n==='integrations'){/* static */ if (typeof renderEmailConnectionsPanel === 'function') renderEmailConnectionsPanel();}else if(n==='menu'){if(typeof rMenuPage==='function')rMenuPage();}else if(n==='loyalty'){if(typeof renderLoyalty==='function')renderLoyalty();}else if(n==='settings'){document.getElementById('warnPct').value=settings.warnPct;document.getElementById('stocktakeIntervalDays').value=settings.stocktakeIntervalDays||7;document.getElementById('recipeVarianceTagThreshold').value=settings.recipeVarianceTagThreshold||2;document.getElementById('recipeVarianceLookbackDays').value=settings.recipeVarianceLookbackDays||90;document.getElementById('notifEmail').value=settings.notifEmail||'';document.getElementById('browserNotif').checked=settings.browserNotif;const sk=localStorage.getItem('oc_api_key')||'';document.getElementById('anthropicKey').value=sk?'sk-ant-…(saved)':'';if(document.getElementById('srv-url')){document.getElementById('srv-url').value=localStorage.getItem('pp_api_url')||'';document.getElementById('srv-key').value='';const ss=document.getElementById('pp-srv-status');const li=PP_API.linkInfo();if(ss)ss.innerHTML=li?'<span style="color:#22C55E;font-weight:700">● Linked to '+String(li.org_name||'').replace(/</g,'&lt;')+'</span>':'<span style="color:var(--faint)">Not linked</span>';const sp=document.getElementById('pp-share-payroll');if(sp)sp.checked=localStorage.getItem('pp_share_payroll')==='1';}const lsk=localStorage.getItem('oc_ls_key')||'';if(document.getElementById('lightspeedKey'))document.getElementById('lightspeedKey').value=lsk?'(saved)':'';const xero=localStorage.getItem('oc_xero_id')||'';if(document.getElementById('xeroClientId'))document.getElementById('xeroClientId').value=xero;const jb=gJBConfig();if(document.getElementById('jb_bin')){document.getElementById('jb_bin').value=jb.binId;document.getElementById('jb_key').value=jb.apiKey?'saved':'';const mbin=localStorage.getItem('oc_jb_memory_bin')||'';if(document.getElementById('jb_memory_bin'))document.getElementById('jb_memory_bin').value=mbin;document.getElementById('jb_status').style.display='none';}ppRenderLockStatus();}uBadges();}
+}}else if(n==='suppliers'){rSup();if(_activeSupTab==='pricing')rContingency();}else if(n==='orders'||n==='manual_order'){rOrders();if(n==='manual_order')switchOrderTab('manual',document.getElementById('ord-tab-manual'));}else if(n==='deliveries')rDeliveries();else if(n==='alerts')rAlerts();else if(n==='history')rHistory();else if(n==='wastage')rWastage();else if(n==='temp_logs'){if(typeof rTempLogs==='function')rTempLogs();}else if(n==='pos')rPOS();else if(n==='reports'){rReports();if(_rptMainTab==='stocktake')rStocktake();}else if(n==='calendar')rCalendar();else if(n==='morningbrief'){if(typeof ppbRenderPage==='function')ppbRenderPage();}else if(n==='admin')rAdmin();else if(n==='integrations'){/* static */ if (typeof renderEmailConnectionsPanel === 'function') renderEmailConnectionsPanel();}else if(n==='menu'){if(typeof rMenuPage==='function')rMenuPage();}else if(n==='loyalty'){if(typeof renderLoyalty==='function')renderLoyalty();}else if(n==='settings'){document.getElementById('warnPct').value=settings.warnPct;document.getElementById('stocktakeIntervalDays').value=settings.stocktakeIntervalDays||7;document.getElementById('recipeVarianceTagThreshold').value=settings.recipeVarianceTagThreshold||2;document.getElementById('recipeVarianceLookbackDays').value=settings.recipeVarianceLookbackDays||90;document.getElementById('notifEmail').value=settings.notifEmail||'';document.getElementById('browserNotif').checked=settings.browserNotif;const sk=localStorage.getItem('oc_api_key')||'';document.getElementById('anthropicKey').value=sk?'sk-ant-…(saved)':'';if(document.getElementById('srv-url')){document.getElementById('srv-url').value=localStorage.getItem('pp_api_url')||'';document.getElementById('srv-key').value='';const ss=document.getElementById('pp-srv-status');const li=PP_API.linkInfo();if(ss)ss.innerHTML=li?'<span style="color:#22C55E;font-weight:700">● Linked to '+String(li.org_name||'').replace(/</g,'&lt;')+'</span>':'<span style="color:var(--faint)">Not linked</span>';const sp=document.getElementById('pp-share-payroll');if(sp)sp.checked=localStorage.getItem('pp_share_payroll')==='1';}const lsk=localStorage.getItem('oc_ls_key')||'';if(document.getElementById('lightspeedKey'))document.getElementById('lightspeedKey').value=lsk?'(saved)':'';const xero=localStorage.getItem('oc_xero_id')||'';if(document.getElementById('xeroClientId'))document.getElementById('xeroClientId').value=xero;const jb=gJBConfig();if(document.getElementById('jb_bin')){document.getElementById('jb_bin').value=jb.binId;document.getElementById('jb_key').value=jb.apiKey?'saved':'';const mbin=localStorage.getItem('oc_jb_memory_bin')||'';if(document.getElementById('jb_memory_bin'))document.getElementById('jb_memory_bin').value=mbin;document.getElementById('jb_status').style.display='none';}ppRenderLockStatus();}uBadges();}
 function gSt(i){
   const onOrd=(i.onOrder||0);
   const effective=Math.round(((i.stock||0)+onOrd)*10000)/10000;
@@ -2597,7 +2599,7 @@ const WIN_ICONS = {
   dashboard:'📊', inventory:'📦', suppliers:'🏭', orders:'📋',
   deliveries:'🚚', alerts:'🔔', history:'🕐', wastage:'🗑️', pos:'🖥️',
   integrations:'🔗', reports:'📈', settings:'⚙️', calendar:'📅', admin:'🔐',
-  ppfinance:'💼'
+  morningbrief:'🌅', ppfinance:'💼'
 };
 const WIN_LABELS = {
   dashboard:'Dashboard', inventory:'Inventory', suppliers:'Suppliers',
@@ -2605,7 +2607,7 @@ const WIN_LABELS = {
   alerts:'Alerts', history:'History', wastage:'Wastage', pos:'POS',
   integrations:'Apps', reports:'Reports', settings:'Settings',
   calendar:'Roster', admin:'Admin',
-  ppfinance:'Pay & Payroll'
+  morningbrief:'Morning Brief', ppfinance:'Pay & Payroll'
 };
 
 // ── Sidebar nav items — same set previously on the weapon-wheel launcher ──
@@ -2621,6 +2623,7 @@ const NAV_ITEMS = [
   { page:'temp_logs',    icon:'🌡️', label:'Temp Logs' },
   { page:'pos',          icon:'🖥️', label:'POS Orders' },
   { page:'calendar',     icon:'📅', label:'Roster' },
+  { page:'morningbrief', icon:'🌅', label:'Morning Brief' },
   { page:'reports',      icon:'📈', label:'Reports' },
   { page:'integrations', icon:'🔗', label:'Connected Apps' },
   { page:'ppfinance',    icon:'💼', label:'Pay & Payroll' },
@@ -10281,8 +10284,8 @@ let _currentStaff = null;
 let _staffHistory = [];
 
 const STAFF_TOOL_PERMS = {
-  manager:    ['navigate_to','get_item_details','adjust_stock','log_wastage','log_delivery','send_order','start_stocktake','add_inventory_item','edit_inventory_item','delete_inventory_item','upsert_supplier','edit_recipe','check_recipe_trends','record_sales','manage_staff','manage_roster','get_business_intel','show_busiest_times_heatmap','set_dish_price','get_menu_costing','calculate_payroll','log_covers','get_demand_forecast','get_pl_report','send_email','search_web','log_actual_hours','check_compliance','clock_in','clock_out'],
-  supervisor: ['navigate_to','get_item_details','adjust_stock','log_wastage','log_delivery','record_sales','start_stocktake','add_inventory_item','get_business_intel','show_busiest_times_heatmap','log_covers','get_demand_forecast','log_actual_hours','search_web'],
+  manager:    ['navigate_to','get_item_details','adjust_stock','log_wastage','log_delivery','send_order','start_stocktake','add_inventory_item','edit_inventory_item','delete_inventory_item','upsert_supplier','edit_recipe','check_recipe_trends','record_sales','manage_staff','manage_roster','get_business_intel','show_busiest_times_heatmap','set_dish_price','get_menu_costing','calculate_payroll','log_covers','get_demand_forecast','get_pl_report','send_email','search_web','log_actual_hours','check_compliance','clock_in','clock_out','manage_morning_brief'],
+  supervisor: ['navigate_to','get_item_details','adjust_stock','log_wastage','log_delivery','record_sales','start_stocktake','add_inventory_item','get_business_intel','show_busiest_times_heatmap','log_covers','get_demand_forecast','log_actual_hours','search_web','manage_morning_brief'],
   staff:      ['navigate_to','get_item_details','adjust_stock','log_wastage','record_sales','check_compliance','clock_in','clock_out']
 };
 
@@ -10306,6 +10309,7 @@ const TOOL_GROUPS = {
   stocktake:  ['start_stocktake','adjust_stock','get_item_details','check_recipe_trends'],
   compliance: ['check_compliance','search_web'],
   events:    ['manage_events','navigate_to'],
+  brief:     ['manage_morning_brief','search_web','check_compliance'],
 };
 
 const TOOL_KEYWORDS = {
@@ -10318,6 +10322,7 @@ const TOOL_KEYWORDS = {
   comms:     /email|send|message|notify|contact/i,
   stocktake:  /stocktake|count|audit|variance|discrepancy/i,
   events:    /catering|event|function|wedding|corporate lunch|generate po|event order|event menu/i,
+  brief:     /morning brief|briefing|handover|hand over|toolbox|shift note|notice (to|for)|announce|tell (the )?(team|staff|everyone)|team (message|notice|comms|communication)|calendar|\bbrief\b/i,
   compliance: /law|legal|tax|gst|super|superannuation|award|penalty|fair work|ato|minimum wage|entitle|comply|stp|payroll tax|food safe|fsanz|casual conver|record.keep/i,
 };
 
@@ -10754,7 +10759,8 @@ const AIM_TOOLS = [
   { name:'create_invoice', description:'Manually create a PP Pay invoice.', input_schema:{ type:'object', properties:{ supplier_name:{type:'string'}, amount:{type:'number'}, gst_amount:{type:'number'}, invoice_number:{type:'string'}, due_date:{type:'string'}, payment_terms:{type:'string',enum:['cod','net7','net14','net30','net60','eom']}, notes:{type:'string'} }, required:['supplier_name','amount'] } },
   { name:'update_invoice', description:'Edit an existing PP Pay invoice.', input_schema:{ type:'object', properties:{ invoice_id:{type:'string'}, supplier:{type:'string'}, new_supplier:{type:'string'}, new_amount:{type:'number'}, new_gst:{type:'number'}, new_due_date:{type:'string'}, new_invoice_number:{type:'string'}, notes:{type:'string'} } } },
   { name:'mark_invoice_paid', description:'Mark a PP Pay invoice as paid.', input_schema:{ type:'object', properties:{ invoice_id:{type:'string'}, supplier:{type:'string'}, payment_method:{type:'string',enum:['npp','becs','bpay','card','cash','other']}, payment_reference:{type:'string'}, notes:{type:'string'} } } },
-  { name:'get_bas_summary', description:'Get GST input tax credits from PP Pay for BAS.', input_schema:{ type:'object', properties:{ period:{type:'string',enum:['this_month','last_month','this_quarter','last_quarter','this_fy','all']} } } }
+  { name:'get_bas_summary', description:'Get GST input tax credits from PP Pay for BAS.', input_schema:{ type:'object', properties:{ period:{type:'string',enum:['this_month','last_month','this_quarter','last_quarter','this_fy','all']} } } },
+  { name:'manage_morning_brief', description:'Run the Morning Brief: a rolling shift-start handover sent to designated employees before each rostered shift. Actions: status; get_config; set_config (enabled, lead_minutes, grace_minutes, lookahead_days, channels{inApp,browser,email,sms}, gavin_intro, tone warm|concise|formal, standing_message, standing_safety, calendar_enabled, calendar_ids, calendar_days, sections[{id,on,title,max}] in the order wanted — ids: handover, notices, ohs, roster, events, calendar, alerts, weather, web, standing, toolbox_every_days, toolbox_on); set_recipients (staff_names, all_on_shift, roles); preview (staff_name) — builds a real brief without sending; send_now (staff_name or "all_on_shift"); post_notice (text, priority normal|important|critical, audience = list of staff names or omit for everyone, expires_on YYYY-MM-DD); remove_notice; add_handover (text) / resolve_handover — notes for the next shift; log_toolbox (topic, date, held_by, attendees, notes) — records a toolbox meeting; add_web_topic / set_web_topic / remove_web_topic — open-internet items searched for the brief (query may use {suburb} {state} {name}); get_log; autopilot (autopilot_on, autopilot_recipients leads|everyone, horizon_days, reminder_days[], email_if_no_app, rebook_hints, run_now) — "set once and let Gavin take over": when ON you run the brief end to end (daily look-ahead over PP events, public holidays, Google Calendar and the roster; automatic reminders; gap flags; recurring-client re-book hints; and emailing the brief to staff who do not use the staff app); plan — what you see coming; reach — who can and cannot be reached; takings (date) — build the daily takings brief for a day (default yesterday) from POS data; takings_config (takings_on, takings_time, takings_recipients[], extra_emails[], compare, send_when_no_data) — the separate DAILY TAKINGS BRIEF sent to the owner/manager after close (default 00:00, for the day just ended); send_takings (date); record_till_total (amount, date) — the real till total so the report can show variance; set_trading_class (category or dish, trading_class meal|beverage|other|auto) — how items count as meals vs beverages. IMPORTANT: PP has no real till total — takings are ESTIMATED as quantity sold x menu selling price (excludes discounts, refunds, tips) and are only as current as the last POS import; always say so and never present them as the official till takings. Takings are manager-only. Automation runs only while PP is open on a device; say so if asked. It informs only — it never changes stock, orders, pay or the roster. The brief facts are always assembled from live data — never write or promise facts that the tools did not return. State proposed recipient/timing/channel changes back to the user before applying, and confirm before send_now to more than one person. Toolbox talking points are prompts only, not legal advice — use check_compliance (source ohs) for what the law requires.', input_schema:{ type:'object', properties:{ action:{type:'string',enum:['status','get_config','set_config','set_recipients','preview','send_now','post_notice','remove_notice','add_handover','resolve_handover','log_toolbox','add_web_topic','set_web_topic','remove_web_topic','get_log','autopilot','plan','reach','takings','takings_config','send_takings','record_till_total','set_trading_class']}, staff_name:{type:'string'}, staff_names:{type:'array',items:{type:'string'}}, all_on_shift:{type:'boolean'}, roles:{type:'array',items:{type:'string'}}, enabled:{type:'boolean'}, lead_minutes:{type:'number'}, grace_minutes:{type:'number'}, lookahead_days:{type:'number'}, channels:{type:'object',properties:{inApp:{type:'boolean'},browser:{type:'boolean'},email:{type:'boolean'},sms:{type:'boolean'}}}, gavin_intro:{type:'boolean'}, tone:{type:'string',enum:['warm','concise','formal']}, standing_message:{type:'string'}, standing_safety:{type:'string'}, calendar_enabled:{type:'boolean'}, calendar_ids:{type:'array',items:{type:'string'}}, calendar_days:{type:'number'}, sections:{type:'array',items:{type:'object',properties:{id:{type:'string'},on:{type:'boolean'},title:{type:'string'},max:{type:'number'}},required:['id']}}, toolbox_every_days:{type:'number'}, toolbox_on:{type:'boolean'}, text:{type:'string'}, priority:{type:'string',enum:['normal','important','critical']}, audience:{type:'array',items:{type:'string'}}, expires_on:{type:'string'}, notice_id:{type:'string'}, handover_id:{type:'string'}, topic:{type:'string'}, date:{type:'string'}, held_by:{type:'string'}, attendees:{type:'array',items:{type:'string'}}, notes:{type:'string'}, label:{type:'string'}, new_label:{type:'string'}, query:{type:'string'}, on:{type:'boolean'}, topic_id:{type:'string'}, autopilot_on:{type:'boolean'}, autopilot_recipients:{type:'string',enum:['leads','everyone']}, horizon_days:{type:'number'}, reminder_days:{type:'array',items:{type:'number'}}, email_if_no_app:{type:'boolean'}, rebook_hints:{type:'boolean'}, run_now:{type:'boolean'}, takings_on:{type:'boolean'}, takings_time:{type:'string',description:'HH:MM, default 00:00'}, takings_recipients:{type:'array',items:{type:'string'}}, extra_emails:{type:'array',items:{type:'string'}}, compare:{type:'boolean'}, send_when_no_data:{type:'boolean'}, amount:{type:'number'}, category:{type:'string'}, dish:{type:'string'}, trading_class:{type:'string',enum:['meal','beverage','other','auto']} }, required:['action'] } }
 ];
 
 
@@ -12077,6 +12083,8 @@ Note: Revenue is estimated from recorded sales × dish prices. This is not a sub
           return finalText ? '⚖️ COMPLIANCE CHECK\n\n' + finalText.slice(0, 1000) : 'No official guidance found. Check ato.gov.au, fairwork.gov.au, foodstandards.gov.au, safeworkaustralia.gov.au, or your state WHS regulator directly.';
         } catch(e) { return `Compliance check failed: ${e.message}`; }
       }
+
+      case 'manage_morning_brief': return await ppbGavinTool(input);
 
       case 'send_email': {
         // Try Gmail MCP first, fall back to mailto if not available
@@ -13586,6 +13594,7 @@ function staffPinSubmit() {
 function staffDoLogin(s) {
   _currentStaff = s;
   _staffHistory = [];
+  try { setTimeout(function(){ if (typeof ppbOnStaffLogin === 'function') ppbOnStaffLogin(s); }, 700); } catch(e) {}
 
   // ── Onboarding check ─────────────────────────────────────────────
   // First login for new employees — show onboarding before Gavin chat
@@ -14278,6 +14287,7 @@ Staff: manage_staff, manage_roster, calculate_payroll, log_actual_hours, log_cov
 Finance: get_pl_report, get_menu_costing, get_demand_forecast, get_business_intel
 Compliance: check_compliance (searches ATO/FairWork/FSANZ live — always use before advising on wages, super, GST, food safety)
 Communication: send_email (Gmail), search_web (live internet), navigate_to
+Morning Brief: manage_morning_brief — YOU own the shift-start brief that goes to designated employees before each rostered shift (a rolling handover: previous-shift notes, team notices, toolbox/OHS, who's on, events, Google Calendar, alerts, weather, web topics). Set it up, adjust it, post notices, keep handover notes, log toolbox meetings, add web topics, preview and send it. Current state: ${ppbContextLine()}. Never invent brief content — it is assembled from live data; only describe what the tools return. When autopilot is ON you run it end to end: look-ahead, reminders and emailing staff without the app happen automatically while PP is open on a device. Use action=plan to see what is coming and action=reach to check who cannot be reached, and tell the manager plainly about anyone you cannot reach. If a manager has set the brief up by hand and autopilot is OFF, offer autopilot once. The brief has a POS trading section (yesterday's meals/beverages; takings shown to managers only) and a separate Daily Takings brief for the owner/manager: takings are ESTIMATED from menu prices (PP has no till total) and only as fresh as the last POS import — always say so; suggest record_till_total for the real figure.
 Business rules in force: ${(()=>{const r=getBizRules();const lines=[];if(r.mealPerWeek>0)lines.push(`max ${r.mealPerWeek} staff meals/person/week`);if(r.mealMaxCost>0)lines.push(`max $${r.mealMaxCost}/meal`);if(r.wastageWeekly>0)lines.push(`wastage limit $${r.wastageWeekly}/week`);if(r.orderApproval>0)lines.push(`orders need approval >$${r.orderApproval}`);if(r.maxHoursWeek>0)lines.push(`max ${r.maxHoursWeek}h/staff/week`);return lines.length?lines.join(', '):'none set — configure in Admin → Business Rules';})()} 
 Menus in system: ${(()=>{const cats=[...new Set(Object.values(MENU_DATA).map(m=>m.category).filter(Boolean))];return cats.length?cats.join(', '):'none — create via Connected Apps → Create New Menu';})()} 
 CATERING EVENTS: ${(()=>{  if(!_events||!_events.length) return "none";  var up=_events.filter(function(ev){return ev.date&&new Date(ev.date+"T12:00:00")>=new Date();});  if(!up.length) return _events.length+" past, none upcoming";  return up.slice(0,4).map(function(ev){    return ev.name+" "+new Date(ev.date+"T12:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})+" ("+ev.attendees+" guests, "+(ev.menu||[]).length+" dishes, "+ev.status+")";})  .join(" | ");})()}
@@ -14358,6 +14368,7 @@ function gavActionSummary(toolName, input, result) {
     case 'manage_staff':   return `${input.action} staff: ${input.name}`;
     case 'manage_roster':  return `${input.action} roster: ${input.staff_name||'all'} ${input.day_index!==undefined?['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][input.day_index]:''}`;
     case 'set_dish_price': return `Set ${input.dish_name} price to $${input.selling_price}`;
+    case 'manage_morning_brief': return `Morning brief: ${input.action}${input.staff_name?' - '+input.staff_name:''}`;
     case 'log_covers':     return `Logged ${input.count} covers${input.period?' ('+input.period+')':''}`;
     case 'log_actual_hours': return `Logged ${input.staff_name} hours: ${input.start_time}–${input.end_time}`;
     case 'send_email':     return `Sent email to ${input.to}: "${input.subject}"`;
@@ -25539,6 +25550,1570 @@ function autoOrderCheck() {
 
 // Start the scheduler — check every 60 seconds
 setInterval(autoOrderCheck, 60000);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MORNING BRIEF (ppb*) — rolling shift-start handover, run by Gavin
+// ───────────────────────────────────────────────────────────────────────────
+// A per-shift briefing sent to designated employees ahead of their rostered
+// start. Sources: rostered team, catering events, Google Calendar (OAuth,
+// read-only), OHS/toolbox meetings + compliance nudges, team notices, rolling
+// handover notes, stock/temperature alerts, weather, and open-internet topics.
+// Facts are always assembled by code; Gavin (Claude) only writes the short
+// opening paragraph and never supplies data.
+//
+// DELIVERY LIMIT (honest): this runs in the browser, so scheduled sends only
+// fire while the app is open on a device. True background delivery needs the
+// backend scheduler (see Backend_Blocked_TODO). Missed briefs are caught up on
+// next app open within the grace window (Setup → grace minutes).
+// ═══════════════════════════════════════════════════════════════════════════
+const PPB_KEYS = {
+  cfg:      'pp_brief_config',
+  notices:  'pp_brief_notices',
+  handover: 'pp_brief_handover',
+  toolbox:  'pp_brief_toolbox_log',
+  sent:     'pp_brief_sent',
+  inbox:    'pp_brief_inbox',
+  state:    'pp_brief_state',
+  webCache: 'pp_brief_web_cache',
+  gToken:   'pp_brief_gcal_token',
+  appUsers: 'pp_brief_app_users',
+  autoState:'pp_brief_autopilot_state',
+  takingsSent:'pp_brief_takings_sent',
+  takingsHist:'pp_brief_takings_history',
+  tillActual:'pp_brief_till_actual'
+};
+
+function ppbLoad(key, def) { try { var v = JSON.parse(localStorage.getItem(key)); return v == null ? def : v; } catch (e) { return def; } }
+function ppbSave(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch (e) { console.error('[ppb] save failed', key, e); return false; } }
+function ppbEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function ppbId(p) { return p + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+// LOCAL calendar date (YYYY-MM-DD). Do not use fmtISO() for "today": it is UTC-based
+// and returns yesterday's date before 10am in Victoria — exactly when the brief fires.
+function ppbLocalISO(d) { d = d || new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function ppbParseISO(s) { var p = String(s || '').split('-').map(Number); return new Date(p[0], (p[1] || 1) - 1, p[2] || 1); }
+function ppbDaysBetween(a, b) { return Math.round((ppbParseISO(ppbLocalISO(b)) - ppbParseISO(ppbLocalISO(a))) / 864e5); }
+function ppbFirst(name) { return String(name || '').trim().split(/\s+/)[0] || 'there'; }
+
+// ── Toolbox talk prompts (conversation starters — NOT legal advice; verify against your state regulator) ──
+const PPB_TOOLBOX_TOPICS = [
+  { id: 'slips_trips',  label: 'Slips, trips & falls',       points: ['Wipe up spills straight away and put out a wet-floor sign', 'Keep walkways, back doors and stock areas clear', 'Non-slip closed footwear on every shift', 'Stack deliveries so nothing blocks exits or the pass'] },
+  { id: 'burns',        label: 'Burns, scalds & hot surfaces', points: ['Call out "hot behind" / "coming through" with hot pans and trays', 'Turn pot handles inward; use dry oven gloves (wet cloth conducts heat)', 'Steam wand and fryer oil: purge, wait, then clean — never rush', 'Know where the first aid kit and burns gel are'] },
+  { id: 'knives',       label: 'Knife & slicer safety',       points: ['Sharp knife is a safer knife — report dull blades', 'Never try to catch a falling knife; step back', 'Carry knives point down, tell people when you are passing', 'Guards on slicers; isolate power before cleaning'] },
+  { id: 'manual',       label: 'Manual handling',             points: ['Use trolleys for deliveries, kegs and heavy stock', 'Test the weight first; ask for a team lift', 'Keep loads close, avoid twisting while lifting', 'Store heavy items between knee and shoulder height'] },
+  { id: 'chemicals',    label: 'Chemicals & cleaning',        points: ['Never mix cleaning products', 'Decanted bottles must be labelled', 'Safety Data Sheets: everyone should know where they are', 'Gloves/eye protection for concentrates; sanitiser dilution as per label'] },
+  { id: 'fire',         label: 'Fire & emergency',            points: ['Locate exits, assembly point, extinguishers and fire blanket', 'Oil fire: cover/blanket and isolate — never water', 'Know where gas and power isolation points are', 'Who is the fire warden / first aider on this shift?'] },
+  { id: 'incidents',    label: 'Incident & near-miss reporting', points: ['Report every incident and near miss — even small ones', 'Where the incident register is and who to tell', 'Who is the first aider today?', 'Injured or unsafe? Stop, make safe, tell a supervisor'] },
+  { id: 'electrical',   label: 'Electrical safety',           points: ['Dry hands, no daisy-chained power boards', 'Report frayed cords or tripping equipment; tag and take out of service', 'Keep water and cords apart near the pass, coffee machine and dishwasher'] },
+  { id: 'fatigue',      label: 'Fatigue, heat & wellbeing',   points: ['Take your breaks; hydrate, especially in the kitchen', 'Speak up if you are too tired to work safely', 'Aggressive customers: disengage, get a supervisor, do not argue'] }
+];
+
+const PPB_SECTION_DEFS = {
+  handover: { label: 'Handover from the last shift', icon: '🔄' },
+  notices:  { label: 'Team notices & communications', icon: '📣' },
+  ohs:      { label: 'Safety & OHS',                  icon: '🛡️' },
+  roster:   { label: "Who's on",                      icon: '👥' },
+  events:   { label: 'Upcoming work events',          icon: '🍽️' },
+  planning: { label: 'Coming up — Gavin’s look-ahead', icon: '🧭' },
+  trading:  { label: 'Yesterday’s trading (POS)',       icon: '☕' },
+  calendar: { label: 'Calendar (Google)',             icon: '📅' },
+  alerts:   { label: 'Stock & temperature alerts',    icon: '🚨' },
+  weather:  { label: 'Weather & public holidays',     icon: '🌤️' },
+  web:      { label: 'From the web',                  icon: '🌐' },
+  standing: { label: 'Standing message',              icon: '📌' }
+};
+const PPB_DEFAULT_ORDER = ['handover', 'notices', 'ohs', 'roster', 'trading', 'events', 'planning', 'calendar', 'alerts', 'weather', 'web', 'standing'];
+
+function ppbDefaultCfg() {
+  return {
+    enabled: false,
+    managedBy: 'Gavin',
+    recipients: { staffIds: [], allOnShift: false, roles: [] },
+    timing: { leadMinutes: 30, graceMinutes: 180 },
+    channels: { inApp: true, browser: true, email: false, sms: false, emailIfNoApp: true },
+    trading: { categoryMap: {}, dishMap: {} },
+    dailyTakings: { on: false, time: '00:00', recipientIds: [], extraEmails: [], firstDate: '', compare: true, sendWhenNoData: true, catchUpDays: 3 },
+    autopilot: { on: false, recipients: 'leads', horizonDays: 14, reminderDays: [7, 2, 1, 0], rebookHints: true, dayStartHour: 5 },
+    gavinIntro: true,
+    tone: 'warm',
+    lookaheadDays: 7,
+    standingMessage: '',
+    sections: PPB_DEFAULT_ORDER.map(function (id) { return { id: id, on: id !== 'standing', title: '', max: 8 }; }),
+    calendar: { enabled: false, clientId: '', calendarIds: ['primary'], lookaheadDays: 2 },
+    web: {
+      refreshHours: 6,
+      topics: [
+        { id: 'wt_local',  label: 'Local disruptions & events', query: 'Road closures, major events, public transport disruptions or street works near {suburb} {state} in the next 3 days that could affect a café', on: true },
+        { id: 'wt_safety', label: 'Workplace safety alerts',    query: 'Recent workplace health and safety alerts or product recalls relevant to hospitality kitchens and cafés in {state}, Australia', on: true },
+        { id: 'wt_supply', label: 'Supply & price news',        query: 'Australian food supply disruptions, coffee, dairy or produce price news this week affecting cafés', on: false }
+      ]
+    },
+    ohs: {
+      complianceNudges: true,
+      standingSafety: '',
+      toolbox: { on: true, everyDays: 7, durationMins: 10, topics: PPB_TOOLBOX_TOPICS.map(function (t) { return t.id; }) }
+    }
+  };
+}
+
+function ppbCfg() {
+  var d = ppbDefaultCfg();
+  var c = ppbLoad(PPB_KEYS.cfg, null);
+  if (!c || typeof c !== 'object') return d;
+  var m = Object.assign({}, d, c);
+  m.recipients = Object.assign({}, d.recipients, c.recipients || {});
+  m.timing     = Object.assign({}, d.timing, c.timing || {});
+  m.channels   = Object.assign({}, d.channels, c.channels || {});
+  m.calendar   = Object.assign({}, d.calendar, c.calendar || {});
+  m.web        = Object.assign({}, d.web, c.web || {});
+  m.ohs        = Object.assign({}, d.ohs, c.ohs || {});
+  m.autopilot  = Object.assign({}, d.autopilot, c.autopilot || {});
+  m.trading    = Object.assign({}, d.trading, c.trading || {});
+  if (!m.trading.categoryMap || typeof m.trading.categoryMap !== 'object') m.trading.categoryMap = {};
+  if (!m.trading.dishMap || typeof m.trading.dishMap !== 'object') m.trading.dishMap = {};
+  m.dailyTakings = Object.assign({}, d.dailyTakings, c.dailyTakings || {});
+  if (!Array.isArray(m.dailyTakings.recipientIds)) m.dailyTakings.recipientIds = [];
+  if (!Array.isArray(m.dailyTakings.extraEmails)) m.dailyTakings.extraEmails = [];
+  if (!Array.isArray(m.autopilot.reminderDays)) m.autopilot.reminderDays = d.autopilot.reminderDays.slice();
+  m.ohs.toolbox = Object.assign({}, d.ohs.toolbox, (c.ohs && c.ohs.toolbox) || {});
+  if (!Array.isArray(m.recipients.staffIds)) m.recipients.staffIds = [];
+  if (!Array.isArray(m.recipients.roles)) m.recipients.roles = [];
+  if (!Array.isArray(m.calendar.calendarIds) || !m.calendar.calendarIds.length) m.calendar.calendarIds = ['primary'];
+  if (!Array.isArray(m.web.topics)) m.web.topics = d.web.topics;
+  // Reconcile sections: keep the saved order/settings, append any section added in a later version.
+  var saved = Array.isArray(c.sections) ? c.sections.filter(function (s) { return s && PPB_SECTION_DEFS[s.id]; }) : [];
+  PPB_DEFAULT_ORDER.forEach(function (id) {
+    if (!saved.some(function (s) { return s.id === id; })) saved.push(d.sections.find(function (s) { return s.id === id; }));
+  });
+  m.sections = saved.map(function (s) { return Object.assign({ on: true, title: '', max: 8 }, s); });
+  return m;
+}
+function ppbSaveCfg(cfg) { return ppbSave(PPB_KEYS.cfg, cfg); }
+function ppbUpdateCfg(fn) { var c = ppbCfg(); fn(c); ppbSaveCfg(c); return c; }
+
+// ── Roster helpers — must use the SAME keying as the Roster page: `${fmtISO(getMonday(d))}_${staffId}_${dayIndex}` ──
+function ppbShiftFor(staff, dateObj) {
+  var wk = fmtISO(getMonday(dateObj));
+  var di = (dateObj.getDay() + 6) % 7; // Mon=0 … Sun=6
+  var sh = rosterData[wk + '_' + staff.id + '_' + di];
+  return (sh && sh.start) ? { start: sh.start, end: sh.end || '', day: di } : null;
+}
+function ppbShiftsOn(dateObj) {
+  return staffList.map(function (s) { var sh = ppbShiftFor(s, dateObj); return sh ? Object.assign({ staff: s }, sh) : null; })
+    .filter(Boolean).sort(function (a, b) { return a.start.localeCompare(b.start); });
+}
+function ppbStartDate(dateObj, hhmm) {
+  var p = String(hhmm || '00:00').split(':').map(Number);
+  var d = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), p[0] || 0, p[1] || 0, 0, 0);
+  return d;
+}
+function ppbIsRecipient(staff, cfg) {
+  var r = cfg.recipients;
+  if (r.staffIds.indexOf(staff.id) !== -1) return true;
+  if (r.allOnShift) return true;
+  var ap = cfg.autopilot;
+  if (ap && ap.on) { if (ap.recipients === 'everyone') return true; if (ap.recipients === 'leads' && typeof staffLevel === 'function' && staffLevel(staff.role) !== 'staff') return true; }
+  var role = String(staff.role || '').toLowerCase();
+  return r.roles.some(function (x) { x = String(x || '').toLowerCase().trim(); return x && role.indexOf(x) !== -1; });
+}
+function ppbFindStaff(name) {
+  var q = String(name || '').toLowerCase().trim();
+  if (!q) return null;
+  return staffList.find(function (s) { return String(s.name || '').toLowerCase() === q; })
+      || staffList.find(function (s) { return String(s.name || '').toLowerCase().indexOf(q) !== -1; }) || null;
+}
+function ppbSubst(q) {
+  var c = (typeof cafeDetails !== 'undefined' && cafeDetails) || {};
+  return String(q || '').replace(/\{suburb\}/g, c.suburb || 'Victoria').replace(/\{state\}/g, c.state || 'Australia').replace(/\{name\}/g, c.name || 'the café');
+}
+function ppbRelDay(iso, todayISO) {
+  var n = ppbDaysBetween(ppbParseISO(todayISO), ppbParseISO(iso));
+  if (n === 0) return 'Today'; if (n === 1) return 'Tomorrow';
+  return ppbParseISO(iso).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+function ppbFmtTime(d) { return d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); }
+
+// ── Google Calendar (read-only) via Google Identity Services + Calendar REST API ──
+// Needs the operator's own OAuth Client ID (Google Cloud → Credentials → Web application, with the app's
+// origin under Authorised JavaScript origins, and the Calendar API enabled). Tokens last ~1 hour and are
+// kept on this device only; a background refresh needs the backend (refresh tokens must never live in the browser).
+function ppbGToken() { var t = ppbLoad(PPB_KEYS.gToken, null); return (t && t.token && t.exp > Date.now()) ? t.token : ''; }
+function ppbLoadGis() {
+  return new Promise(function (res, rej) {
+    if (window.google && google.accounts && google.accounts.oauth2) return res();
+    var s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
+    s.onload = function () { res(); };
+    s.onerror = function () { rej(new Error('Could not load Google sign-in (offline or blocked).')); };
+    document.head.appendChild(s);
+  });
+}
+function ppbGoogleConnect() {
+  var cfg = ppbCfg();
+  if (!cfg.calendar.clientId) { toast('Add your Google OAuth Client ID first', 'err'); return Promise.resolve(false); }
+  return ppbLoadGis().then(function () {
+    return new Promise(function (resolve) {
+      var client = google.accounts.oauth2.initTokenClient({
+        client_id: cfg.calendar.clientId,
+        scope: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.send',
+        callback: function (resp) {
+          if (resp && resp.access_token) {
+            ppbSave(PPB_KEYS.gToken, { token: resp.access_token, scope: resp.scope || '', exp: Date.now() + Math.max(60, (resp.expires_in || 3600) - 60) * 1000 });
+            toast('Google Calendar connected on this device', 'ok'); resolve(true);
+          } else { toast('Google connection failed: ' + ((resp && (resp.error_description || resp.error)) || 'cancelled'), 'err'); resolve(false); }
+          if (typeof ppbRenderPage === 'function' && cPage === 'morningbrief') ppbRenderPage();
+        },
+        error_callback: function (e) { toast('Google connection failed: ' + ((e && e.type) || 'popup closed'), 'err'); resolve(false); }
+      });
+      client.requestAccessToken({ prompt: '' });
+    });
+  }).catch(function (e) { toast(e.message, 'err'); return false; });
+}
+function ppbGoogleDisconnect() { try { localStorage.removeItem(PPB_KEYS.gToken); } catch (e) {} toast('Google Calendar disconnected on this device', 'ok'); if (cPage === 'morningbrief') ppbRenderPage(); }
+
+var _ppbCalCache = {};
+async function ppbFetchCalendar(cfg, daysOverride) {
+  var c = cfg.calendar;
+  if (!c.enabled) return { off: true, events: [] };
+  var token = ppbGToken();
+  if (!token) throw new Error('Google connection has expired or was never made on this device — reconnect in Morning Brief → Sources.');
+  var days = Math.max(1, daysOverride || c.lookaheadDays);
+  var ckey = c.calendarIds.join(',') + '|' + ppbLocalISO() + '|' + days;
+  var hit = _ppbCalCache[ckey];
+  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.res;
+  var from = new Date(); from.setHours(0, 0, 0, 0);
+  var to = new Date(from.getTime() + days * 864e5); to.setHours(23, 59, 59, 999);
+  var events = [];
+  for (var i = 0; i < c.calendarIds.length; i++) {
+    var id = c.calendarIds[i];
+    var url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(id) + '/events?singleEvents=true&orderBy=startTime&maxResults=50&timeMin=' + encodeURIComponent(from.toISOString()) + '&timeMax=' + encodeURIComponent(to.toISOString());
+    var r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+    if (r.status === 401) { try { localStorage.removeItem(PPB_KEYS.gToken); } catch (e) {} throw new Error('Google connection expired — reconnect in Morning Brief → Sources.'); }
+    if (!r.ok) { var t = ''; try { t = (await r.json()).error.message; } catch (e) {} throw new Error('Google Calendar (' + id + ') returned ' + r.status + (t ? ': ' + t : '')); }
+    var d = await r.json();
+    (d.items || []).forEach(function (ev) {
+      if (ev.status === 'cancelled') return;
+      var allDay = !!(ev.start && ev.start.date && !ev.start.dateTime);
+      var s = allDay ? ppbParseISO(ev.start.date) : new Date(ev.start.dateTime);
+      var e = ev.end ? (allDay ? ppbParseISO(ev.end.date) : new Date(ev.end.dateTime)) : null;
+      events.push({ title: ev.summary || '(no title)', start: s, end: e, allDay: allDay, location: ev.location || '', cal: id });
+    });
+  }
+  events.sort(function (a, b) { return a.start - b.start; });
+  var res = { events: events };
+  _ppbCalCache[ckey] = { at: Date.now(), res: res };
+  return res;
+}
+
+// ── Open-internet topics (Claude + server-side web search; cached so one search serves every recipient) ──
+async function ppbWebSearch(topic, cfg, fresh) {
+  var cache = ppbLoad(PPB_KEYS.webCache, {});
+  var ck = topic.id + '|' + ppbSubst(topic.query).toLowerCase() + '|' + ppbLocalISO();
+  var hit = cache[ck];
+  if (hit && !fresh && Date.now() - hit.at < (cfg.web.refreshHours || 6) * 36e5) return hit;
+  var c = cafeDetails || {};
+  var loc = [c.suburb, c.state].filter(Boolean).join(', ') || 'Australia';
+  var system = 'You research for the morning shift brief of an Australian hospitality venue in ' + loc + '. Today is ' + new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + '. ' +
+    'Answer in at most 3 short bullet lines (start each with "- "), each specific, dated where possible, and only about things that matter to running the venue in the next few days. ' +
+    'Do not pad, do not speculate, do not give legal advice. If there is nothing genuinely relevant and recent, reply with exactly: NOTHING_RELEVANT';
+  var tool = { type: 'web_search_20250305', name: 'web_search', max_uses: 3, user_location: { type: 'approximate', country: 'AU' } };
+  if (c.state) tool.user_location.region = c.state;
+  if (c.suburb) tool.user_location.city = c.suburb;
+  var msgs = [{ role: 'user', content: ppbSubst(topic.query) }];
+  var text = '', sources = [];
+  for (var i = 0; i < 4; i++) {
+    var r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: aimHeaders(), body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 700, tools: [tool], system: system, messages: msgs }) });
+    var d = await r.json();
+    if (d.error) throw new Error(d.error.message);
+    (d.content || []).forEach(function (b) {
+      if (b.type === 'text' && b.text) { text += (text ? '\n' : '') + b.text; (b.citations || []).forEach(function (ct) { if (ct.url && sources.indexOf(ct.url) === -1) sources.push(ct.url); }); }
+    });
+    if (d.stop_reason === 'pause_turn') { msgs.push({ role: 'assistant', content: d.content }); text = ''; continue; }
+    break;
+  }
+  text = text.trim();
+  if (/NOTHING_RELEVANT/.test(text)) text = '';
+  var res = { at: Date.now(), text: text, sources: sources.slice(0, 3) };
+  cache[ck] = res;
+  // prune old cache entries
+  Object.keys(cache).forEach(function (k) { if (Date.now() - cache[k].at > 2 * 864e5) delete cache[k]; });
+  ppbSave(PPB_KEYS.webCache, cache);
+  return res;
+}
+
+// ── Notices, handover notes, toolbox log (data helpers) ─────────────────────
+function ppbNoticeApplies(n, staff, todayISO) {
+  if (n.startsOn && todayISO < n.startsOn) return false;
+  if (n.expiresOn && todayISO > n.expiresOn) return false;
+  var a = n.audience || { all: true };
+  if (a.all) return true;
+  if ((a.staffIds || []).indexOf(staff.id) !== -1) return true;
+  var role = String(staff.role || '').toLowerCase();
+  return (a.roles || []).some(function (x) { x = String(x || '').toLowerCase().trim(); return x && role.indexOf(x) !== -1; });
+}
+function ppbPostNotice(o) {
+  var list = ppbLoad(PPB_KEYS.notices, []);
+  var n = { id: ppbId('nt'), text: String(o.text || '').trim(), priority: o.priority || 'normal', audience: o.audience || { all: true },
+            startsOn: o.startsOn || '', expiresOn: o.expiresOn || '', by: o.by || 'Gavin', at: new Date().toISOString(), ackBy: [] };
+  if (!n.text) return null;
+  list.unshift(n); ppbSave(PPB_KEYS.notices, list.slice(0, 200)); return n;
+}
+function ppbAddHandover(text, by) {
+  var t = String(text || '').trim(); if (!t) return null;
+  var list = ppbLoad(PPB_KEYS.handover, []);
+  var h = { id: ppbId('ho'), text: t, by: by || 'Manager', at: new Date().toISOString(), resolved: false, seenBy: [] };
+  list.unshift(h); ppbSave(PPB_KEYS.handover, list.slice(0, 200)); return h;
+}
+function ppbResolveHandover(id, by) {
+  var list = ppbLoad(PPB_KEYS.handover, []); var h = list.find(function (x) { return x.id === id; });
+  if (!h) return false; h.resolved = true; h.resolvedBy = by || ''; h.resolvedAt = new Date().toISOString(); ppbSave(PPB_KEYS.handover, list); return true;
+}
+function ppbToolboxLogs() { return ppbLoad(PPB_KEYS.toolbox, []).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); }); }
+function ppbLogToolbox(o) {
+  var t = PPB_TOOLBOX_TOPICS.find(function (x) { return x.id === o.topic; });
+  var e = { id: ppbId('tb'), date: o.date || ppbLocalISO(), topic: o.topic || 'custom', topicLabel: t ? t.label : (o.topicLabel || o.topic || 'Toolbox meeting'),
+            heldBy: o.heldBy || '', attendees: o.attendees || [], notes: o.notes || '', at: new Date().toISOString() };
+  var list = ppbLoad(PPB_KEYS.toolbox, []); list.push(e); ppbSave(PPB_KEYS.toolbox, list); return e;
+}
+function ppbToolboxStatus(cfg) {
+  var tb = cfg.ohs.toolbox, logs = ppbToolboxLogs(), last = logs[0] || null, now = new Date();
+  var since = last ? ppbDaysBetween(ppbParseISO(last.date), now) : null;
+  var state = !last ? 'never' : (since > tb.everyDays ? 'overdue' : (since === tb.everyDays ? 'due' : 'ok'));
+  return { last: last, since: since, state: state, daysOver: last ? since - tb.everyDays : null, daysUntil: last ? tb.everyDays - since : null };
+}
+function ppbSuggestTopic(cfg) {
+  var enabled = PPB_TOOLBOX_TOPICS.filter(function (t) { return cfg.ohs.toolbox.topics.indexOf(t.id) !== -1; });
+  if (!enabled.length) enabled = PPB_TOOLBOX_TOPICS;
+  var recent = ppbToolboxLogs().slice(0, Math.min(4, enabled.length - 1)).map(function (l) { return l.topic; });
+  return enabled.find(function (t) { return recent.indexOf(t.id) === -1; }) || enabled[0];
+}
+
+// ── Section builders — each returns { lines:[{t, lvl:'info'|'warn'|'urgent', sub?, head?, src?}], ... } ──
+var PPB_BUILDERS = {};
+
+PPB_BUILDERS.handover = async function (cfg, b) {
+  var lines = [], now = new Date(), st = ppbLoad(PPB_KEYS.state, { byStaff: {} });
+  var mine = (st.byStaff || {})[b.staff.id] || {};
+  var floor = now.getTime() - 48 * 36e5;
+  var since = new Date(Math.max(mine.at ? new Date(mine.at).getTime() : now.getTime() - 24 * 36e5, floor));
+  b.meta.since = since.toISOString();
+  var notes = ppbLoad(PPB_KEYS.handover, []).filter(function (h) { return !h.resolved; });
+  b.meta.handoverIds = notes.map(function (h) { return h.id; });
+  notes.forEach(function (h) {
+    lines.push({ t: h.text + ' — ' + (h.by || 'Manager') + ', ' + new Date(h.at).toLocaleString('en-AU', { weekday: 'short', hour: 'numeric', minute: '2-digit' }), lvl: 'info' });
+  });
+  // Automatic "what happened since your last brief"
+  try {
+    if (typeof wastageLog !== 'undefined') {
+      var w = wastageLog.filter(function (e) { return new Date(e.date) > since; });
+      if (w.length) { var cost = w.reduce(function (s, e) { var it = db.items[e.itemId]; return s + (it ? (e.qty || 0) * (it.unitCost || 0) : 0); }, 0); lines.push({ t: 'Wastage logged since your last brief: ' + w.length + ' entr' + (w.length === 1 ? 'y' : 'ies') + (cost ? ' (~$' + cost.toFixed(0) + ')' : ''), lvl: 'info' }); }
+    }
+    var ta = (typeof getTempAlertLog === 'function' ? getTempAlertLog() : []).filter(function (e) { return e.time && new Date(e.time) > since; });
+    if (ta.length) lines.push({ t: ta.length + ' temperature alert' + (ta.length === 1 ? '' : 's') + ' fired since your last brief: ' + ta.slice(0, 3).map(function (e) { return (e.unitName || 'unit') + ' ' + e.temp + '°C'; }).join(', '), lvl: 'warn' });
+  } catch (e) { /* best-effort */ }
+  if (!lines.length) lines.push({ t: 'Nothing flagged from the previous shift.', lvl: 'info' });
+  return { lines: lines };
+};
+
+PPB_BUILDERS.notices = async function (cfg, b) {
+  var today = b.dateISO;
+  var list = ppbLoad(PPB_KEYS.notices, []).filter(function (n) { return ppbNoticeApplies(n, b.staff, today); });
+  var rank = { critical: 0, important: 1, normal: 2 };
+  list.sort(function (a, c) { return (rank[a.priority] || 2) - (rank[c.priority] || 2); });
+  b.meta.noticeIds = list.map(function (n) { return n.id; });
+  return { lines: list.map(function (n) {
+    return { t: n.text + (n.by ? ' — ' + n.by : ''), lvl: n.priority === 'critical' ? 'urgent' : (n.priority === 'important' ? 'warn' : 'info') };
+  }) };
+};
+
+PPB_BUILDERS.roster = async function (cfg, b) {
+  var lines = [], now = new Date();
+  var shifts = ppbShiftsOn(now);
+  function mins(h) { var p = String(h || '0:0').split(':').map(Number); return (p[0] || 0) * 60 + (p[1] || 0); }
+  var mine = b.shift;
+  shifts.forEach(function (s) {
+    var you = s.staff.id === b.staff.id;
+    lines.push({ t: s.start + (s.end ? '–' + s.end : '') + '  ' + s.staff.name + (s.staff.role ? ' (' + s.staff.role + ')' : '') + (you ? '  ← you' : ''), lvl: 'info' });
+  });
+  if (mine && mine.start && mine.end) {
+    var others = shifts.filter(function (s) { return s.staff.id !== b.staff.id && mins(s.start) < mins(mine.end) && mins(s.end || '23:59') > mins(mine.start); });
+    if (!others.length) lines.unshift({ t: 'Nobody else is rostered during your shift.', lvl: 'warn' });
+  }
+  if (!shifts.length) lines.push({ t: 'No shifts on the roster today.', lvl: 'info' });
+  return { lines: lines };
+};
+
+PPB_BUILDERS.events = async function (cfg, b) {
+  var lines = [], today = b.dateISO, la = cfg.lookaheadDays;
+  var evs = (typeof _events !== 'undefined' ? _events : []).filter(function (e) {
+    if (!e.date || e.status === 'cancelled' || e.status === 'completed') return false;
+    var n = ppbDaysBetween(ppbParseISO(today), ppbParseISO(e.date)); return n >= 0 && n <= la;
+  }).sort(function (a, c) { return String(a.date).localeCompare(String(c.date)); });
+  evs.forEach(function (e) {
+    var n = ppbDaysBetween(ppbParseISO(today), ppbParseISO(e.date));
+    var bits = [ppbRelDay(e.date, today) + ' — ' + e.name];
+    if (e.time || e.startTime) bits.push('at ' + (e.time || e.startTime));
+    if (e.attendees) bits.push(e.attendees + ' guests');
+    if (e.client) bits.push(e.client);
+    lines.push({ t: bits.join(' · '), lvl: n <= 1 ? 'warn' : 'info' });
+    if (n <= 2 && (e.status === 'planning' || !e.status)) lines.push({ t: 'Still in planning — confirm menu and purchase orders.', lvl: 'warn', sub: true });
+  });
+  return { lines: lines };
+};
+
+PPB_BUILDERS.calendar = async function (cfg, b) {
+  var c = cfg.calendar;
+  if (!c.enabled) return { lines: [] };
+  var res;
+  try { res = await ppbFetchCalendar(cfg); }
+  catch (e) { b.notes.push('Google Calendar: ' + e.message); return { lines: [{ t: 'Calendar unavailable — ' + e.message, lvl: 'warn' }] }; }
+  var lines = [], last = '';
+  res.events.forEach(function (ev) {
+    var day = ppbRelDay(ppbLocalISO(ev.start), b.dateISO);
+    if (day !== last) { lines.push({ t: day, head: true }); last = day; }
+    lines.push({ t: (ev.allDay ? 'All day' : ppbFmtTime(ev.start) + (ev.end ? '–' + ppbFmtTime(ev.end) : '')) + '  ' + ev.title + (ev.location ? ' @ ' + ev.location : ''), lvl: 'info' });
+  });
+  if (!lines.length) lines.push({ t: 'Nothing in the calendar for the next ' + c.lookaheadDays + ' day(s).', lvl: 'info' });
+  return { lines: lines };
+};
+
+PPB_BUILDERS.ohs = async function (cfg, b) {
+  var lines = [], sources = [], tb = cfg.ohs.toolbox, now = new Date();
+  if (tb.on) {
+    var s = ppbToolboxStatus(cfg), topic = ppbSuggestTopic(cfg);
+    var when = s.state === 'never' ? 'No toolbox meeting recorded yet — one is due.'
+      : s.state === 'overdue' ? 'Toolbox meeting overdue by ' + s.daysOver + ' day' + (s.daysOver === 1 ? '' : 's') + ' (last held ' + ppbRelDay(s.last.date, b.dateISO) + ': ' + s.last.topicLabel + ').'
+      : s.state === 'due' ? 'Toolbox meeting is due today (last held ' + s.last.topicLabel + ', ' + s.since + ' days ago).'
+      : 'Next toolbox meeting due in ' + s.daysUntil + ' day' + (s.daysUntil === 1 ? '' : 's') + ' (last: ' + s.last.topicLabel + ').';
+    lines.push({ t: when, lvl: s.state === 'ok' ? 'info' : 'warn' });
+    if (s.state !== 'ok') {
+      lines.push({ t: 'Suggested topic (' + tb.durationMins + ' min): ' + topic.label, lvl: 'info', sub: true });
+      topic.points.forEach(function (p) { lines.push({ t: p, lvl: 'info', sub: true, bullet2: true }); });
+    }
+  }
+  if (cfg.ohs.standingSafety) cfg.ohs.standingSafety.split(/\n+/).filter(Boolean).forEach(function (l) { lines.push({ t: l, lvl: 'info' }); });
+  // Temperature units whose most recent reading failed
+  try {
+    var units = getTempUnits(), logs = getTempLogs();
+    units.forEach(function (u) {
+      var l = null; for (var i = logs.length - 1; i >= 0; i--) { if (logs[i].unitId === u.id) { l = logs[i]; break; } }
+      if (l && l.pass === false) lines.push({ t: u.name + ': last reading ' + l.temp + '°C (' + l.date + ' ' + l.time + ') was OUT of range.', lvl: 'urgent' });
+    });
+  } catch (e) { /* no temp module data */ }
+  if (cfg.ohs.complianceNudges) {
+    var days = function (k) { var v = localStorage.getItem(k); return v ? Math.floor((now - new Date(v)) / 864e5) : 999; };
+    if (days('pp_ohs_compliance_last_check') > 90) lines.push({ t: 'OHS/WHS rules haven’t been verified in 90+ days — ask Gavin to run a compliance check.', lvl: 'warn' });
+    if (days('pp_food_safety_review_last_check') > 365) lines.push({ t: 'Food Safety Program review (Standard 3.2.1, every 12 months) is due or not recorded.', lvl: 'warn' });
+  }
+  try { var prof = ppbSafeProfile(); if (prof && prof.url) sources.push(prof.url); } catch (e) {}
+  return { lines: lines, sources: sources };
+};
+function ppbSafeProfile() { var p = (typeof ppComplianceProfile === 'function') ? ppComplianceProfile() : null; return p && p.stateInfo && p.stateInfo.whs ? { name: p.stateInfo.whs.name, url: p.stateInfo.whs.url } : null; }
+
+PPB_BUILDERS.alerts = async function (cfg, b) {
+  var lines = [], a = gAlerts();
+  var st = ppbLoad(PPB_KEYS.state, { byStaff: {} }), prev = ((st.byStaff || {})[b.staff.id] || {}).alertIds || null;
+  b.meta.alertIds = a.out.concat(a.low).map(function (i) { return i.id || i.name; });
+  if (a.out.length) lines.push({ t: 'OUT OF STOCK: ' + a.out.map(function (i) { return i.name; }).join(', '), lvl: 'urgent' });
+  if (a.low.length) lines.push({ t: 'Reorder now: ' + a.low.map(function (i) { return i.name + ' (' + i.stock + '/' + i.parLevel + ' ' + i.unit + ')'; }).join(', '), lvl: 'warn' });
+  if (prev) {
+    var fresh = a.out.concat(a.low).filter(function (i) { return prev.indexOf(i.id || i.name) === -1; });
+    if (fresh.length) lines.push({ t: 'New since your last brief: ' + fresh.map(function (i) { return i.name; }).join(', '), lvl: 'info', sub: true });
+  }
+  return { lines: lines };
+};
+
+PPB_BUILDERS.weather = async function (cfg, b) {
+  var lines = [];
+  try {
+    var wx = await fetchWeather();
+    if (wx) {
+      var t = wx.forecast[0];
+      lines.push({ t: 'Now ' + wx.current.temp + '°C, ' + String(wx.current.desc || '').toLowerCase() + (t ? ' · today ' + t.min + '–' + t.max + '°C, ' + t.rain + '% chance of rain' : ''), lvl: (t && (t.rain >= 60 || t.max >= 35)) ? 'warn' : 'info' });
+    }
+  } catch (e) { /* weather optional */ }
+  var la = cfg.lookaheadDays;
+  Object.keys(typeof AU_HOLIDAYS !== 'undefined' ? AU_HOLIDAYS : {}).sort().forEach(function (d) {
+    var n = ppbDaysBetween(ppbParseISO(b.dateISO), ppbParseISO(d));
+    if (n >= 0 && n <= la) lines.push({ t: 'Public holiday — ' + AU_HOLIDAYS[d] + ' (' + ppbRelDay(d, b.dateISO) + '): penalty rates apply.', lvl: 'warn' });
+  });
+  return { lines: lines };
+};
+
+PPB_BUILDERS.web = async function (cfg, b, opts) {
+  var lines = [], sources = [];
+  var topics = cfg.web.topics.filter(function (t) { return t.on && String(t.query || '').trim(); });
+  for (var i = 0; i < topics.length; i++) {
+    try {
+      var r = await ppbWebSearch(topics[i], cfg, opts && opts.fresh);
+      if (r.text) {
+        lines.push({ t: topics[i].label, head: true });
+        r.text.split(/\n+/).map(function (l) { return l.replace(/^[-•*]\s*/, '').trim(); }).filter(Boolean).slice(0, 3).forEach(function (l) { lines.push({ t: l, lvl: 'info' }); });
+        r.sources.forEach(function (u) { if (sources.indexOf(u) === -1) sources.push(u); });
+      }
+    } catch (e) { b.notes.push('Web topic "' + topics[i].label + '" unavailable: ' + e.message); }
+  }
+  return { lines: lines, sources: sources.slice(0, 5) };
+};
+
+PPB_BUILDERS.standing = async function (cfg) {
+  return { lines: String(cfg.standingMessage || '').split(/\n+/).filter(Boolean).map(function (l) { return { t: l, lvl: 'info' }; }) };
+};
+
+// ── Assemble a brief for one staff member ──────────────────────────────────
+async function ppbCollect(staff, shift, opts) {
+  opts = opts || {};
+  var cfg = ppbCfg(), now = new Date();
+  var b = { generatedAt: now.toISOString(), dateISO: ppbLocalISO(now), cafe: (cafeDetails && cafeDetails.name) || 'Perpetual Pantries',
+            dayLabel: now.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' }),
+            staff: { id: staff.id, name: staff.name, role: staff.role || '' }, shift: shift || null, sections: [], notes: [], meta: {}, intro: '' };
+  var active = cfg.sections.filter(function (s) { return s.on && PPB_BUILDERS[s.id]; });
+  var results = await Promise.all(active.map(function (s) {
+    return PPB_BUILDERS[s.id](cfg, b, opts).catch(function (e) { b.notes.push(PPB_SECTION_DEFS[s.id].label + ' failed: ' + e.message); return { lines: [] }; });
+  }));
+  active.forEach(function (s, i) {
+    var r = results[i], lines = r.lines || [], max = Math.max(1, s.max || 8);
+    var counted = 0, out = [], hidden = 0;
+    lines.forEach(function (l) { if (l.head || l.sub) { out.push(l); return; } counted++; if (counted <= max) out.push(l); else hidden++; });
+    if (hidden) out.push({ t: '+' + hidden + ' more — see the app', lvl: 'info', sub: true });
+    if (out.length) b.sections.push({ id: s.id, title: s.title || PPB_SECTION_DEFS[s.id].label, icon: PPB_SECTION_DEFS[s.id].icon, lines: out, sources: r.sources || [] });
+  });
+  return b;
+}
+
+function ppbGreeting(shift) {
+  var h = shift && shift.start ? Number(String(shift.start).split(':')[0]) : new Date().getHours();
+  return h < 12 ? 'Good morning' : (h < 17 ? 'Good afternoon' : 'Good evening');
+}
+async function ppbGavinIntro(b, cfg) {
+  var first = ppbFirst(b.staff.name);
+  var fallback = ppbGreeting(b.shift) + ' ' + first + ' — here’s what’s on for ' + b.dayLabel + (b.shift ? ' (your shift starts ' + b.shift.start + ')' : '') + '.';
+  if (!cfg.gavinIntro) return fallback;
+  try {
+    var facts = [];
+    b.sections.forEach(function (s) { s.lines.filter(function (l) { return !l.head && l.lvl && l.lvl !== 'info'; }).slice(0, 3).forEach(function (l) { facts.push('[' + l.lvl + '] ' + s.title + ': ' + l.t); }); });
+    var toneTxt = cfg.tone === 'concise' ? 'Keep it to two short sentences, plain and direct.' : (cfg.tone === 'formal' ? 'Professional and courteous, two or three sentences.' : 'Warm and natural, like a good colleague, two or three sentences.');
+    var r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: aimHeaders(), body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 220,
+      system: 'You are Gavin, the AI manager at ' + b.cafe + '. Write the short opening paragraph of ' + first + '’s shift brief (' + ppbGreeting(b.shift).toLowerCase() + ', shift ' + (b.shift ? b.shift.start + '–' + b.shift.end : 'today') + '). ' + toneTxt + ' Mention at most the two most important items, urgent first. Use ONLY the facts supplied — never invent people, numbers, times or details. No lists, no emojis, no sign-off. If no facts are supplied, just greet them and say it looks like a clear start.',
+      messages: [{ role: 'user', content: facts.length ? facts.join('\n') : '(no urgent or warning items)' }] }) });
+    var d = await r.json();
+    var txt = (d.content || []).filter(function (x) { return x.type === 'text'; }).map(function (x) { return x.text; }).join(' ').trim();
+    return txt || fallback;
+  } catch (e) { return fallback; }
+}
+
+// ── Renderers ──────────────────────────────────────────────────────────────
+var PPB_LVL_MARK = { urgent: '‼ ', warn: '⚠ ', info: '' };
+function ppbRenderText(b) {
+  var out = [b.cafe + ' — ' + (b.title || 'Morning brief') + ' — ' + b.dayLabel, 'For ' + b.staff.name + (b.shift ? ' · shift ' + b.shift.start + (b.shift.end ? '–' + b.shift.end : '') : ''), ''];
+  if (b.intro) out.push(b.intro, '');
+  b.sections.forEach(function (s) {
+    out.push(s.icon + ' ' + s.title.toUpperCase());
+    s.lines.forEach(function (l) { out.push(l.head ? ' ' + l.t + ':' : (l.sub ? '     ' + (l.bullet2 ? '· ' : '') + l.t : ' • ' + (PPB_LVL_MARK[l.lvl] || '') + l.t)); });
+    (s.sources || []).forEach(function (u) { out.push('     Source: ' + u); });
+    out.push('');
+  });
+  if (b.notes.length) { out.push('Notes:'); b.notes.forEach(function (n) { out.push(' - ' + n); }); out.push(''); }
+  out.push('Managed by Gavin · Perpetual Pantries');
+  return out.join('\n');
+}
+function ppbRenderHTML(b) {
+  var lc = { urgent: '#B42318', warn: '#B54708', info: '#16324F' };
+  var h = '<div style="font-family:\'DM Sans\',Calibri,Arial,sans-serif;max-width:640px;margin:0 auto;background:#FAF7F1;border:1px solid #E5DFD3;color:#16324F">'
+    + '<div style="background:#16324F;color:#fff;padding:16px 20px"><div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#6FE3CE">' + ppbEsc(b.title || 'Morning brief') + '</div>'
+    + '<div style="font-family:Georgia,serif;font-size:20px;margin-top:2px">' + ppbEsc(b.dayLabel) + '</div>'
+    + '<div style="font-size:12px;opacity:.75;margin-top:2px">For ' + ppbEsc(b.staff.name) + (b.shift ? ' · shift ' + ppbEsc(b.shift.start) + (b.shift.end ? '–' + ppbEsc(b.shift.end) : '') : '') + ' · ' + ppbEsc(b.cafe) + '</div></div>';
+  if (b.intro) h += '<div style="padding:16px 20px 4px;font-size:14px;line-height:1.55">' + ppbEsc(b.intro) + '</div>';
+  b.sections.forEach(function (s) {
+    h += '<div style="padding:12px 20px 4px"><div style="font-family:Georgia,serif;font-size:15px;color:#0F9A85;border-bottom:1px solid #E5DFD3;padding-bottom:4px;margin-bottom:6px">' + s.icon + ' ' + ppbEsc(s.title) + '</div>';
+    s.lines.forEach(function (l) {
+      if (l.head) { h += '<div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6B7A8C;margin:8px 0 2px">' + ppbEsc(l.t) + '</div>'; return; }
+      var col = lc[l.lvl] || lc.info, weight = l.lvl === 'urgent' ? '700' : '400';
+      h += '<div style="font-size:13px;line-height:1.5;margin:3px 0;' + (l.sub ? 'padding-left:22px;font-size:12px;color:#4A5B6E;' : 'padding-left:14px;text-indent:-14px;color:' + col + ';font-weight:' + weight + ';') + '">'
+        + (l.sub ? (l.bullet2 ? '· ' : '') : ((l.lvl === 'urgent' ? '‼ ' : (l.lvl === 'warn' ? '⚠ ' : '• ')))) + ppbEsc(l.t) + '</div>';
+    });
+    (s.sources || []).forEach(function (u) { var host = u; try { host = new URL(u).hostname.replace(/^www\./, ''); } catch (e) {} h += '<div style="font-size:11px;padding-left:22px"><a href="' + ppbEsc(u) + '" target="_blank" rel="noopener" style="color:#0F9A85">' + ppbEsc(host) + ' ↗</a></div>'; });
+    h += '</div>';
+  });
+  if (b.notes.length) h += '<div style="padding:8px 20px;font-size:11px;color:#6B7A8C">' + b.notes.map(ppbEsc).join('<br>') + '</div>';
+  h += '<div style="padding:10px 20px 14px;font-size:11px;color:#6B7A8C">Managed by Gavin · facts come from live Perpetual Pantries data</div></div>';
+  return h;
+}
+
+// ── Delivery ───────────────────────────────────────────────────────────────
+function ppbKey(dateISO, staffId, start) { return dateISO + '_' + staffId + '_' + (start || 'x'); }
+var _ppbBusy = {};
+
+async function ppbDeliver(staff, shift, opts) {
+  opts = opts || {};
+  var cfg = ppbCfg(), now = new Date(), dateISO = ppbLocalISO(now);
+  var key = ppbKey(dateISO, staff.id, shift && shift.start);
+  var sent = ppbLoad(PPB_KEYS.sent, {});
+  if (!opts.force && sent[key]) return { ok: false, skipped: 'already sent', key: key };
+  var b = await ppbCollect(staff, shift, opts);
+  b.intro = await ppbGavinIntro(b, cfg);
+  var text = ppbRenderText(b), html = ppbRenderHTML(b);
+  var entry = { id: ppbId('br'), key: key, staffId: staff.id, staffName: staff.name, at: now.toISOString(), shift: shift ? { start: shift.start, end: shift.end } : null,
+                html: html, text: text, read: false, noticeIds: b.meta.noticeIds || [], handoverIds: b.meta.handoverIds || [], forced: !!opts.force };
+  var results = [];
+  var ch = cfg.channels;
+  if (ch.inApp) {
+    var inbox = ppbLoad(PPB_KEYS.inbox, []); inbox.unshift(entry); ppbSave(PPB_KEYS.inbox, inbox.slice(0, 60));
+    results.push({ ch: 'in-app', ok: true, detail: 'waiting in ' + staff.name + '’s inbox (shown at sign-in)' });
+  }
+  if (ch.browser && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    try {
+      var top = []; b.sections.forEach(function (s) { s.lines.forEach(function (l) { if (l.lvl === 'urgent' || l.lvl === 'warn') top.push(l.t); }); });
+      new Notification('🌅 Morning brief — ' + b.cafe, { body: (b.intro ? b.intro + '\n' : '') + top.slice(0, 2).join('\n') });
+      results.push({ ch: 'browser', ok: true, detail: 'notification shown on this device' });
+    } catch (e) { results.push({ ch: 'browser', ok: false, detail: e.message }); }
+  }
+  var appless = ch.emailIfNoApp && !ppbHasApp(staff);
+  if (ch.email || appless) {
+    if (!staff.email) results.push({ ch: 'email', ok: false, detail: 'no email address on file for ' + staff.name + (appless ? ' and they have not signed into the staff app — they cannot be reached' : '') });
+    else {
+      try { var er = await ppbSendEmail(staff.email, 'Morning brief — ' + b.dayLabel + (shift ? ' (' + shift.start + ' shift)' : ''), text, html); results.push({ ch: 'email', ok: !!er.ok, detail: (appless && !ch.email ? '(no staff-app sign-in) ' : '') + er.detail }); }
+      catch (e) { results.push({ ch: 'email', ok: false, detail: e.message }); }
+    }
+  }
+  if (ch.sms) {
+    if (!staff.phone) results.push({ ch: 'sms', ok: false, detail: 'no phone number on file for ' + staff.name });
+    else {
+      var sms = (b.intro || 'Your morning brief is ready in Perpetual Pantries.') + ' Open PP to read it.';
+      var sr = ppSendAlertSMS(staff.phone, sms); results.push({ ch: 'sms', ok: !!sr.ok, detail: sr.detail });
+    }
+  }
+  // Commit rolling-handover state for this person only after a real delivery
+  if (!opts.noCommit) {
+    var st = ppbLoad(PPB_KEYS.state, { byStaff: {} }); st.byStaff = st.byStaff || {};
+    st.byStaff[staff.id] = { at: now.toISOString(), alertIds: b.meta.alertIds || [] };
+    ppbSave(PPB_KEYS.state, st);
+  }
+  sent[key] = { at: now.toISOString(), staffName: staff.name, forced: !!opts.force, results: results };
+  var keys = Object.keys(sent).sort(); if (keys.length > 300) keys.slice(0, keys.length - 300).forEach(function (k) { delete sent[k]; });
+  ppbSave(PPB_KEYS.sent, sent);
+  return { ok: true, key: key, results: results, entry: entry, brief: b };
+}
+
+async function ppbTick() {
+  try {
+    var cfg = ppbCfg();
+    if (typeof staffList === 'undefined' || typeof rosterData === 'undefined') return;
+    try { await ppbTakingsTick(cfg); } catch (e) { console.error('[ppb] takings tick failed', e); }
+    if (!cfg.enabled) return;
+    try { await ppbAutopilotRun(false); } catch (e) { console.error('[ppb] autopilot failed', e); }
+    var now = new Date(), sent = ppbLoad(PPB_KEYS.sent, {});
+    var shifts = ppbShiftsOn(now);
+    for (var i = 0; i < shifts.length; i++) {
+      var sh = shifts[i];
+      if (!ppbIsRecipient(sh.staff, cfg)) continue;
+      var start = ppbStartDate(now, sh.start);
+      var sendAt = start.getTime() - cfg.timing.leadMinutes * 60000;
+      var deadline = start.getTime() + cfg.timing.graceMinutes * 60000;
+      var key = ppbKey(ppbLocalISO(now), sh.staff.id, sh.start);
+      if (now.getTime() >= sendAt && now.getTime() <= deadline && !sent[key] && !_ppbBusy[key]) {
+        _ppbBusy[key] = 1;
+        try { await ppbDeliver(sh.staff, sh, {}); } finally { delete _ppbBusy[key]; }
+      }
+    }
+  } catch (e) { console.error('[ppb] tick failed', e); }
+}
+
+// ── In-app inbox (shown to the recipient at sign-in) ───────────────────────
+function ppbAckEntry(id) {
+  var inbox = ppbLoad(PPB_KEYS.inbox, []), e = inbox.find(function (x) { return x.id === id; });
+  if (!e) return;
+  e.read = true; e.readAt = new Date().toISOString(); ppbSave(PPB_KEYS.inbox, inbox);
+  var nts = ppbLoad(PPB_KEYS.notices, []); (e.noticeIds || []).forEach(function (nid) { var n = nts.find(function (x) { return x.id === nid; }); if (n) { n.ackBy = n.ackBy || []; if (n.ackBy.indexOf(e.staffId) === -1) n.ackBy.push(e.staffId); } }); ppbSave(PPB_KEYS.notices, nts);
+  var hos = ppbLoad(PPB_KEYS.handover, []); (e.handoverIds || []).forEach(function (hid) { var h = hos.find(function (x) { return x.id === hid; }); if (h) { h.seenBy = h.seenBy || []; if (h.seenBy.indexOf(e.staffId) === -1) h.seenBy.push(e.staffId); } }); ppbSave(PPB_KEYS.handover, hos);
+}
+function ppbShowModal(entry) {
+  var old = document.getElementById('ppbOverlay'); if (old) old.remove();
+  var o = document.createElement('div'); o.id = 'ppbOverlay';
+  o.style.cssText = 'position:fixed;inset:0;background:rgba(13,31,51,.72);z-index:99990;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px';
+  o.innerHTML = '<div style="width:min(660px,100%)">' + entry.html + '<div style="text-align:right;padding:10px 0"><button class="btn btn-primary" onclick="ppbAckEntry(\'' + entry.id + '\');document.getElementById(\'ppbOverlay\').remove();if(typeof cPage!==\'undefined\'&&cPage===\'morningbrief\')ppbRenderPage();">Got it</button> <button class="btn btn-secondary" onclick="document.getElementById(\'ppbOverlay\').remove()">Close</button></div></div>';
+  document.body.appendChild(o);
+}
+async function ppbOnStaffLogin(s) {
+  try {
+    if (s && s.id) { var au = ppbLoad(PPB_KEYS.appUsers, {}); au[s.id] = new Date().toISOString(); ppbSave(PPB_KEYS.appUsers, au); }
+    if (!s || !s.onboardingComplete) return;
+    var cfg = ppbCfg();
+    if (!cfg.enabled) { var tk = ppbLoad(PPB_KEYS.inbox, []).find(function (x) { return x.staffId === s.id && !x.read && x.kind === 'takings'; }); if (tk) ppbShowModal(tk); return; }
+    var inbox = ppbLoad(PPB_KEYS.inbox, []);
+    var mine = inbox.find(function (x) { return x.staffId === s.id && !x.read && x.key && x.key.indexOf(ppbLocalISO()) === 0; });
+    if (!mine && ppbIsRecipient(s, cfg)) {
+      var sh = ppbShiftFor(s, new Date());
+      if (sh) { var sent = ppbLoad(PPB_KEYS.sent, {}); var key = ppbKey(ppbLocalISO(), s.id, sh.start); if (!sent[key]) { var r = await ppbDeliver(s, sh, {}); if (r.ok) mine = r.entry; } }
+    }
+    if (!mine) mine = ppbLoad(PPB_KEYS.inbox, []).find(function (x) { return x.staffId === s.id && !x.read && x.kind === 'takings'; });
+    if (mine) ppbShowModal(mine);
+  } catch (e) { console.error('[ppb] staff login hook failed', e); }
+}
+
+function ppbContextLine() {
+  try {
+    var c = ppbCfg(); if (!c.enabled) return 'OFF (no brief is being sent — you can set it up with manage_morning_brief)';
+    var tb = ppbToolboxStatus(c), nts = ppbLoad(PPB_KEYS.notices, []).filter(function (n) { return !n.expiresOn || n.expiresOn >= ppbLocalISO(); }).length;
+    return 'ON' + (c.autopilot && c.autopilot.on ? ' (AUTOPILOT — you run it)' : '') + ' · ' + c.recipients.staffIds.length + ' designated' + (c.recipients.allOnShift ? ' + everyone on shift' : '') + ' · sent ' + c.timing.leadMinutes + 'min before shift start · toolbox: ' + tb.state + ' · open handover notes: ' + ppbLoad(PPB_KEYS.handover, []).filter(function (h) { return !h.resolved; }).length + ' · active notices: ' + nts + ' · calendar: ' + (c.calendar.enabled ? (ppbGToken() ? 'connected' : 'needs reconnect') : 'off');
+  } catch (e) { return 'unavailable'; }
+}
+
+setInterval(ppbTick, 60 * 1000);
+setTimeout(ppbTick, 10 * 1000);
+
+// ═══ MORNING BRIEF — PAGE UI ═══════════════════════════════════════════════
+var _ppbTab = 'today';
+var _ppbPreviewHtml = '';
+function ppbTab(t) { _ppbTab = t; ppbRenderPage(); }
+function ppbSet(path, val) {
+  ppbUpdateCfg(function (c) { var p = path.split('.'), o = c; for (var i = 0; i < p.length - 1; i++) o = o[p[i]]; o[p[p.length - 1]] = val; });
+}
+function ppbNum(v, min, max, def) { var n = Number(v); if (!isFinite(n)) n = def; return Math.min(max, Math.max(min, Math.round(n))); }
+
+function ppbRenderPage() {
+  var el = document.getElementById('page-morningbrief'); if (!el) return;
+  var cfg = ppbCfg();
+  var tabs = [['today', '🌅 Today'], ['setup', '⚙️ Recipients & timing'], ['sections', '🧩 Sections'], ['safety', '🛡️ Safety & toolbox'], ['comms', '📣 Notices & handover'], ['sources', '🌐 Calendar & web'], ['takings', '💰 Daily takings'], ['log', '📜 Delivery log']];
+  var h = '<div style="padding:0 0 14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">'
+    + '<div style="font-size:13px;color:var(--sub);max-width:560px">A rolling shift-start handover sent to designated employees before they begin. <strong>Managed by Gavin</strong> — ask him in chat to change anything here, or edit it yourself.</div>'
+    + '<label style="display:flex;align-items:center;gap:8px;font-weight:600;color:var(--navy);cursor:pointer"><input type="checkbox" ' + (cfg.enabled ? 'checked' : '') + ' onchange="ppbSet(\'enabled\',this.checked);ppbRenderPage()"> Brief is ' + (cfg.enabled ? '<span style="color:var(--teal)">ON</span>' : '<span style="color:var(--faint)">OFF</span>') + '</label></div>';
+  h += '<div class="tabs" style="margin-bottom:14px;flex-wrap:wrap">' + tabs.map(function (t) { return '<button class="tab' + (t[0] === _ppbTab ? ' active' : '') + '" onclick="ppbTab(\'' + t[0] + '\')">' + t[1] + '</button>'; }).join('') + '</div>';
+  var body = { today: ppbTabToday, setup: ppbTabSetup, sections: ppbTabSections, safety: ppbTabSafety, comms: ppbTabComms, sources: ppbTabSources, takings: ppbTabTakings, log: ppbTabLog }[_ppbTab];
+  h += body(cfg);
+  el.innerHTML = h;
+}
+function ppbCard(title, sub, inner) {
+  return '<div class="card" style="padding:18px 20px;margin-bottom:14px"><div class="card-title" style="margin-bottom:' + (sub ? '2' : '10') + 'px">' + title + '</div>' + (sub ? '<div style="font-size:12px;color:var(--sub);margin-bottom:10px">' + sub + '</div>' : '') + inner + '</div>';
+}
+function ppbChk(label, checked, onchange, hint) {
+  return '<label style="display:flex;align-items:flex-start;gap:8px;margin:6px 0;font-size:13px;cursor:pointer"><input type="checkbox" style="margin-top:3px" ' + (checked ? 'checked' : '') + ' onchange="' + onchange + '"><span>' + label + (hint ? '<span style="display:block;font-size:11px;color:var(--faint)">' + hint + '</span>' : '') + '</span></label>';
+}
+function ppbStaffOpts(sel) { return staffList.map(function (s) { return '<option value="' + ppbEsc(s.id) + '"' + (s.id === sel ? ' selected' : '') + '>' + ppbEsc(s.name) + (s.role ? ' — ' + ppbEsc(s.role) : '') + '</option>'; }).join(''); }
+
+function ppbTabToday(cfg) {
+  var now = new Date(), sent = ppbLoad(PPB_KEYS.sent, {}), rows = '';
+  ppbShiftsOn(now).forEach(function (sh) {
+    if (!cfg.enabled || !ppbIsRecipient(sh.staff, cfg)) return;
+    var start = ppbStartDate(now, sh.start), sendAt = new Date(start.getTime() - cfg.timing.leadMinutes * 60000), key = ppbKey(ppbLocalISO(now), sh.staff.id, sh.start), s = sent[key];
+    var status = s ? '<span style="color:var(--green)">✓ sent ' + ppbFmtTime(new Date(s.at)) + '</span>' : (now.getTime() > start.getTime() + cfg.timing.graceMinutes * 60000 ? '<span style="color:var(--red)">missed (app was closed)</span>' : '<span style="color:var(--amber)">scheduled ' + ppbFmtTime(sendAt) + '</span>');
+    rows += '<tr><td>' + ppbEsc(sh.staff.name) + '</td><td class="mono">' + ppbEsc(sh.start) + '–' + ppbEsc(sh.end) + '</td><td>' + status + '</td></tr>';
+  });
+  var sched = !cfg.enabled ? '<div style="font-size:13px;color:var(--sub)">The brief is switched off. Turn it on (top right), pick recipients under <em>Recipients & timing</em>, and it will send ' + cfg.timing.leadMinutes + ' minutes before each designated employee’s rostered start.</div>'
+    : rows ? '<table><thead><tr><th>Employee</th><th>Shift</th><th>Brief</th></tr></thead><tbody>' + rows + '</tbody></table>'
+    : '<div style="font-size:13px;color:var(--sub)">No designated employees are rostered today' + (cfg.recipients.staffIds.length ? '' : ' — and nobody is designated yet (see Recipients & timing)') + '.</div>';
+  var limit = '<div style="font-size:11px;color:var(--faint);margin-top:10px">Scheduled sends fire while Perpetual Pantries is open on a device (the backend scheduler will remove this limit). If the app was closed, the brief is sent on next open within ' + cfg.timing.graceMinutes + ' minutes of shift start; otherwise it shows as missed.</div>';
+  var inbox = ppbLoad(PPB_KEYS.inbox, []).slice(0, 8).map(function (e) {
+    return '<tr><td>' + new Date(e.at).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) + '</td><td>' + ppbEsc(e.staffName) + '</td><td>' + (e.read ? '<span style="color:var(--green)">read</span>' : '<span style="color:var(--amber)">unread</span>') + '</td><td><button class="btn btn-secondary btn-xs" onclick="ppbViewEntry(\'' + e.id + '\')">View</button></td></tr>';
+  }).join('');
+  return ppbAutopilotCard(cfg) + ppbCard('Today’s deliveries', '', sched + limit)
+    + ppbCard('Preview or send now', 'Builds a real brief from live data. Preview does not change anyone’s handover state; Send now delivers through the enabled channels.',
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select id="ppbPrevStaff" style="min-width:200px">' + ppbStaffOpts('') + '</select>'
+      + '<button class="btn btn-secondary btn-sm" onclick="ppbDoPreview()">Preview</button><button class="btn btn-primary btn-sm" onclick="ppbDoSend()">Send now</button></div><div id="ppbPreviewOut" style="margin-top:14px">' + _ppbPreviewHtml + '</div>')
+    + ppbCard('Recent briefs', '', inbox ? '<table><thead><tr><th>Sent</th><th>To</th><th>Status</th><th></th></tr></thead><tbody>' + inbox + '</tbody></table>' : '<div style="font-size:13px;color:var(--faint)">None yet.</div>');
+}
+async function ppbDoPreview() {
+  var sel = document.getElementById('ppbPrevStaff'), out = document.getElementById('ppbPreviewOut'); if (!sel || !out) return;
+  var s = staffList.find(function (x) { return x.id === sel.value; }); if (!s) { toast('Add a staff member first', 'warn'); return; }
+  out.innerHTML = '<div style="font-size:13px;color:var(--sub)">Building brief for ' + ppbEsc(s.name) + '…</div>';
+  try { var b = await ppbCollect(s, ppbShiftFor(s, new Date()) || null, { fresh: false }); b.intro = await ppbGavinIntro(b, ppbCfg()); _ppbPreviewHtml = ppbRenderHTML(b); out.innerHTML = _ppbPreviewHtml; }
+  catch (e) { out.innerHTML = '<div style="color:var(--red);font-size:13px">Could not build the brief: ' + ppbEsc(e.message) + '</div>'; }
+}
+async function ppbDoSend() {
+  var sel = document.getElementById('ppbPrevStaff'), out = document.getElementById('ppbPreviewOut'); if (!sel || !out) return;
+  var s = staffList.find(function (x) { return x.id === sel.value; }); if (!s) return;
+  if (!confirm('Send a morning brief to ' + s.name + ' now through the enabled channels?')) return;
+  try {
+    var r = await ppbDeliver(s, ppbShiftFor(s, new Date()) || null, { force: true });
+    _ppbPreviewHtml = r.brief ? ppbRenderHTML(r.brief) : '';
+    toast('Brief sent to ' + s.name + ' — ' + (r.results || []).map(function (x) { return x.ch + (x.ok ? ' ✓' : ' ✗'); }).join(', '), 'ok');
+    ppbRenderPage();
+  } catch (e) { toast('Send failed: ' + e.message, 'err'); }
+}
+function ppbViewEntry(id) { var e = ppbLoad(PPB_KEYS.inbox, []).find(function (x) { return x.id === id; }); if (e) ppbShowModal(e); }
+
+function ppbTabSetup(cfg) {
+  var r = cfg.recipients, ch = cfg.channels;
+  var staffBoxes = staffList.length ? staffList.map(function (s) { return ppbChk(ppbEsc(s.name) + (s.role ? ' <span style="color:var(--faint)">— ' + ppbEsc(s.role) + '</span>' : ''), r.staffIds.indexOf(s.id) !== -1, 'ppbToggleRecipient(\'' + s.id + '\',this.checked)'); }).join('') : '<div style="font-size:13px;color:var(--faint)">No staff yet — add them in Roster.</div>';
+  return ppbCard('Designated employees', 'They receive the brief ahead of each rostered shift. A designated employee who isn’t rostered that day gets nothing.',
+      staffBoxes + '<hr style="border:none;border-top:1px solid var(--border);margin:10px 0">'
+      + ppbChk('Also send to <strong>everyone</strong> rostered that day', r.allOnShift, 'ppbSet(\'recipients.allOnShift\',this.checked)')
+      + '<div class="field" style="margin-top:8px"><label>Or by role (comma-separated, matches part of the role name)</label><input type="text" value="' + ppbEsc(r.roles.join(', ')) + '" placeholder="e.g. Manager, Kitchen L4" onchange="ppbSet(\'recipients.roles\',this.value.split(\',\').map(function(x){return x.trim();}).filter(Boolean))"></div>')
+    + ppbCard('Timing', 'Each brief is sent relative to that person’s own shift start — so it rolls forward shift by shift.',
+      '<div style="display:flex;gap:16px;flex-wrap:wrap"><div class="field"><label>Send this many minutes before shift start</label><input type="number" min="0" max="720" value="' + cfg.timing.leadMinutes + '" onchange="ppbSet(\'timing.leadMinutes\',ppbNum(this.value,0,720,30))"></div>'
+      + '<div class="field"><label>Catch-up window after shift start (minutes)</label><input type="number" min="0" max="720" value="' + cfg.timing.graceMinutes + '" onchange="ppbSet(\'timing.graceMinutes\',ppbNum(this.value,0,720,180))"></div>'
+      + '<div class="field"><label>Look ahead (days) for events & holidays</label><input type="number" min="1" max="60" value="' + cfg.lookaheadDays + '" onchange="ppbSet(\'lookaheadDays\',ppbNum(this.value,1,60,7))"></div></div>')
+    + ppbCard('How it’s delivered', '',
+      ppbChk('In-app — shown when they sign in to the staff app', ch.inApp, 'ppbSet(\'channels.inApp\',this.checked)')
+      + ppbChk('Browser notification (on the device running PP)', ch.browser, 'ppbSet(\'channels.browser\',this.checked)' + (typeof requestNotifications === 'function' ? ';if(this.checked&&typeof Notification!==\'undefined\'&&Notification.permission!==\'granted\')requestNotifications()' : ''))
+      + ppbChk('Email (uses the same Gmail send as temperature alerts)', ch.email, 'ppbSet(\'channels.email\',this.checked)', 'Needs an email address on the staff member’s profile.')
+      + ppbChk('SMS (opens the phone’s messaging app — one manual tap to send)', ch.sms, 'ppbSet(\'channels.sms\',this.checked)', 'Only reliable on mobile; desktop browsers usually can’t open sms: links.'))
+    + ppbCard('Gavin’s voice', '',
+      ppbChk('Let Gavin write the opening paragraph (facts below it are always assembled by code, never invented)', cfg.gavinIntro, 'ppbSet(\'gavinIntro\',this.checked)')
+      + '<div class="field"><label>Tone</label><select onchange="ppbSet(\'tone\',this.value)"><option value="warm"' + (cfg.tone === 'warm' ? ' selected' : '') + '>Warm & natural</option><option value="concise"' + (cfg.tone === 'concise' ? ' selected' : '') + '>Short & direct</option><option value="formal"' + (cfg.tone === 'formal' ? ' selected' : '') + '>Formal</option></select></div>'
+      + '<div class="field"><label>Standing message (shown in every brief — enable the “Standing message” section)</label><textarea rows="3" onchange="ppbSet(\'standingMessage\',this.value)">' + ppbEsc(cfg.standingMessage) + '</textarea></div>');
+}
+function ppbToggleRecipient(id, on) { ppbUpdateCfg(function (c) { var a = c.recipients.staffIds, i = a.indexOf(id); if (on && i === -1) a.push(id); if (!on && i !== -1) a.splice(i, 1); }); }
+
+function ppbTabSections(cfg) {
+  var rows = cfg.sections.map(function (s, i) {
+    var d = PPB_SECTION_DEFS[s.id];
+    return '<tr><td style="white-space:nowrap"><button class="btn btn-secondary btn-xs" ' + (i === 0 ? 'disabled' : '') + ' onclick="ppbSecMove(\'' + s.id + '\',-1)">↑</button> <button class="btn btn-secondary btn-xs" ' + (i === cfg.sections.length - 1 ? 'disabled' : '') + ' onclick="ppbSecMove(\'' + s.id + '\',1)">↓</button></td>'
+      + '<td><input type="checkbox" ' + (s.on ? 'checked' : '') + ' onchange="ppbSecSet(\'' + s.id + '\',\'on\',this.checked)"></td>'
+      + '<td>' + d.icon + '</td><td><input type="text" style="width:100%;min-width:180px" value="' + ppbEsc(s.title) + '" placeholder="' + ppbEsc(d.label) + '" onchange="ppbSecSet(\'' + s.id + '\',\'title\',this.value.trim())"></td>'
+      + '<td><input type="number" min="1" max="30" style="width:64px" value="' + s.max + '" onchange="ppbSecSet(\'' + s.id + '\',\'max\',ppbNum(this.value,1,30,8))"></td></tr>';
+  }).join('');
+  return ppbCard('Sections', 'Switch sections on/off, reorder them, rename them, and cap how many items each shows.',
+    '<table><thead><tr><th>Order</th><th>On</th><th></th><th>Title (blank = default)</th><th>Max items</th></tr></thead><tbody>' + rows + '</tbody></table>');
+}
+function ppbSecSet(id, k, v) { ppbUpdateCfg(function (c) { var s = c.sections.find(function (x) { return x.id === id; }); if (s) s[k] = v; }); }
+function ppbSecMove(id, dir) { ppbUpdateCfg(function (c) { var i = c.sections.findIndex(function (x) { return x.id === id; }), j = i + dir; if (i < 0 || j < 0 || j >= c.sections.length) return; var t = c.sections[i]; c.sections[i] = c.sections[j]; c.sections[j] = t; }); ppbRenderPage(); }
+
+function ppbTabSafety(cfg) {
+  var tb = cfg.ohs.toolbox, st = ppbToolboxStatus(cfg), topic = ppbSuggestTopic(cfg);
+  var stTxt = st.state === 'never' ? '<span style="color:var(--amber)">No meeting recorded yet</span>' : st.state === 'overdue' ? '<span style="color:var(--red)">Overdue by ' + st.daysOver + ' day(s)</span>' : st.state === 'due' ? '<span style="color:var(--amber)">Due today</span>' : '<span style="color:var(--green)">Next due in ' + st.daysUntil + ' day(s)</span>';
+  var topics = PPB_TOOLBOX_TOPICS.map(function (t) { return ppbChk(ppbEsc(t.label), tb.topics.indexOf(t.id) !== -1, 'ppbToolboxTopic(\'' + t.id + '\',this.checked)'); }).join('');
+  var hist = ppbToolboxLogs().slice(0, 12).map(function (l) { return '<tr><td>' + ppbEsc(l.date) + '</td><td>' + ppbEsc(l.topicLabel) + '</td><td>' + ppbEsc(l.heldBy) + '</td><td>' + ppbEsc((l.attendees || []).join(', ')) + '</td></tr>'; }).join('');
+  var attBoxes = staffList.map(function (s) { return '<label style="display:inline-flex;align-items:center;gap:4px;margin:2px 10px 2px 0;font-size:12px"><input type="checkbox" class="ppbTbAtt" value="' + ppbEsc(s.name) + '">' + ppbEsc(s.name) + '</label>'; }).join('');
+  return ppbCard('Toolbox meetings', 'Status: ' + stTxt + '. The brief prompts the team when one is due and suggests a topic with talking points.',
+      ppbChk('Include toolbox meeting reminders in the brief', tb.on, 'ppbSet(\'ohs.toolbox.on\',this.checked)')
+      + '<div style="display:flex;gap:16px;flex-wrap:wrap"><div class="field"><label>Hold one every (days)</label><input type="number" min="1" max="90" value="' + tb.everyDays + '" onchange="ppbSet(\'ohs.toolbox.everyDays\',ppbNum(this.value,1,90,7))"></div>'
+      + '<div class="field"><label>Length (minutes)</label><input type="number" min="5" max="60" value="' + tb.durationMins + '" onchange="ppbSet(\'ohs.toolbox.durationMins\',ppbNum(this.value,5,60,10))"></div></div>'
+      + '<div style="font-size:12px;color:var(--sub);margin:4px 0">Next suggested topic: <strong>' + ppbEsc(topic.label) + '</strong></div>'
+      + '<div style="font-size:12px;font-weight:600;margin-top:10px">Topics in rotation</div>' + topics
+      + '<div style="font-size:11px;color:var(--faint);margin-top:8px">Talking points are conversation prompts, not legal advice — confirm your obligations with your state WHS regulator (Reports → Compliance).</div>')
+    + ppbCard('Log a toolbox meeting', '',
+      '<div style="display:flex;gap:12px;flex-wrap:wrap"><div class="field"><label>Date</label><input type="date" id="ppbTbDate" value="' + ppbLocalISO() + '"></div>'
+      + '<div class="field"><label>Topic</label><select id="ppbTbTopic">' + PPB_TOOLBOX_TOPICS.map(function (t) { return '<option value="' + t.id + '"' + (t.id === topic.id ? ' selected' : '') + '>' + ppbEsc(t.label) + '</option>'; }).join('') + '<option value="custom">Other…</option></select></div>'
+      + '<div class="field"><label>Held by</label><select id="ppbTbBy"><option value="">—</option>' + staffList.map(function (s) { return '<option>' + ppbEsc(s.name) + '</option>'; }).join('') + '</select></div></div>'
+      + '<div class="field"><label>Attendees</label><div>' + (attBoxes || '<span style="color:var(--faint);font-size:12px">No staff yet</span>') + '</div></div>'
+      + '<div class="field"><label>Notes / actions</label><textarea id="ppbTbNotes" rows="2"></textarea></div><button class="btn btn-primary btn-sm" onclick="ppbSubmitToolbox()">Save meeting</button>'
+      + (hist ? '<table style="margin-top:14px"><thead><tr><th>Date</th><th>Topic</th><th>Held by</th><th>Attendees</th></tr></thead><tbody>' + hist + '</tbody></table>' : ''))
+    + ppbCard('Other safety content', '',
+      ppbChk('Nudge when OHS/WHS check (90+ days) or Food Safety Program review (12 months) is due', cfg.ohs.complianceNudges, 'ppbSet(\'ohs.complianceNudges\',this.checked)')
+      + '<div class="field"><label>Standing safety message (added to the Safety section of every brief)</label><textarea rows="2" onchange="ppbSet(\'ohs.standingSafety\',this.value)">' + ppbEsc(cfg.ohs.standingSafety) + '</textarea></div>');
+}
+function ppbToolboxTopic(id, on) { ppbUpdateCfg(function (c) { var a = c.ohs.toolbox.topics, i = a.indexOf(id); if (on && i === -1) a.push(id); if (!on && i !== -1) a.splice(i, 1); }); }
+function ppbSubmitToolbox() {
+  var att = Array.prototype.slice.call(document.querySelectorAll('.ppbTbAtt:checked')).map(function (x) { return x.value; });
+  ppbLogToolbox({ date: document.getElementById('ppbTbDate').value || ppbLocalISO(), topic: document.getElementById('ppbTbTopic').value, heldBy: document.getElementById('ppbTbBy').value, attendees: att, notes: document.getElementById('ppbTbNotes').value });
+  toast('Toolbox meeting logged', 'ok'); ppbRenderPage();
+}
+
+function ppbTabComms(cfg) {
+  var today = ppbLocalISO();
+  var nts = ppbLoad(PPB_KEYS.notices, []).map(function (n) {
+    var exp = n.expiresOn && n.expiresOn < today, a = n.audience || { all: true };
+    var aud = a.all ? 'Everyone' : ((a.staffIds || []).map(function (id) { var s = staffList.find(function (x) { return x.id === id; }); return s ? s.name : '?'; }).concat(a.roles || [])).join(', ');
+    return '<tr' + (exp ? ' style="opacity:.5"' : '') + '><td><span class="pill ' + (n.priority === 'critical' ? 'pill-out' : n.priority === 'important' ? 'pill-low' : 'pill-ok') + '">' + ppbEsc(n.priority) + '</span></td><td>' + ppbEsc(n.text) + '<div style="font-size:11px;color:var(--faint)">' + ppbEsc(n.by) + ' · to ' + ppbEsc(aud) + (n.expiresOn ? ' · until ' + ppbEsc(n.expiresOn) : '') + (exp ? ' (expired)' : '') + ' · read by ' + (n.ackBy || []).length + '</div></td><td><button class="btn btn-secondary btn-xs" onclick="ppbDelNotice(\'' + n.id + '\')">Remove</button></td></tr>';
+  }).join('');
+  var hos = ppbLoad(PPB_KEYS.handover, []).slice(0, 15).map(function (h) {
+    return '<tr' + (h.resolved ? ' style="opacity:.5"' : '') + '><td>' + ppbEsc(h.text) + '<div style="font-size:11px;color:var(--faint)">' + ppbEsc(h.by) + ' · ' + new Date(h.at).toLocaleString('en-AU', { weekday: 'short', hour: 'numeric', minute: '2-digit' }) + ' · seen by ' + (h.seenBy || []).length + '</div></td><td style="white-space:nowrap">' + (h.resolved ? 'resolved' : '<button class="btn btn-secondary btn-xs" onclick="ppbResolveHO(\'' + h.id + '\')">Resolve</button>') + '</td></tr>';
+  }).join('');
+  return ppbCard('Post a team notice', 'Shown in the “Team notices” section of the brief for the people you choose, until it expires. Everyone is asked to acknowledge when they tap “Got it”.',
+      '<div class="field"><label>Message</label><textarea id="ppbNtText" rows="2" placeholder="e.g. New allergen labels on the display fridge from today."></textarea></div>'
+      + '<div style="display:flex;gap:12px;flex-wrap:wrap"><div class="field"><label>Priority</label><select id="ppbNtPri"><option value="normal">Normal</option><option value="important">Important</option><option value="critical">Critical</option></select></div>'
+      + '<div class="field"><label>Audience</label><select id="ppbNtAud" onchange="document.getElementById(\'ppbNtPick\').style.display=this.value===\'pick\'?\'\':\'none\'"><option value="all">Everyone</option><option value="pick">Specific people…</option></select></div>'
+      + '<div class="field"><label>Expires (optional)</label><input type="date" id="ppbNtExp"></div></div>'
+      + '<div id="ppbNtPick" style="display:none;margin-bottom:8px">' + staffList.map(function (s) { return '<label style="display:inline-flex;align-items:center;gap:4px;margin:2px 10px 2px 0;font-size:12px"><input type="checkbox" class="ppbNtWho" value="' + ppbEsc(s.id) + '">' + ppbEsc(s.name) + '</label>'; }).join('') + '</div>'
+      + '<button class="btn btn-primary btn-sm" onclick="ppbSubmitNotice()">Post notice</button>'
+      + (nts ? '<table style="margin-top:14px"><tbody>' + nts + '</tbody></table>' : ''))
+    + ppbCard('Handover notes', 'Anything the next shift needs to know. Unresolved notes roll into every brief until someone resolves them.',
+      '<div class="field"><label>Leave a note for the next shift</label><textarea id="ppbHoText" rows="2" placeholder="e.g. Milk delivery short by 2 crates — supplier says tomorrow."></textarea></div><button class="btn btn-primary btn-sm" onclick="ppbSubmitHandover()">Add note</button>'
+      + (hos ? '<table style="margin-top:14px"><tbody>' + hos + '</tbody></table>' : ''));
+}
+function ppbSubmitNotice() {
+  var t = document.getElementById('ppbNtText').value.trim(); if (!t) { toast('Write the notice first', 'warn'); return; }
+  var pick = document.getElementById('ppbNtAud').value === 'pick';
+  var ids = Array.prototype.slice.call(document.querySelectorAll('.ppbNtWho:checked')).map(function (x) { return x.value; });
+  if (pick && !ids.length) { toast('Choose at least one person', 'warn'); return; }
+  ppbPostNotice({ text: t, priority: document.getElementById('ppbNtPri').value, audience: pick ? { staffIds: ids } : { all: true }, expiresOn: document.getElementById('ppbNtExp').value, by: (_currentStaff && _currentStaff.name) || 'Manager' });
+  toast('Notice posted', 'ok'); ppbRenderPage();
+}
+function ppbDelNotice(id) { ppbSave(PPB_KEYS.notices, ppbLoad(PPB_KEYS.notices, []).filter(function (n) { return n.id !== id; })); ppbRenderPage(); }
+function ppbSubmitHandover() { var t = document.getElementById('ppbHoText').value; if (!ppbAddHandover(t, (_currentStaff && _currentStaff.name) || 'Manager')) { toast('Write the note first', 'warn'); return; } toast('Handover note added', 'ok'); ppbRenderPage(); }
+function ppbResolveHO(id) { ppbResolveHandover(id, (_currentStaff && _currentStaff.name) || 'Manager'); ppbRenderPage(); }
+
+function ppbTabSources(cfg) {
+  var c = cfg.calendar, connected = !!ppbGToken();
+  var topics = cfg.web.topics.map(function (t) {
+    return '<tr><td><input type="checkbox" ' + (t.on ? 'checked' : '') + ' onchange="ppbTopicSet(\'' + t.id + '\',\'on\',this.checked)"></td>'
+      + '<td><input type="text" style="width:150px" value="' + ppbEsc(t.label) + '" onchange="ppbTopicSet(\'' + t.id + '\',\'label\',this.value)"></td>'
+      + '<td><input type="text" style="width:100%;min-width:260px" value="' + ppbEsc(t.query) + '" onchange="ppbTopicSet(\'' + t.id + '\',\'query\',this.value)"></td>'
+      + '<td style="white-space:nowrap"><button class="btn btn-secondary btn-xs" onclick="ppbTestTopic(\'' + t.id + '\')">Test</button> <button class="btn btn-secondary btn-xs" onclick="ppbDelTopic(\'' + t.id + '\')">✕</button></td></tr>';
+  }).join('');
+  return ppbCard('Google account — Calendar & email', 'Calendar is read-only; email is send-only and is used to email the brief to anyone who doesn’t use the app (if you connected before, reconnect once to grant sending). Uses your own Google OAuth Client ID. The sign-in lasts about an hour on this device; when it lapses the brief says so rather than guessing.',
+      ppbChk('Include Google Calendar events', c.enabled, 'ppbSet(\'calendar.enabled\',this.checked);ppbRenderPage()')
+      + '<div class="field"><label>Google OAuth Client ID</label><input type="text" value="' + ppbEsc(c.clientId) + '" placeholder="123456789-abc….apps.googleusercontent.com" onchange="ppbSet(\'calendar.clientId\',this.value.trim())"><div class="fn">Google Cloud Console → APIs & Services → enable “Google Calendar API” → Credentials → OAuth client ID (Web application). Add this app’s web address under Authorised JavaScript origins.</div></div>'
+      + '<div style="display:flex;gap:12px;flex-wrap:wrap"><div class="field"><label>Calendar IDs (comma-separated; “primary” = the signed-in account’s main calendar)</label><input type="text" style="min-width:280px" value="' + ppbEsc(c.calendarIds.join(', ')) + '" onchange="ppbSet(\'calendar.calendarIds\',this.value.split(\',\').map(function(x){return x.trim();}).filter(Boolean))"></div>'
+      + '<div class="field"><label>Days ahead</label><input type="number" min="1" max="14" value="' + c.lookaheadDays + '" onchange="ppbSet(\'calendar.lookaheadDays\',ppbNum(this.value,1,14,2))"></div></div>'
+      + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="ppbGoogleConnect()">' + (connected ? 'Reconnect Google' : 'Connect Google') + '</button>'
+      + (connected ? '<button class="btn btn-secondary btn-sm" onclick="ppbGoogleDisconnect()">Disconnect</button><span style="font-size:12px;color:var(--green)">● connected on this device</span>' : '<span style="font-size:12px;color:var(--faint)">not connected on this device</span>')
+      + '<button class="btn btn-secondary btn-sm" onclick="ppbTestCalendar()">Test fetch</button></div><div id="ppbCalTest" style="font-size:12px;margin-top:8px"></div>')
+    + ppbCard('Web topics', 'Anything you can search for. Each enabled topic is searched once per refresh window and shared by every brief (so 5 recipients ≠ 5 searches). Use {suburb}, {state} and {name} as placeholders. Results are only included when there’s something genuinely relevant.',
+      '<table><thead><tr><th>On</th><th>Label</th><th>What to look for</th><th></th></tr></thead><tbody>' + topics + '</tbody></table>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><input type="text" id="ppbTpLabel" placeholder="Label" style="width:150px"><input type="text" id="ppbTpQuery" placeholder="e.g. What is on at the Geelong Arena this week?" style="flex:1;min-width:260px"><button class="btn btn-primary btn-sm" onclick="ppbAddTopic()">Add topic</button></div>'
+      + '<div class="field" style="margin-top:12px;max-width:260px"><label>Refresh every (hours)</label><input type="number" min="1" max="24" value="' + cfg.web.refreshHours + '" onchange="ppbSet(\'web.refreshHours\',ppbNum(this.value,1,24,6))"></div><div id="ppbTopicTest" style="font-size:12px;margin-top:8px"></div>');
+}
+function ppbTopicSet(id, k, v) { ppbUpdateCfg(function (c) { var t = c.web.topics.find(function (x) { return x.id === id; }); if (t) t[k] = v; }); }
+function ppbDelTopic(id) { ppbUpdateCfg(function (c) { c.web.topics = c.web.topics.filter(function (t) { return t.id !== id; }); }); ppbRenderPage(); }
+function ppbAddTopic() {
+  var l = document.getElementById('ppbTpLabel').value.trim(), q = document.getElementById('ppbTpQuery').value.trim();
+  if (!l || !q) { toast('Give the topic a label and a search', 'warn'); return; }
+  ppbUpdateCfg(function (c) { c.web.topics.push({ id: ppbId('wt'), label: l, query: q, on: true }); }); ppbRenderPage();
+}
+async function ppbTestTopic(id) {
+  var out = document.getElementById('ppbTopicTest'), t = ppbCfg().web.topics.find(function (x) { return x.id === id; }); if (!t || !out) return;
+  out.innerHTML = 'Searching…';
+  try { var r = await ppbWebSearch(t, ppbCfg(), true); out.innerHTML = r.text ? '<strong>' + ppbEsc(t.label) + '</strong><br>' + ppbEsc(r.text).replace(/\n/g, '<br>') + (r.sources.length ? '<br>' + r.sources.map(function (u) { return '<a href="' + ppbEsc(u) + '" target="_blank" rel="noopener">' + ppbEsc(u) + '</a>'; }).join('<br>') : '') : 'Nothing relevant found — this topic would be left out of the brief.'; }
+  catch (e) { out.innerHTML = '<span style="color:var(--red)">' + ppbEsc(e.message) + '</span>'; }
+}
+async function ppbTestCalendar() {
+  var out = document.getElementById('ppbCalTest'); if (!out) return; out.innerHTML = 'Fetching…';
+  try {
+    var cfg = ppbCfg(); cfg.calendar.enabled = true; _ppbCalCache = {};
+    var r = await ppbFetchCalendar(cfg);
+    out.innerHTML = r.events.length ? r.events.slice(0, 8).map(function (e) { return ppbEsc(ppbLocalISO(e.start) + ' ' + (e.allDay ? 'all day' : ppbFmtTime(e.start)) + ' — ' + e.title); }).join('<br>') : 'Connected — no events in the window.';
+  } catch (e) { out.innerHTML = '<span style="color:var(--red)">' + ppbEsc(e.message) + '</span>'; }
+}
+
+function ppbTabLog() {
+  var sent = ppbLoad(PPB_KEYS.sent, {}), rows = Object.keys(sent).sort().reverse().slice(0, 40).map(function (k) {
+    var s = sent[k]; return '<tr><td>' + new Date(s.at).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) + '</td><td>' + ppbEsc(s.staffName) + (s.forced ? ' <span class="pill pill-low">manual</span>' : '') + '</td><td style="font-size:12px">' + (s.results || []).map(function (r) { return (r.ok ? '✓ ' : '✗ ') + ppbEsc(r.ch) + ': ' + ppbEsc(r.detail); }).join('<br>') + '</td></tr>';
+  }).join('');
+  return ppbCard('Delivery log', 'What was sent, to whom, on which channel — and whether it worked.', rows ? '<table><thead><tr><th>When</th><th>To</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table>' : '<div style="font-size:13px;color:var(--faint)">Nothing sent yet.</div>');
+}
+
+
+// ═══ MORNING BRIEF — AUTOPILOT (Gavin takes over) ══════════════════════════
+// "Set once": switch autopilot on and Gavin (a) looks ahead across events, public holidays, Google Calendar and
+// the roster every day, (b) posts reminders at set lead times (default 7, 2, 1 days and on the day), (c) flags
+// gaps (no headcount / menu / quote accepted / nobody rostered), (d) spots clients who usually re-book and haven't,
+// and (e) emails the brief to anyone who doesn't use the staff app. Everything is deterministic and rule-based —
+// nothing here changes stock, orders, pay or the roster; it only informs. It runs while PP is open (see limits).
+
+function ppbHasApp(staff) {
+  var t = ppbLoad(PPB_KEYS.appUsers, {})[staff.id];
+  return !!t && (Date.now() - new Date(t).getTime()) < 30 * 864e5;
+}
+function ppbReachGaps(cfg) {
+  return staffList.filter(function (s) { return ppbIsRecipient(s, cfg) && !ppbHasApp(s) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s.email || '')); }).map(function (s) { return s.name; });
+}
+
+// ── Email: Gmail API (HTML + text) when Google is connected with send permission, else the legacy sender ──
+function ppbB64(str) { var bytes = new TextEncoder().encode(String(str)), bin = ''; bytes.forEach(function (b) { bin += String.fromCharCode(b); }); return btoa(bin); }
+function ppbWrap76(s) { return s.replace(/(.{76})/g, '$1\r\n'); }
+async function ppbSendEmail(to, subject, text, html) {
+  to = String(to || '').trim();
+  if (!/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(to)) return { ok: false, detail: 'invalid email address "' + to + '"' };
+  var note = '';
+  var tk = ppbLoad(PPB_KEYS.gToken, null);
+  if (tk && tk.token && tk.exp > Date.now() && String(tk.scope || '').indexOf('gmail.send') !== -1) {
+    try {
+      var bd = 'ppb_' + Math.random().toString(36).slice(2);
+      var mime = ['To: ' + to, 'Subject: =?UTF-8?B?' + ppbB64(String(subject).replace(/[\r\n]+/g, ' ')) + '?=', 'MIME-Version: 1.0', 'Content-Type: multipart/alternative; boundary="' + bd + '"', '',
+        '--' + bd, 'Content-Type: text/plain; charset="UTF-8"', 'Content-Transfer-Encoding: base64', '', ppbWrap76(ppbB64(text)),
+        '--' + bd, 'Content-Type: text/html; charset="UTF-8"', 'Content-Transfer-Encoding: base64', '', ppbWrap76(ppbB64(html || text)), '--' + bd + '--', ''].join('\r\n');
+      var raw = ppbB64(mime).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      var r = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', { method: 'POST', headers: { Authorization: 'Bearer ' + tk.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ raw: raw }) });
+      if (r.ok) return { ok: true, detail: 'emailed ' + to + ' via Gmail' };
+      if (r.status === 401) { try { localStorage.removeItem(PPB_KEYS.gToken); } catch (e) {} }
+      note = 'Gmail API returned ' + r.status + '; ';
+    } catch (e) { note = 'Gmail API failed (' + e.message + '); '; }
+  }
+  var fb = await ppSendAlertEmail(to, subject, text);
+  return { ok: !!fb.ok, detail: note + (fb.detail || '') + ' [legacy sender, unverified — connect Google (Calendar & web tab) for reliable email]' };
+}
+
+// ── Forward planning ───────────────────────────────────────────────────────
+function ppbRebookHints(todayISO) {
+  var today = ppbParseISO(todayISO), byClient = {}, hints = [];
+  (typeof _events !== 'undefined' ? _events : []).forEach(function (e) {
+    var c = String(e.client || '').trim(); if (!c || !e.date || e.status === 'cancelled') return;
+    (byClient[c.toLowerCase()] = byClient[c.toLowerCase()] || { name: c, dates: [] }).dates.push(e.date);
+  });
+  Object.keys(byClient).forEach(function (k) {
+    var c = byClient[k], past = c.dates.filter(function (d) { return d < todayISO; }).sort(), future = c.dates.filter(function (d) { return d >= todayISO; });
+    if (past.length < 2 || future.length) return;
+    var gaps = []; for (var i = 1; i < past.length; i++) gaps.push(ppbDaysBetween(ppbParseISO(past[i - 1]), ppbParseISO(past[i])));
+    gaps.sort(function (a, b) { return a - b; });
+    var med = gaps[Math.floor(gaps.length / 2)];
+    if (med < 7 || med > 120) return;
+    var last = past[past.length - 1], due = new Date(ppbParseISO(last).getTime() + med * 864e5), n = ppbDaysBetween(today, due);
+    if (n >= -21 && n <= 21) hints.push({ client: c.name, every: med, last: last, dueISO: ppbLocalISO(due), days: n, count: past.length });
+  });
+  return hints;
+}
+
+async function ppbPlanItems(cfg, todayISO, opts) {
+  opts = opts || {};
+  var H = Math.max(1, cfg.autopilot.horizonDays || 14), today = ppbParseISO(todayISO), items = [];
+  (typeof _events !== 'undefined' ? _events : []).forEach(function (e) {
+    if (!e.date || e.status === 'cancelled' || e.status === 'completed') return;
+    var n = ppbDaysBetween(today, ppbParseISO(e.date)); if (n < 0 || n > H) return;
+    var gaps = [];
+    if (!e.attendees) gaps.push('headcount not set');
+    if (!(e.menu || []).length) gaps.push('no menu built');
+    if (e.quoteStatus && e.quoteStatus !== 'accepted' && n <= 7) gaps.push('quote is ' + e.quoteStatus + ', not accepted');
+    if (n <= 3 && (e.status === 'planning' || !e.status)) gaps.push('still in planning');
+    if (n <= 7 && ppbShiftsOn(ppbParseISO(e.date)).length === 0) gaps.push('nobody rostered that day');
+    items.push({ date: e.date, days: n, kind: 'event', text: e.name + (e.attendees ? ' · ' + e.attendees + ' guests' : '') + (e.client ? ' · ' + e.client : ''), lvl: n <= 1 ? 'warn' : 'info', audience: 'all', remind: true, key: 'ev:' + (e.id || e.name), gaps: gaps });
+    if (gaps.length) items.push({ date: e.date, days: n, kind: 'gap', text: e.name + ' — still to sort: ' + gaps.join(', '), lvl: n <= 3 ? 'warn' : 'info', audience: 'leads', key: 'gap:' + (e.id || e.name) });
+  });
+  var hol = typeof AU_HOLIDAYS !== 'undefined' ? AU_HOLIDAYS : {};
+  Object.keys(hol).forEach(function (d) {
+    var n = ppbDaysBetween(today, ppbParseISO(d)); if (n < 0 || n > H) return;
+    items.push({ date: d, days: n, kind: 'holiday', text: 'Public holiday — ' + hol[d] + ': penalty rates apply, check the roster and stock', lvl: 'info', audience: 'leads', remind: true, key: 'hol:' + d });
+  });
+  if (opts.withCalendar && cfg.calendar.enabled && ppbGToken()) {
+    try {
+      var cal = await ppbFetchCalendar(cfg, H);
+      cal.events.forEach(function (ev) {
+        var iso = ppbLocalISO(ev.start), n = ppbDaysBetween(today, ppbParseISO(iso)); if (n < 0) return;
+        items.push({ date: iso, days: n, kind: 'calendar', text: (ev.allDay ? '' : ppbFmtTime(ev.start) + ' ') + ev.title + (ev.location ? ' @ ' + ev.location : ''), lvl: 'info', audience: 'all', key: 'cal:' + iso + ev.title });
+      });
+    } catch (e) { items.push({ date: todayISO, days: 0, kind: 'note', text: 'Calendar look-ahead unavailable — ' + e.message, lvl: 'warn', audience: 'leads', key: 'calerr' }); }
+  }
+  if (cfg.autopilot.rebookHints) ppbRebookHints(todayISO).forEach(function (h) {
+    items.push({ date: h.dueISO, days: h.days, kind: 'rebook', text: h.client + ' has booked ' + h.count + ' times, roughly every ' + h.every + ' days (last ' + h.last + ') and has nothing booked — worth a check-in', lvl: 'info', audience: 'leads', key: 'rebook:' + h.client });
+  });
+  items.sort(function (a, b) { return String(a.date).localeCompare(String(b.date)) || (a.kind === 'event' ? -1 : 1); });
+  return items;
+}
+function ppbPlanText(items, todayISO) {
+  if (!items.length) return 'Nothing on the horizon.';
+  return items.map(function (i) { return ppbRelDay(i.date, todayISO) + ' · ' + i.kind + ' — ' + i.text + (i.kind === 'event' && i.gaps && i.gaps.length ? ' [gaps: ' + i.gaps.join(', ') + ']' : ''); }).join('\n');
+}
+
+// Brief section: the part of the look-ahead not already covered by "Upcoming work events" / "Calendar"
+PPB_BUILDERS.planning = async function (cfg, b) {
+  var lead = typeof staffLevel === 'function' ? staffLevel(b.staff.role) !== 'staff' : true;
+  var items = await ppbPlanItems(cfg, b.dateISO, { withCalendar: true }), lines = [];
+  var evWin = cfg.lookaheadDays, calWin = cfg.calendar.lookaheadDays;
+  items.forEach(function (i) {
+    if (i.audience === 'leads' && !lead) return;
+    if (i.kind === 'event' && i.days <= evWin) return;               // already in "Upcoming work events"
+    if (i.kind === 'calendar' && i.days <= calWin) return;           // already in "Calendar"
+    if (i.kind === 'holiday' && i.days <= evWin) return;             // already in weather/holidays
+    if (i.kind === 'rebook' && i.days > 7) return;
+    lines.push({ t: ppbRelDay(i.date, b.dateISO) + ' — ' + i.text, lvl: i.lvl });
+  });
+  return { lines: lines };
+};
+
+// ── Daily autopilot pass: reminders as auto-notices, once per day ──────────
+async function ppbAutopilotRun(force) {
+  var cfg = ppbCfg(), ap = cfg.autopilot;
+  if (!cfg.enabled || !ap.on) return { skipped: 'off' };
+  var now = new Date(), today = ppbLocalISO(now), st = ppbLoad(PPB_KEYS.autoState, {});
+  if (!force && now.getHours() < ap.dayStartHour) return { skipped: 'too early' };
+  if (!force && st.lastRun === today) return { skipped: 'already ran today' };
+  var items = await ppbPlanItems(cfg, today, { withCalendar: false });
+  var notices = ppbLoad(PPB_KEYS.notices, []), created = [];
+  var leads = staffList.filter(function (s) { return staffLevel(s.role) !== 'staff'; }).map(function (s) { return s.id; });
+  items.filter(function (i) { return i.remind && ap.reminderDays.indexOf(i.days) !== -1; }).forEach(function (i) {
+    var akey = i.key + '@' + i.days;
+    if (notices.some(function (n) { return n.autoKey === akey; })) return;
+    var when = i.days === 0 ? 'TODAY' : (i.days === 1 ? 'tomorrow' : 'in ' + i.days + ' days');
+    var text = i.kind === 'holiday' ? ('Heads up (' + when + '): ' + i.text + '.')
+      : ('Reminder (' + when + '): ' + i.text + '.' + (i.gaps && i.gaps.length ? ' Still to sort: ' + i.gaps.join(', ') + '.' : ''));
+    var aud = (i.audience === 'all' && i.days <= 1) || !leads.length ? { all: true } : { staffIds: leads };
+    notices.unshift({ id: ppbId('nt'), text: text, priority: i.days <= 1 ? 'important' : 'normal', audience: aud, startsOn: today, expiresOn: i.date, by: 'Gavin (auto)', at: now.toISOString(), ackBy: [], auto: true, autoKey: akey });
+    created.push(text);
+  });
+  ppbSave(PPB_KEYS.notices, notices.slice(0, 300));
+  st.lastRun = today; st.lastCreated = created.length; ppbSave(PPB_KEYS.autoState, st);
+  return { ran: true, created: created, items: items.length };
+}
+
+// ── Autopilot card (top of the Today tab) ──────────────────────────────────
+function ppbAutopilotCard(cfg) {
+  var ap = cfg.autopilot, gaps = ppbReachGaps(cfg), st = ppbLoad(PPB_KEYS.autoState, {});
+  var inner = ppbChk('<strong>Let Gavin run the brief</strong> — he looks ahead every day, posts reminders, flags gaps, and emails the brief to anyone who doesn’t use the app.', ap.on, 'ppbSetAutopilot(this.checked)')
+    + (ap.on ? '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px">'
+      + '<div class="field"><label>Who gets briefed</label><select onchange="ppbSet(\'autopilot.recipients\',this.value);ppbRenderPage()"><option value="leads"' + (ap.recipients === 'leads' ? ' selected' : '') + '>Managers & supervisors on shift</option><option value="everyone"' + (ap.recipients === 'everyone' ? ' selected' : '') + '>Everyone on shift</option></select></div>'
+      + '<div class="field"><label>Look ahead (days)</label><input type="number" min="3" max="60" value="' + ap.horizonDays + '" onchange="ppbSet(\'autopilot.horizonDays\',ppbNum(this.value,3,60,14))"></div>'
+      + '<div class="field"><label>Remind at (days before, comma-separated; 0 = on the day)</label><input type="text" value="' + ppbEsc(ap.reminderDays.join(', ')) + '" onchange="ppbSet(\'autopilot.reminderDays\',this.value.split(\',\').map(function(x){return parseInt(x,10);}).filter(function(x){return isFinite(x)&&x>=0;}))"></div></div>'
+      + ppbChk('Email the brief to anyone who hasn’t signed into the staff app in the last 30 days', cfg.channels.emailIfNoApp, 'ppbSet(\'channels.emailIfNoApp\',this.checked)')
+      + ppbChk('Nudge me about clients who usually re-book and haven’t', ap.rebookHints, 'ppbSet(\'autopilot.rebookHints\',this.checked)')
+      + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px"><button class="btn btn-secondary btn-sm" onclick="ppbShowPlan()">Show what Gavin sees coming</button><button class="btn btn-secondary btn-sm" onclick="ppbRunAutopilotNow()">Run reminders now</button>'
+      + '<span style="font-size:11px;color:var(--faint)">' + (st.lastRun ? 'Last automatic run: ' + ppbEsc(st.lastRun) + ' (' + (st.lastCreated || 0) + ' reminders)' : 'Not run yet — runs automatically once a day after ' + ap.dayStartHour + ':00.') + '</span></div>'
+      + (gaps.length ? '<div style="margin-top:10px;padding:8px 10px;border:1px solid var(--amber);background:var(--lamber);font-size:12px;color:var(--navy)">⚠ Gavin can’t reach: <strong>' + gaps.map(ppbEsc).join(', ') + '</strong> — no app sign-in and no email address. Add an email in Roster → Staff.</div>' : '')
+      + '<pre id="ppbPlanOut" style="white-space:pre-wrap;font-size:12px;margin:10px 0 0;font-family:inherit"></pre>' : '');
+  return ppbCard('🤖 Autopilot', 'Set it once. Gavin uses your PP events, Google Calendar, public holidays and roster; he only informs — he never changes orders, stock, pay or the roster on his own.', inner);
+}
+function ppbSetAutopilot(on) {
+  ppbUpdateCfg(function (c) { c.autopilot.on = on; if (on) { c.enabled = true; c.channels.inApp = true; c.channels.emailIfNoApp = true; } });
+  ppbRenderPage();
+  if (on) ppbAutopilotRun(true).then(function (r) { if (r && r.ran) { toast('Autopilot on — ' + r.created.length + ' reminder' + (r.created.length === 1 ? '' : 's') + ' queued', 'ok'); if (cPage === 'morningbrief') ppbRenderPage(); } }).catch(function (e) { toast('Autopilot: ' + e.message, 'err'); });
+}
+async function ppbShowPlan() {
+  var out = document.getElementById('ppbPlanOut'); if (!out) return; out.textContent = 'Looking ahead…';
+  try { var cfg = ppbCfg(), t = ppbLocalISO(); out.textContent = ppbPlanText(await ppbPlanItems(cfg, t, { withCalendar: true }), t); } catch (e) { out.textContent = 'Could not build the look-ahead: ' + e.message; }
+}
+async function ppbRunAutopilotNow() {
+  try { var r = await ppbAutopilotRun(true); toast(r.ran ? r.created.length + ' new reminder' + (r.created.length === 1 ? '' : 's') + ' posted' : 'Not run: ' + r.skipped, r.ran ? 'ok' : 'warn'); ppbRenderPage(); } catch (e) { toast(e.message, 'err'); }
+}
+
+// ═══ MORNING BRIEF — TRADING (POS) + DAILY TAKINGS BRIEF ═══════════════════
+// Pulls from the POS data already in PP (posOrders — the CSV import, POS Connector, webhook and manual dish
+// sales). IMPORTANT LIMITS, stated in every report:
+//   • PP does not receive the till's real totals. "Takings" = quantity sold x the selling price entered in PP's
+//     Menu (same method as the P&L report). It excludes discounts, refunds, tips, surcharges and modifiers.
+//     A manager can enter the real till total for a day and the report shows the variance.
+//   • Sales are only as fresh as the last POS import. Lines without a date in the source file are dated by import time.
+//   • Meals vs beverages come from the menu category (editable), falling back to name keywords.
+
+var PPB_BEV_RE = /coffee|espresso|latte|cappuccino|flat white|long black|short black|macchiato|mocha|piccolo|cortado|affogato|chai|\btea\b|hot choc|iced|drink|beverage|juice|smoothie|shake|soda|cola|lemonade|kombucha|\bwater\b|\bbeer\b|\bwine\b|\bcider\b|spirit|cocktail|\bmilk\b|frappe/i;
+var PPB_GENERIC_CAT_RE = /^(|menu|all|other|general|uncategori[sz]ed|misc\w*)$/i;
+
+function ppbMoney(n) { return '$' + Number(n || 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function ppbPct(now, prev) { if (!(prev > 0)) return ''; var p = (now - prev) / prev * 100; return (p >= 0 ? '+' : '') + Math.round(p) + '%'; }
+function ppbHr12(h) { return (h % 12 === 0 ? 12 : h % 12) + (h < 12 ? 'am' : 'pm'); }
+function ppbYesterday() { var d = new Date(); d.setDate(d.getDate() - 1); return ppbLocalISO(d); }
+function ppbShiftDate(iso, days) { var d = ppbParseISO(iso); d.setDate(d.getDate() + days); return ppbLocalISO(d); }
+function ppbValidEmail(e) { return /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(String(e || '').trim()); }
+
+function ppbPrice(name) {
+  if (typeof MENU_DATA === 'undefined') return null;
+  var m = MENU_DATA[name];
+  if (!m) { var k = Object.keys(MENU_DATA).find(function (x) { return x.toLowerCase() === String(name).toLowerCase().trim(); }); m = k ? MENU_DATA[k] : null; }
+  return (m && m.sellingPrice > 0) ? m.sellingPrice : null;
+}
+function ppbDishCategory(name) {
+  if (typeof MENU_DATA === 'undefined') return '';
+  var m = MENU_DATA[name] || MENU_DATA[Object.keys(MENU_DATA).find(function (x) { return x.toLowerCase() === String(name).toLowerCase().trim(); })];
+  return (m && m.category) || '';
+}
+function ppbAutoClass(name, cat) {
+  if (cat && !PPB_GENERIC_CAT_RE.test(cat)) return PPB_BEV_RE.test(cat) ? 'beverage' : 'meal';
+  return PPB_BEV_RE.test(name) ? 'beverage' : 'meal';
+}
+function ppbClassifyDish(name, cfg) {
+  var t = cfg.trading, cat = ppbDishCategory(name);
+  if (t.dishMap[name]) return t.dishMap[name];
+  if (cat && t.categoryMap[cat]) return t.categoryMap[cat];
+  return ppbAutoClass(name, cat);
+}
+
+// All sale lines, both posOrders shapes, grouped by LOCAL calendar date
+function ppbSalesByDate() {
+  var by = {};
+  (typeof posOrders !== 'undefined' ? posOrders : []).forEach(function (o) {
+    var lines = [];
+    if (Array.isArray(o.orders)) o.orders.forEach(function (x) { lines.push({ name: String(x.name || ''), qty: Number(x.qty) || 0, date: x.date || o.date, hour: (x.hour != null ? x.hour : o.hour), realDate: !!x.date, realHour: !!x.hourIsReal }); });
+    else if (o.dishName !== undefined) lines.push({ name: String(o.dishName), qty: Number(o.qty) || 0, date: o.date, hour: o.hour, realDate: (o.hour != null), realHour: !!o.hourIsReal });
+    lines.forEach(function (l) { var d = new Date(l.date); if (isNaN(d.getTime())) return; (by[ppbLocalISO(d)] = by[ppbLocalISO(d)] || []).push(l); });
+  });
+  return by;
+}
+function ppbLastImportAt() {
+  var best = 0;
+  (typeof posOrders !== 'undefined' ? posOrders : []).forEach(function (o) { var m = /^pos_(\d{10,})/.exec(String(o.id || '')); var t = m ? Number(m[1]) : new Date(o.date).getTime(); if (t > best) best = t; });
+  return best ? new Date(best) : null;
+}
+
+function ppbDaySummary(dateISO, cfg, byDate) {
+  byDate = byDate || ppbSalesByDate();
+  var lines = byDate[dateISO] || [];
+  var s = { dateISO: dateISO, hasData: lines.length > 0, totalLines: lines.length, items: 0, meals: 0, beverages: 0, other: 0, takings: 0, mealRev: 0, bevRev: 0, otherRev: 0,
+            unpriced: {}, unpricedQty: 0, dishes: {}, byHour: [], realDate: 0, importDated: 0, realHourQty: 0, covers: 0, wastageN: 0, wastageCost: 0 };
+  for (var h = 0; h < 24; h++) s.byHour.push(0);
+  lines.forEach(function (l) {
+    var q = l.qty; if (!(q > 0)) return;
+    var type = ppbClassifyDish(l.name, cfg), price = ppbPrice(l.name), rev = price == null ? 0 : q * price;
+    s.items += q;
+    if (type === 'beverage') { s.beverages += q; s.bevRev += rev; } else if (type === 'other') { s.other += q; s.otherRev += rev; } else { s.meals += q; s.mealRev += rev; }
+    if (price == null) { s.unpriced[l.name] = (s.unpriced[l.name] || 0) + q; s.unpricedQty += q; } else s.takings += rev;
+    var d = s.dishes[l.name] || (s.dishes[l.name] = { name: l.name, qty: 0, rev: 0, type: type }); d.qty += q; d.rev += rev;
+    if (l.realHour && l.hour != null && l.hour >= 0 && l.hour < 24) { s.byHour[l.hour] += q; s.realHourQty += q; }
+    if (l.realDate) s.realDate++; else s.importDated++;
+  });
+  s.top = Object.keys(s.dishes).map(function (k) { return s.dishes[k]; }).sort(function (a, b) { return b.qty - a.qty; }).slice(0, 5);
+  if (s.realHourQty > 0) { var pk = 0; s.byHour.forEach(function (v, i) { if (v > s.byHour[pk]) pk = i; }); s.peakHour = pk; }
+  try { (typeof coversLog !== 'undefined' ? coversLog : []).forEach(function (c) { var d = new Date(c.date); if (!isNaN(d.getTime()) && ppbLocalISO(d) === dateISO) s.covers += Number(c.count != null ? c.count : c.covers) || 0; }); } catch (e) {}
+  try { (typeof wastageLog !== 'undefined' ? wastageLog : []).forEach(function (w) { var d = new Date(w.date); if (isNaN(d.getTime()) || ppbLocalISO(d) !== dateISO) return; s.wastageN++; var it = db.items[w.itemId]; if (it) s.wastageCost += (w.qty || 0) * (it.unitCost || 0); }); } catch (e) {}
+  return s;
+}
+function ppbCompare(dateISO, cfg, byDate) {
+  var hist = ppbLoad(PPB_KEYS.takingsHist, {});
+  var get = function (d) { var sm = ppbDaySummary(d, cfg, byDate); if (sm.hasData) return sm; var h = hist[d]; return h ? { hasData: true, takings: h.takings, items: h.items, meals: h.meals, beverages: h.beverages, dateISO: d } : null; };
+  var lw = get(ppbShiftDate(dateISO, -7)), acc = [], n = 0;
+  for (var i = 1; i <= 4; i++) { var x = get(ppbShiftDate(dateISO, -7 * i)); if (x) { acc.push(x); n++; } }
+  var avg = n ? { n: n, takings: acc.reduce(function (t, a) { return t + a.takings; }, 0) / n, items: acc.reduce(function (t, a) { return t + a.items; }, 0) / n } : null;
+  return { lw: lw, avg: avg };
+}
+
+function ppbTakingsActual(dateISO) { var v = ppbLoad(PPB_KEYS.tillActual, {})[dateISO]; return (typeof v === 'number' && isFinite(v)) ? v : null; }
+function ppbSetTillActual(dateISO, amount) { var m = ppbLoad(PPB_KEYS.tillActual, {}); m[dateISO] = Number(amount); ppbSave(PPB_KEYS.tillActual, m); }
+
+function ppbDataCheckLines(s, dateISO, staffIsLead) {
+  var lines = [], li = ppbLastImportAt(), liTxt = li ? li.toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'never';
+  if (!s.hasData) {
+    lines.push({ t: 'No POS sales are dated ' + ppbRelDay(dateISO, ppbLocalISO()).toLowerCase() + '. Last POS import: ' + liTxt + '. This is not a $0 day unless nothing was sold — sales that haven’t been imported yet can’t be counted.', lvl: 'warn' });
+    return lines;
+  }
+  if (s.importDated > 0) lines.push({ t: s.importDated + ' of ' + s.totalLines + ' sale lines have no sale date in the POS file, so they’re dated by import time — daily totals may be shifted. Export with date/time columns for accurate days.', lvl: 'warn' });
+  if (s.unpricedQty > 0 && staffIsLead) lines.push({ t: s.unpricedQty + ' items have no selling price in PP (' + Object.keys(s.unpriced).slice(0, 4).join(', ') + (Object.keys(s.unpriced).length > 4 ? '…' : '') + '), so takings are understated. Set prices in Menu.', lvl: 'warn' });
+  return lines;
+}
+
+// ── Morning brief section: yesterday's trading (counts for everyone; takings only for managers/supervisors) ──
+PPB_BUILDERS.trading = async function (cfg, b) {
+  if (typeof posOrders === 'undefined' || !posOrders.length) return { lines: [] };
+  var y = ppbYesterday(), lead = typeof staffLevel === 'function' ? staffLevel(b.staff.role) !== 'staff' : true;
+  var by = ppbSalesByDate(), s = ppbDaySummary(y, cfg, by), lines = [];
+  if (!s.hasData) return { lines: ppbDataCheckLines(s, y, lead) };
+  lines.push({ t: 'Yesterday: ' + s.items + ' items — ' + s.meals + ' meals · ' + s.beverages + ' beverages' + (s.other ? ' · ' + s.other + ' other' : ''), lvl: 'info' });
+  if (lead) {
+    var cmp = ppbCompare(y, cfg, by), extra = cmp.lw && cmp.lw.takings > 0 ? ' (' + ppbPct(s.takings, cmp.lw.takings) + ' vs the same day last week)' : '';
+    lines.push({ t: 'Takings at menu prices: ' + ppbMoney(s.takings) + extra, lvl: 'info' });
+  }
+  if (s.top.length) lines.push({ t: 'Best sellers: ' + s.top.slice(0, 3).map(function (d) { return d.name + ' ×' + d.qty; }).join(', '), lvl: 'info' });
+  return { lines: lines.concat(ppbDataCheckLines(s, y, lead)) };
+};
+
+// ── Daily takings brief ────────────────────────────────────────────────────
+async function ppbBuildTakingsBrief(dateISO, cfg) {
+  var by = ppbSalesByDate(), s = ppbDaySummary(dateISO, cfg, by), tk = cfg.dailyTakings, sections = [], notes = [];
+  var dayLabel = ppbParseISO(dateISO).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+  if (s.hasData) {
+    var t = [], act = ppbTakingsActual(dateISO);
+    t.push({ t: 'Estimated takings: ' + ppbMoney(s.takings) + '  (meals ' + ppbMoney(s.mealRev) + ' · beverages ' + ppbMoney(s.bevRev) + (s.other ? ' · other ' + ppbMoney(s.otherRev) : '') + ')', lvl: 'info' });
+    if (act != null) { var v = act - s.takings; t.push({ t: 'Till total entered by staff: ' + ppbMoney(act) + ' — ' + (Math.abs(v) < 0.005 ? 'matches the estimate' : (v > 0 ? ppbMoney(v) + ' above' : ppbMoney(-v) + ' below') + ' the estimate' + (s.takings > 0 ? ' (' + ppbPct(act, s.takings) + ')' : '')), lvl: Math.abs(v) > Math.max(20, s.takings * 0.05) ? 'warn' : 'info' }); }
+    t.push({ t: 'Items sold: ' + s.items + ' — ' + s.meals + ' meals · ' + s.beverages + ' beverages' + (s.other ? ' · ' + s.other + ' other' : ''), lvl: 'info' });
+    if (s.covers > 0) t.push({ t: 'Covers logged: ' + s.covers + ' · average spend per cover ' + ppbMoney((act != null ? act : s.takings) / s.covers), lvl: 'info' });
+    sections.push({ id: 'tk_totals', icon: '💰', title: 'Takings & counts', lines: t, sources: [] });
+    if (tk.compare) {
+      var c = ppbCompare(dateISO, cfg, by), cl = [], wd = ppbParseISO(dateISO).toLocaleDateString('en-AU', { weekday: 'long' });
+      if (c.lw) cl.push({ t: 'Same ' + wd + ' last week: ' + ppbMoney(c.lw.takings) + ' (' + (ppbPct(s.takings, c.lw.takings) || 'n/a') + '), ' + Math.round(c.lw.items) + ' items (' + (ppbPct(s.items, c.lw.items) || 'n/a') + ')', lvl: 'info' });
+      if (c.avg && c.avg.n > 1) cl.push({ t: 'Average of the last ' + c.avg.n + ' ' + wd + 's: ' + ppbMoney(c.avg.takings) + ' (' + (ppbPct(s.takings, c.avg.takings) || 'n/a') + '), ' + Math.round(c.avg.items) + ' items', lvl: 'info' });
+      if (!cl.length) cl.push({ t: 'Not enough earlier ' + wd + 's in PP to compare yet.', lvl: 'info' });
+      sections.push({ id: 'tk_cmp', icon: '📊', title: 'Compared with usual', lines: cl, sources: [] });
+    }
+    if (s.top.length) sections.push({ id: 'tk_top', icon: '⭐', title: 'Top sellers', lines: s.top.map(function (d) { return { t: d.name + ' ×' + d.qty + (d.rev ? ' (' + ppbMoney(d.rev) + ')' : ''), lvl: 'info' }; }), sources: [] });
+    var o = [];
+    if (s.peakHour != null && s.realHourQty >= s.items * 0.5) o.push({ t: 'Busiest hour: ' + ppbHr12(s.peakHour) + '–' + ppbHr12((s.peakHour + 1) % 24) + ' (' + s.byHour[s.peakHour] + ' items)', lvl: 'info' });
+    if (s.wastageN) o.push({ t: 'Wastage logged: ' + s.wastageN + ' entr' + (s.wastageN === 1 ? 'y' : 'ies') + (s.wastageCost ? ' (~' + ppbMoney(s.wastageCost) + ')' : ''), lvl: 'info' });
+    if (o.length) sections.push({ id: 'tk_other', icon: '🔎', title: 'Also worth knowing', lines: o, sources: [] });
+  }
+  var dq = ppbDataCheckLines(s, dateISO, true);
+  if (dq.length) sections.push({ id: 'tk_dq', icon: '⚠️', title: 'Data check', lines: dq, sources: [] });
+  notes.push('Takings are ESTIMATED from quantities sold × the selling prices in PP’s Menu. They exclude discounts, refunds, tips, surcharges and modifiers and are not the till’s official total. Figures are only as current as the last POS import.');
+  var b = { title: 'Daily takings', generatedAt: new Date().toISOString(), dateISO: dateISO, cafe: (cafeDetails && cafeDetails.name) || 'Perpetual Pantries', dayLabel: dayLabel,
+            staff: { id: '', name: 'Owner / manager', role: '' }, shift: null, sections: sections, notes: notes, meta: {}, intro: '' };
+  return { b: b, summary: s };
+}
+async function ppbTakingsIntro(b, s, cfg) {
+  var wd = ppbParseISO(s.dateISO).toLocaleDateString('en-AU', { weekday: 'long' });
+  var cmp = ppbCompare(s.dateISO, cfg), pct = cmp.lw ? ppbPct(s.takings, cmp.lw.takings) : '';
+  var fallback = !s.hasData ? 'No POS sales were recorded for ' + wd + ' — details below.' : 'Here’s how ' + wd + ' went: about ' + ppbMoney(s.takings) + ' at menu prices from ' + s.items + ' items — ' + s.meals + ' meals and ' + s.beverages + ' beverages' + (pct ? ' (' + pct + ' on the same day last week)' : '') + '.';
+  if (!cfg.gavinIntro || !s.hasData) return fallback;
+  try {
+    var facts = ['Day: ' + wd, 'Estimated takings at menu prices: ' + ppbMoney(s.takings), 'Items: ' + s.items + ' (' + s.meals + ' meals, ' + s.beverages + ' beverages)'];
+    if (pct) facts.push('Versus same weekday last week: ' + pct);
+    if (s.importDated) facts.push('Data warning: some sale lines are dated by import time, not sale time');
+    if (s.unpricedQty) facts.push('Data warning: ' + s.unpricedQty + ' items have no price so takings are understated');
+    var r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: aimHeaders(), body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 200,
+      system: 'You are Gavin, the AI manager at ' + b.cafe + '. Write two short sentences summarising the day’s trading for the owner. Say "about" or "estimated" for money — the figure is calculated from menu prices, not the till. Use ONLY the facts supplied; never invent numbers, causes or advice. If a data warning is supplied, mention it briefly. No lists, no emojis.', messages: [{ role: 'user', content: facts.join('\n') }] }) });
+    var d = await r.json(), txt = (d.content || []).filter(function (x) { return x.type === 'text'; }).map(function (x) { return x.text; }).join(' ').trim();
+    return txt || fallback;
+  } catch (e) { return fallback; }
+}
+function ppbTakingsRecipients(cfg) {
+  var tk = cfg.dailyTakings, out = [], seen = {};
+  tk.recipientIds.forEach(function (id) { var s = staffList.find(function (x) { return x.id === id; }); if (!s) return; var em = ppbValidEmail(s.email) ? String(s.email).trim() : ''; out.push({ key: 's:' + s.id, name: s.name, staffId: s.id, email: em }); if (em) seen[em.toLowerCase()] = 1; });
+  (tk.extraEmails || []).forEach(function (e) { e = String(e || '').trim(); if (ppbValidEmail(e) && !seen[e.toLowerCase()]) { out.push({ key: 'e:' + e.toLowerCase(), name: e, email: e }); seen[e.toLowerCase()] = 1; } });
+  return out;
+}
+async function ppbDeliverTakings(dateISO, opts) {
+  opts = opts || {};
+  var cfg = ppbCfg(), tk = cfg.dailyTakings, now = new Date(), recips = ppbTakingsRecipients(cfg);
+  if (!recips.length) return { ok: false, error: 'No recipients set — choose who receives the daily takings brief.' };
+  var sentMap = ppbLoad(PPB_KEYS.takingsSent, {}), mkey = opts.force ? dateISO + '#m' + now.getTime() : dateISO;
+  var rec = sentMap[mkey] || { attempts: 0, done: {}, results: [] };
+  var built = await ppbBuildTakingsBrief(dateISO, cfg), b = built.b, s = built.summary;
+  if (!s.hasData && !tk.sendWhenNoData && !opts.force) { sentMap[mkey] = { at: now.toISOString(), ok: true, skipped: 'no POS data for the day', attempts: 1, done: {}, results: [] }; ppbSave(PPB_KEYS.takingsSent, sentMap); return { ok: true, skipped: 'no data' }; }
+  if (opts.lateMins > 30) b.notes.unshift('Sent late: PP wasn’t open at the scheduled time, so this went out when it was next opened (' + Math.round(opts.lateMins / 60 * 10) / 10 + 'h after).');
+  b.intro = await ppbTakingsIntro(b, s, cfg);
+  var text = ppbRenderText(b), html = ppbRenderHTML(b), subject = 'Daily takings — ' + b.dayLabel + (b.cafe ? ' (' + b.cafe + ')' : ''), results = [], all = true;
+  for (var i = 0; i < recips.length; i++) {
+    var r = recips[i];
+    if (rec.done[r.key]) continue;
+    if (r.staffId) {
+      var inbox = ppbLoad(PPB_KEYS.inbox, []);
+      inbox.unshift({ id: ppbId('br'), key: 'takings_' + dateISO + '_' + r.staffId, kind: 'takings', staffId: r.staffId, staffName: r.name, at: now.toISOString(), shift: null, html: html, text: text, read: false, noticeIds: [], handoverIds: [], forced: !!opts.force });
+      ppbSave(PPB_KEYS.inbox, inbox.slice(0, 60));
+    }
+    if (r.email) {
+      try { var er = await ppbSendEmail(r.email, subject, text, html); results.push({ to: r.name, ch: 'email', ok: !!er.ok, detail: er.detail }); if (er.ok) rec.done[r.key] = true; else all = false; }
+      catch (e) { results.push({ to: r.name, ch: 'email', ok: false, detail: e.message }); all = false; }
+    } else { results.push({ to: r.name, ch: 'in-app', ok: true, detail: 'no email address on file — waiting in their in-app inbox' }); rec.done[r.key] = true; }
+  }
+  rec.attempts++; rec.at = now.toISOString(); rec.ok = all; rec.forced = !!opts.force; rec.results = (rec.results || []).concat(results).slice(-30);
+  sentMap[mkey] = rec;
+  var keys = Object.keys(sentMap).sort(); if (keys.length > 120) keys.slice(0, keys.length - 120).forEach(function (k) { delete sentMap[k]; });
+  ppbSave(PPB_KEYS.takingsSent, sentMap);
+  if (s.hasData) { var hist = ppbLoad(PPB_KEYS.takingsHist, {}); hist[dateISO] = { takings: s.takings, items: s.items, meals: s.meals, beverages: s.beverages, at: now.toISOString() }; var hk = Object.keys(hist).sort(); if (hk.length > 120) hk.slice(0, hk.length - 120).forEach(function (k) { delete hist[k]; }); ppbSave(PPB_KEYS.takingsHist, hist); }
+  return { ok: all, results: results, b: b, summary: s };
+}
+
+var _ppbTkBusy = {};
+async function ppbTakingsTick(cfg) {
+  var tk = cfg.dailyTakings;
+  if (!tk.on || !tk.firstDate) return;
+  var now = new Date(), sentMap = ppbLoad(PPB_KEYS.takingsSent, {}), tp = String(tk.time || '00:00').split(':').map(Number);
+  for (var k = 1; k <= Math.max(1, tk.catchUpDays || 3); k++) {
+    var sendAt = new Date(now.getFullYear(), now.getMonth(), now.getDate() - k + 1, tp[0] || 0, tp[1] || 0, 0, 0);
+    var dISO = ppbLocalISO(new Date(now.getFullYear(), now.getMonth(), now.getDate() - k));
+    if (dISO < tk.firstDate || now < sendAt) continue;
+    var rec = sentMap[dISO];
+    if (rec && rec.ok) continue;
+    if (rec && (rec.attempts >= 4 || now - new Date(rec.at) < 30 * 60000)) continue;
+    if (_ppbTkBusy[dISO]) continue;
+    _ppbTkBusy[dISO] = 1;
+    try { await ppbDeliverTakings(dISO, { lateMins: (now - sendAt) / 60000 }); } finally { delete _ppbTkBusy[dISO]; }
+  }
+}
+function ppbTakingsStatusLine(cfg) {
+  var tk = cfg.dailyTakings;
+  if (!tk.on) return 'OFF';
+  var r = ppbTakingsRecipients(cfg);
+  return 'ON · sent at ' + tk.time + ' for the day just ended · to ' + (r.map(function (x) { return x.name; }).join(', ') || 'NOBODY (no recipients set)') + ' · takings are estimated from menu prices (not the till total)';
+}
+function ppbTkSetOn(on) {
+  ppbUpdateCfg(function (c) { c.dailyTakings.on = on; if (on && !c.dailyTakings.firstDate) c.dailyTakings.firstDate = ppbLocalISO(); if (!on) c.dailyTakings.firstDate = ''; });
+  ppbRenderPage();
+}
+
+// ── Daily takings tab ──────────────────────────────────────────────────────
+var _ppbTkDate = '', _ppbTkPreview = '';
+function ppbTabTakings(cfg) {
+  var tk = cfg.dailyTakings; if (!_ppbTkDate) _ppbTkDate = ppbYesterday();
+  var staffBoxes = staffList.length ? staffList.map(function (s) { return ppbChk(ppbEsc(s.name) + (s.role ? ' <span style="color:var(--faint)">— ' + ppbEsc(s.role) + '</span>' : '') + (ppbValidEmail(s.email) ? '' : ' <span style="color:var(--amber)">(no valid email — in-app only)</span>'), tk.recipientIds.indexOf(s.id) !== -1, 'ppbTkRecipient(\'' + s.id + '\',this.checked)'); }).join('') : '<div style="font-size:13px;color:var(--faint)">No staff yet.</div>';
+  var cafeEmail = cafeDetails && ppbValidEmail(cafeDetails.email) ? cafeDetails.email : '';
+  var by = ppbSalesByDate(), li = ppbLastImportAt();
+  var cats = {}; if (typeof MENU_DATA !== 'undefined') Object.keys(MENU_DATA).forEach(function (d) { var c = MENU_DATA[d].category || ''; (cats[c] = cats[c] || []).push(d); });
+  var catRows = Object.keys(cats).sort().map(function (c) {
+    var cur = cfg.trading.categoryMap[c] || 'auto', auto = ppbAutoClass(cats[c][0], c);
+    return '<tr><td>' + ppbEsc(c || '(no category)') + '</td><td style="color:var(--faint);font-size:12px">' + cats[c].length + ' dish' + (cats[c].length === 1 ? '' : 'es') + '</td><td><select data-cat="' + ppbEsc(c) + '" onchange="ppbTkCat(this.dataset.cat,this.value)"><option value="auto"' + (cur === 'auto' ? ' selected' : '') + '>Auto (' + auto + (PPB_GENERIC_CAT_RE.test(c) ? ', by dish name' : '') + ')</option><option value="meal"' + (cur === 'meal' ? ' selected' : '') + '>Meal</option><option value="beverage"' + (cur === 'beverage' ? ' selected' : '') + '>Beverage</option><option value="other"' + (cur === 'other' ? ' selected' : '') + '>Other</option></select></td></tr>';
+  }).join('');
+  var hist = ppbLoad(PPB_KEYS.takingsSent, {}), hrows = Object.keys(hist).sort().reverse().slice(0, 15).map(function (k) {
+    var h = hist[k], res = (h.results || []).slice(-4).map(function (r) { return (r.ok ? '✓ ' : '✗ ') + ppbEsc(r.to) + ' (' + ppbEsc(r.ch) + '): ' + ppbEsc(r.detail); }).join('<br>');
+    return '<tr><td>' + ppbEsc(k.replace('#m', ' · manual ').replace(/ · manual \d+/, ' · manual')) + '</td><td>' + (h.skipped ? 'skipped — ' + ppbEsc(h.skipped) : (h.ok ? '<span style="color:var(--green)">sent</span>' : '<span style="color:var(--red)">not fully delivered (attempt ' + (h.attempts || 1) + ')</span>')) + '</td><td style="font-size:12px">' + res + '</td></tr>';
+  }).join('');
+  var act = ppbTakingsActual(_ppbTkDate);
+  return ppbCard('Daily takings brief', 'A separate report for the owner/manager summarising the day that just ended: meals, beverages, takings, comparisons and top sellers.',
+      ppbChk('<strong>Send the daily takings brief</strong>', tk.on, 'ppbTkSetOn(this.checked)')
+      + '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px"><div class="field"><label>Send at (for the day just ended)</label><input type="time" value="' + ppbEsc(tk.time) + '" onchange="ppbSet(\'dailyTakings.time\',this.value||\'00:00\')"></div></div>'
+      + '<div style="font-size:12px;font-weight:600;margin-top:8px">Send to</div>' + staffBoxes
+      + '<div class="field" style="margin-top:8px"><label>Other email addresses (owner, accountant… comma-separated)</label><input type="text" value="' + ppbEsc((tk.extraEmails || []).join(', ')) + '" placeholder="owner@example.com" onchange="ppbSet(\'dailyTakings.extraEmails\',this.value.split(\',\').map(function(x){return x.trim();}).filter(Boolean))">' + (cafeEmail ? '<div class="fn"><a href="#" onclick="ppbTkAddCafeEmail();return false">Add café email (' + ppbEsc(cafeEmail) + ')</a></div>' : '') + '</div>'
+      + ppbChk('Include comparisons (same day last week, 4-week average)', tk.compare, 'ppbSet(\'dailyTakings.compare\',this.checked)')
+      + ppbChk('Still send when no POS sales are found for the day (says so clearly)', tk.sendWhenNoData, 'ppbSet(\'dailyTakings.sendWhenNoData\',this.checked)')
+      + '<div style="font-size:11px;color:var(--faint);margin-top:8px">Timing limit: this fires at the set time only if PP is open on a device then. If not, it’s sent as soon as PP is next opened (up to ' + tk.catchUpDays + ' days back) and marked “sent late”. A reliable midnight send needs the backend scheduler. Email goes out through your connected Google account (Calendar & web tab); otherwise it falls back to the unverified legacy sender.</div>')
+    + ppbCard('Preview, send now, and till total', 'Takings in PP are <strong>estimated from menu prices</strong>; PP doesn’t receive the till’s real total. Enter the till total to see the variance in the report.',
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end"><div class="field" style="margin:0"><label>Day</label><input type="date" id="ppbTkDate" value="' + ppbEsc(_ppbTkDate) + '" onchange="_ppbTkDate=this.value;ppbTkPreview()"></div>'
+      + '<button class="btn btn-secondary btn-sm" onclick="ppbTkPreview()">Preview</button><button class="btn btn-primary btn-sm" onclick="ppbTkSendNow()">Send now to recipients</button>'
+      + '<div class="field" style="margin:0 0 0 12px"><label>Till total for this day ($)</label><input type="number" id="ppbTkTill" min="0" step="0.01" style="width:130px" value="' + (act != null ? act : '') + '"></div><button class="btn btn-secondary btn-sm" onclick="ppbTkSaveTill()">Save</button></div>'
+      + '<div style="font-size:11px;color:var(--faint);margin-top:6px">POS data: ' + (Object.keys(by).length ? Object.keys(by).length + ' trading days in PP' : 'none yet') + ' · last import ' + (li ? li.toLocaleString('en-AU') : 'never') + '</div>'
+      + '<div id="ppbTkOut" style="margin-top:12px">' + _ppbTkPreview + '</div>')
+    + ppbCard('How meals and beverages are counted', 'Uses each dish’s Menu category. “Auto” treats coffee/tea/drink-type categories as beverages and everything else as meals; where a category is generic (e.g. “Menu”) it looks at the dish name instead. Override any category here.',
+      catRows ? '<table><thead><tr><th>Menu category</th><th></th><th>Counts as</th></tr></thead><tbody>' + catRows + '</tbody></table>' : '<div style="font-size:13px;color:var(--faint)">No priced dishes in Menu yet.</div>')
+    + ppbCard('Delivery history', '', hrows ? '<table><thead><tr><th>Day</th><th>Status</th><th>Detail</th></tr></thead><tbody>' + hrows + '</tbody></table>' : '<div style="font-size:13px;color:var(--faint)">Nothing sent yet.</div>');
+}
+function ppbTkRecipient(id, on) { ppbUpdateCfg(function (c) { var a = c.dailyTakings.recipientIds, i = a.indexOf(id); if (on && i === -1) a.push(id); if (!on && i !== -1) a.splice(i, 1); }); }
+function ppbTkAddCafeEmail() { ppbUpdateCfg(function (c) { var e = cafeDetails.email; if (ppbValidEmail(e) && c.dailyTakings.extraEmails.indexOf(e) === -1) c.dailyTakings.extraEmails.push(e); }); ppbRenderPage(); }
+function ppbTkCat(cat, val) { ppbUpdateCfg(function (c) { if (val === 'auto') delete c.trading.categoryMap[cat]; else c.trading.categoryMap[cat] = val; }); }
+function ppbTkSaveTill() { var v = parseFloat(document.getElementById('ppbTkTill').value); if (!isFinite(v) || v < 0) { toast('Enter the till total as a number', 'warn'); return; } ppbSetTillActual(_ppbTkDate, v); toast('Till total saved for ' + _ppbTkDate, 'ok'); ppbTkPreview(); }
+async function ppbTkPreview() {
+  var out = document.getElementById('ppbTkOut'); if (!out) return; out.innerHTML = '<div style="font-size:13px;color:var(--sub)">Building…</div>';
+  try { var cfg = ppbCfg(), r = await ppbBuildTakingsBrief(_ppbTkDate || ppbYesterday(), cfg); r.b.intro = await ppbTakingsIntro(r.b, r.summary, cfg); _ppbTkPreview = ppbRenderHTML(r.b); out.innerHTML = _ppbTkPreview; }
+  catch (e) { out.innerHTML = '<div style="color:var(--red);font-size:13px">' + ppbEsc(e.message) + '</div>'; }
+}
+async function ppbTkSendNow() {
+  var cfg = ppbCfg(), names = ppbTakingsRecipients(cfg).map(function (r) { return r.name; });
+  if (!names.length) { toast('Choose who receives it first', 'warn'); return; }
+  if (!confirm('Send the takings brief for ' + _ppbTkDate + ' to ' + names.join(', ') + ' now?')) return;
+  try { var r = await ppbDeliverTakings(_ppbTkDate, { force: true }); toast(r.error ? r.error : 'Sent — ' + (r.results || []).map(function (x) { return x.to + (x.ok ? ' ✓' : ' ✗'); }).join(', '), r.error || !r.ok ? 'warn' : 'ok'); ppbRenderPage(); }
+  catch (e) { toast('Send failed: ' + e.message, 'err'); }
+}
+// ═══ MORNING BRIEF — GAVIN TOOL ════════════════════════════════════════════
+// Gavin owns the brief: he can configure it, choose recipients, post notices, keep handover notes,
+// log toolbox meetings, add web topics, preview and send. Supervisors get a safe subset.
+const PPB_SUPERVISOR_ACTIONS = ['status', 'plan', 'reach', 'preview', 'add_handover', 'resolve_handover', 'log_toolbox', 'post_notice'];
+
+async function ppbGavinTool(input) {
+  var a = String(input.action || '').trim();
+  if (_staffMode && _currentStaff && staffLevel(_currentStaff.role) !== 'manager' && PPB_SUPERVISOR_ACTIONS.indexOf(a) === -1) {
+    return 'ERROR: Only a manager can do "' + a + '" on the morning brief. Supervisors can view status, preview, add/resolve handover notes, post notices and log toolbox meetings.';
+  }
+  var by = (_staffMode && _currentStaff) ? _currentStaff.name : 'Gavin';
+  var cfg = ppbCfg();
+  switch (a) {
+    case 'status': {
+      var st = ppbToolboxStatus(cfg);
+      return 'MORNING BRIEF: ' + ppbContextLine() + '\nRecipients: ' + (cfg.recipients.staffIds.map(function (id) { var s = staffList.find(function (x) { return x.id === id; }); return s ? s.name : id; }).join(', ') || 'none designated')
+        + '\nChannels: ' + Object.keys(cfg.channels).filter(function (k) { return cfg.channels[k]; }).join(', ') + '\nSections (in order): ' + cfg.sections.map(function (s) { return (s.on ? '' : '[off] ') + s.id; }).join(', ')
+        + '\nToolbox: every ' + cfg.ohs.toolbox.everyDays + ' days, status ' + st.state + (st.last ? ', last ' + st.last.date + ' (' + st.last.topicLabel + ')' : '')
+        + '\nDaily takings brief: ' + ppbTakingsStatusLine(cfg) + '\nWeb topics: ' + (cfg.web.topics.map(function (t) { return (t.on ? '' : '[off] ') + t.label; }).join('; ') || 'none');
+    }
+    case 'get_config': return JSON.stringify(Object.assign({}, cfg, { calendar: Object.assign({}, cfg.calendar, { connectedOnThisDevice: !!ppbGToken() }) }), null, 1).slice(0, 3500);
+    case 'set_config': {
+      var changed = [];
+      ppbUpdateCfg(function (c) {
+        if (typeof input.enabled === 'boolean') { c.enabled = input.enabled; changed.push('enabled=' + c.enabled); }
+        if (input.lead_minutes != null) { c.timing.leadMinutes = ppbNum(input.lead_minutes, 0, 720, 30); changed.push('lead ' + c.timing.leadMinutes + 'min'); }
+        if (input.grace_minutes != null) { c.timing.graceMinutes = ppbNum(input.grace_minutes, 0, 720, 180); changed.push('catch-up ' + c.timing.graceMinutes + 'min'); }
+        if (input.lookahead_days != null) { c.lookaheadDays = ppbNum(input.lookahead_days, 1, 60, 7); changed.push('lookahead ' + c.lookaheadDays + 'd'); }
+        if (input.channels && typeof input.channels === 'object') Object.keys(input.channels).forEach(function (k) { if (k in c.channels && typeof input.channels[k] === 'boolean') { c.channels[k] = input.channels[k]; changed.push(k + '=' + input.channels[k]); } });
+        if (typeof input.gavin_intro === 'boolean') { c.gavinIntro = input.gavin_intro; changed.push('gavin intro=' + c.gavinIntro); }
+        if (input.tone && ['warm', 'concise', 'formal'].indexOf(input.tone) !== -1) { c.tone = input.tone; changed.push('tone=' + c.tone); }
+        if (typeof input.standing_message === 'string') { c.standingMessage = input.standing_message; var sm = c.sections.find(function (s) { return s.id === 'standing'; }); if (sm && input.standing_message.trim()) sm.on = true; changed.push('standing message'); }
+        if (typeof input.standing_safety === 'string') { c.ohs.standingSafety = input.standing_safety; changed.push('standing safety message'); }
+        if (typeof input.calendar_enabled === 'boolean') { c.calendar.enabled = input.calendar_enabled; changed.push('calendar=' + c.calendar.enabled); }
+        if (Array.isArray(input.calendar_ids) && input.calendar_ids.length) { c.calendar.calendarIds = input.calendar_ids.map(String); changed.push('calendar ids'); }
+        if (input.calendar_days != null) { c.calendar.lookaheadDays = ppbNum(input.calendar_days, 1, 14, 2); changed.push('calendar days'); }
+        if (Array.isArray(input.sections)) {
+          var order = [];
+          input.sections.forEach(function (u) {
+            var s = c.sections.find(function (x) { return x.id === u.id; }); if (!s) return;
+            if (typeof u.on === 'boolean') s.on = u.on; if (typeof u.title === 'string') s.title = u.title; if (u.max != null) s.max = ppbNum(u.max, 1, 30, 8);
+            order.push(s.id); changed.push('section ' + s.id);
+          });
+          if (order.length > 1) { var rest = c.sections.filter(function (s) { return order.indexOf(s.id) === -1; }); c.sections = order.map(function (id) { return c.sections.find(function (s) { return s.id === id; }); }).concat(rest); }
+        }
+        if (input.toolbox_every_days != null) { c.ohs.toolbox.everyDays = ppbNum(input.toolbox_every_days, 1, 90, 7); changed.push('toolbox every ' + c.ohs.toolbox.everyDays + 'd'); }
+        if (typeof input.toolbox_on === 'boolean') { c.ohs.toolbox.on = input.toolbox_on; changed.push('toolbox on=' + c.ohs.toolbox.on); }
+      });
+      if (cPage === 'morningbrief') ppbRenderPage();
+      return changed.length ? '✓ Morning brief updated: ' + changed.join(', ') + '.' : 'Nothing changed — no recognised fields supplied.';
+    }
+    case 'set_recipients': {
+      var names = Array.isArray(input.staff_names) ? input.staff_names : [], found = [], missing = [];
+      names.forEach(function (n) { var s = ppbFindStaff(n); if (s) found.push(s); else missing.push(n); });
+      if (missing.length) return 'ERROR: could not find staff: ' + missing.join(', ') + '. Nothing changed.';
+      ppbUpdateCfg(function (c) {
+        if (names.length || input.staff_names) c.recipients.staffIds = found.map(function (s) { return s.id; });
+        if (typeof input.all_on_shift === 'boolean') c.recipients.allOnShift = input.all_on_shift;
+        if (Array.isArray(input.roles)) c.recipients.roles = input.roles.map(String);
+      });
+      if (cPage === 'morningbrief') ppbRenderPage();
+      var c2 = ppbCfg();
+      return '✓ Recipients: ' + (found.map(function (s) { return s.name; }).join(', ') || (c2.recipients.staffIds.length ? '(unchanged designated list)' : 'none')) + (c2.recipients.allOnShift ? ' + everyone rostered' : '') + (c2.recipients.roles.length ? ' + roles: ' + c2.recipients.roles.join(', ') : '') + '.';
+    }
+    case 'preview': {
+      var s = ppbFindStaff(input.staff_name); if (!s) return 'ERROR: staff member "' + (input.staff_name || '') + '" not found.';
+      var b = await ppbCollect(s, ppbShiftFor(s, new Date()) || null, {}); b.intro = await ppbGavinIntro(b, cfg);
+      return ppbRenderText(b).slice(0, 4000);
+    }
+    case 'send_now': {
+      var targets = [];
+      if (String(input.staff_name || '').toLowerCase() === 'all_on_shift') targets = ppbShiftsOn(new Date()).map(function (sh) { return { s: sh.staff, sh: sh }; });
+      else { var t = ppbFindStaff(input.staff_name); if (!t) return 'ERROR: staff member "' + (input.staff_name || '') + '" not found.'; targets = [{ s: t, sh: ppbShiftFor(t, new Date()) || null }]; }
+      if (!targets.length) return 'Nobody is rostered today, so there is nobody to send to.';
+      var lines = [];
+      for (var i = 0; i < targets.length; i++) { var r = await ppbDeliver(targets[i].s, targets[i].sh, { force: true }); lines.push(targets[i].s.name + ': ' + (r.results || []).map(function (x) { return x.ch + (x.ok ? ' ✓' : ' ✗ (' + x.detail + ')'); }).join(', ')); }
+      if (cPage === 'morningbrief') ppbRenderPage();
+      return 'Sent.\n' + lines.join('\n');
+    }
+    case 'post_notice': {
+      if (!input.text) return 'ERROR: text is required.';
+      var aud = { all: true };
+      if (Array.isArray(input.audience) && input.audience.length && String(input.audience[0]).toLowerCase() !== 'everyone') {
+        var ids = [], miss = []; input.audience.forEach(function (n) { var s = ppbFindStaff(n); if (s) ids.push(s.id); else miss.push(n); });
+        if (miss.length) return 'ERROR: could not find staff: ' + miss.join(', ') + '. Nothing posted.';
+        aud = { staffIds: ids };
+      }
+      var n = ppbPostNotice({ text: input.text, priority: ['normal', 'important', 'critical'].indexOf(input.priority) !== -1 ? input.priority : 'normal', audience: aud, expiresOn: input.expires_on || '', by: by });
+      if (cPage === 'morningbrief') ppbRenderPage();
+      return '✓ Notice posted (' + n.priority + ', ' + (aud.all ? 'everyone' : aud.staffIds.length + ' people') + (n.expiresOn ? ', until ' + n.expiresOn : ', no expiry') + '). id ' + n.id;
+    }
+    case 'remove_notice': {
+      var list = ppbLoad(PPB_KEYS.notices, []), q = String(input.notice_id || input.text || '').toLowerCase(); if (!q) return 'ERROR: notice_id or text required.';
+      var hit = list.filter(function (n) { return n.id === input.notice_id || String(n.text).toLowerCase().indexOf(q) !== -1; });
+      if (hit.length !== 1) return hit.length ? 'ERROR: ' + hit.length + ' notices match — be more specific or use the id.' : 'ERROR: no matching notice.';
+      ppbSave(PPB_KEYS.notices, list.filter(function (n) { return n.id !== hit[0].id; })); if (cPage === 'morningbrief') ppbRenderPage(); return '✓ Removed notice: "' + hit[0].text.slice(0, 60) + '"';
+    }
+    case 'add_handover': { var h = ppbAddHandover(input.text, by); if (!h) return 'ERROR: text is required.'; if (cPage === 'morningbrief') ppbRenderPage(); return '✓ Handover note added — it will appear in every brief until resolved. id ' + h.id; }
+    case 'resolve_handover': {
+      var open = ppbLoad(PPB_KEYS.handover, []).filter(function (x) { return !x.resolved; }), q2 = String(input.handover_id || input.text || '').toLowerCase();
+      var m = open.filter(function (x) { return x.id === input.handover_id || (q2 && String(x.text).toLowerCase().indexOf(q2) !== -1); });
+      if (m.length !== 1) return m.length ? 'ERROR: ' + m.length + ' notes match — be more specific.' : 'ERROR: no matching open handover note. Open notes: ' + (open.map(function (x) { return x.id + ' "' + x.text.slice(0, 40) + '"'; }).join('; ') || 'none');
+      ppbResolveHandover(m[0].id, by); if (cPage === 'morningbrief') ppbRenderPage(); return '✓ Resolved: "' + m[0].text.slice(0, 60) + '"';
+    }
+    case 'log_toolbox': {
+      var tp = PPB_TOOLBOX_TOPICS.find(function (x) { return x.id === input.topic || x.label.toLowerCase() === String(input.topic || '').toLowerCase(); });
+      var e = ppbLogToolbox({ date: input.date || ppbLocalISO(), topic: tp ? tp.id : 'custom', topicLabel: tp ? tp.label : (input.topic || 'Toolbox meeting'), heldBy: input.held_by || by, attendees: Array.isArray(input.attendees) ? input.attendees : [], notes: input.notes || '' });
+      if (cPage === 'morningbrief') ppbRenderPage();
+      return '✓ Toolbox meeting logged: ' + e.topicLabel + ' on ' + e.date + (e.attendees.length ? ' (' + e.attendees.length + ' attendees)' : '') + '. Next due ' + ppbCfg().ohs.toolbox.everyDays + ' days later.';
+    }
+    case 'add_web_topic': {
+      if (!input.label || !input.query) return 'ERROR: label and query are required.';
+      ppbUpdateCfg(function (c) { c.web.topics.push({ id: ppbId('wt'), label: String(input.label), query: String(input.query), on: input.on !== false }); });
+      if (cPage === 'morningbrief') ppbRenderPage(); return '✓ Web topic added: "' + input.label + '". It is searched at most once per refresh window and only shown when there is something relevant.';
+    }
+    case 'set_web_topic': {
+      var ok = false;
+      ppbUpdateCfg(function (c) { var t = c.web.topics.find(function (x) { return x.id === input.topic_id || x.label.toLowerCase() === String(input.label || '').toLowerCase(); }); if (!t) return; ok = true; if (typeof input.on === 'boolean') t.on = input.on; if (input.query) t.query = String(input.query); if (input.new_label) t.label = String(input.new_label); });
+      if (cPage === 'morningbrief') ppbRenderPage(); return ok ? '✓ Web topic updated.' : 'ERROR: web topic not found (give topic_id or label).';
+    }
+    case 'remove_web_topic': {
+      var before = cfg.web.topics.length; ppbUpdateCfg(function (c) { c.web.topics = c.web.topics.filter(function (x) { return x.id !== input.topic_id && x.label.toLowerCase() !== String(input.label || '').toLowerCase(); }); });
+      if (cPage === 'morningbrief') ppbRenderPage(); return ppbCfg().web.topics.length < before ? '✓ Web topic removed.' : 'ERROR: web topic not found.';
+    }
+    case 'get_log': {
+      var sent = ppbLoad(PPB_KEYS.sent, {}), ks = Object.keys(sent).sort().reverse().slice(0, 10);
+      return ks.length ? ks.map(function (k) { var s = sent[k]; return new Date(s.at).toLocaleString('en-AU') + ' → ' + s.staffName + ': ' + (s.results || []).map(function (r) { return r.ch + (r.ok ? ' ✓' : ' ✗ ' + r.detail); }).join(', '); }).join('\n') : 'No briefs sent yet.';
+    }
+    case 'autopilot': {
+      var ch2 = [];
+      ppbUpdateCfg(function (c) {
+        var ap = c.autopilot;
+        if (typeof input.autopilot_on === 'boolean') { ap.on = input.autopilot_on; if (ap.on) { c.enabled = true; c.channels.inApp = true; c.channels.emailIfNoApp = true; } ch2.push('autopilot ' + (ap.on ? 'ON' : 'OFF')); }
+        if (input.autopilot_recipients === 'leads' || input.autopilot_recipients === 'everyone') { ap.recipients = input.autopilot_recipients; ch2.push('briefing ' + (ap.recipients === 'leads' ? 'managers & supervisors on shift' : 'everyone on shift')); }
+        if (input.horizon_days != null) { ap.horizonDays = ppbNum(input.horizon_days, 3, 60, 14); ch2.push('look-ahead ' + ap.horizonDays + ' days'); }
+        if (Array.isArray(input.reminder_days)) { ap.reminderDays = input.reminder_days.map(Number).filter(function (x) { return isFinite(x) && x >= 0 && x <= 60; }); ch2.push('reminders at ' + ap.reminderDays.join('/') + ' days'); }
+        if (typeof input.email_if_no_app === 'boolean') { c.channels.emailIfNoApp = input.email_if_no_app; ch2.push('email staff without the app = ' + input.email_if_no_app); }
+        if (typeof input.rebook_hints === 'boolean') { ap.rebookHints = input.rebook_hints; ch2.push('re-book hints = ' + input.rebook_hints); }
+      });
+      var runTxt = '';
+      if (input.run_now) { var rr = await ppbAutopilotRun(true); runTxt = rr.ran ? ' Ran now: ' + rr.created.length + ' reminder(s) posted.' : ' Not run: ' + rr.skipped + '.'; }
+      var gaps = ppbReachGaps(ppbCfg());
+      if (cPage === 'morningbrief') ppbRenderPage();
+      return (ch2.length ? '✓ ' + ch2.join(', ') + '.' : 'No changes.') + runTxt + (gaps.length ? ' ⚠ Cannot reach (no app sign-in and no email address): ' + gaps.join(', ') + '.' : '') + ' Note: runs while PP is open on a device.';
+    }
+    case 'plan': { var t0 = ppbLocalISO(); return ppbPlanText(await ppbPlanItems(cfg, t0, { withCalendar: true }), t0).slice(0, 3500); }
+    case 'reach': {
+      return staffList.map(function (s) { return s.name + ': app ' + (ppbHasApp(s) ? 'yes' : 'no') + ', email ' + (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s.email || '')) ? 'yes' : 'NO') + (ppbIsRecipient(s, cfg) ? ' [briefed]' : ''); }).join('\n') || 'No staff yet.';
+    }
+    case 'takings': { var td = input.date || ppbYesterday(); var tb = await ppbBuildTakingsBrief(td, cfg); return ppbRenderText(tb.b).slice(0, 4000); }
+    case 'takings_config': {
+      var tc = [], tmiss = [];
+      ppbUpdateCfg(function (c) {
+        var tk = c.dailyTakings;
+        if (typeof input.takings_on === 'boolean') { tk.on = input.takings_on; if (tk.on && !tk.firstDate) tk.firstDate = ppbLocalISO(); if (!tk.on) tk.firstDate = ''; tc.push('daily takings brief ' + (tk.on ? 'ON' : 'OFF')); }
+        if (input.takings_time && /^([01]?\d|2[0-3]):[0-5]\d$/.test(String(input.takings_time))) { tk.time = String(input.takings_time).padStart(5, '0'); tc.push('sent at ' + tk.time); }
+        if (Array.isArray(input.takings_recipients)) { var ids = []; input.takings_recipients.forEach(function (n) { var s = ppbFindStaff(n); if (s) ids.push(s.id); else tmiss.push(n); }); if (!tmiss.length) { tk.recipientIds = ids; tc.push('recipients ' + input.takings_recipients.join(', ')); } }
+        if (Array.isArray(input.extra_emails)) { var bad = input.extra_emails.filter(function (e) { return !ppbValidEmail(e); }); if (bad.length) tmiss.push('invalid email: ' + bad.join(', ')); else { tk.extraEmails = input.extra_emails.map(function (e) { return String(e).trim(); }); tc.push('extra emails ' + tk.extraEmails.join(', ')); } }
+        if (typeof input.compare === 'boolean') { tk.compare = input.compare; tc.push('comparisons ' + tk.compare); }
+        if (typeof input.send_when_no_data === 'boolean') { tk.sendWhenNoData = input.send_when_no_data; tc.push('send when no data ' + tk.sendWhenNoData); }
+      });
+      if (cPage === 'morningbrief') ppbRenderPage();
+      return (tmiss.length ? 'ERROR (recipients/emails not changed): ' + tmiss.join('; ') + '. ' : '') + (tc.length ? '✓ ' + tc.join(', ') + '. ' : (tmiss.length ? '' : 'No changes. ')) + 'Now: ' + ppbTakingsStatusLine(ppbCfg()) + '. Limit: fires at the set time only if PP is open on a device; otherwise sent late on next open.';
+    }
+    case 'send_takings': { var sd = input.date || ppbYesterday(); var sr = await ppbDeliverTakings(sd, { force: true }); if (sr.error) return 'ERROR: ' + sr.error; if (cPage === 'morningbrief') ppbRenderPage(); return 'Takings brief for ' + sd + ': ' + sr.results.map(function (x) { return x.to + ' — ' + x.ch + (x.ok ? ' ✓' : ' ✗ (' + x.detail + ')'); }).join('; '); }
+    case 'record_till_total': { var amt = Number(input.amount); if (!isFinite(amt) || amt < 0) return 'ERROR: amount (dollars, number) is required.'; var rd = input.date || ppbLocalISO(); ppbSetTillActual(rd, amt); var ds = ppbDaySummary(rd, cfg); return '✓ Till total for ' + rd + ' recorded as ' + ppbMoney(amt) + (ds.hasData ? ' (PP estimate ' + ppbMoney(ds.takings) + ', variance ' + ppbMoney(amt - ds.takings) + ')' : ' (no POS sales found for that day to compare)'); }
+    case 'set_trading_class': {
+      var cls = input.trading_class; if (['meal', 'beverage', 'other', 'auto'].indexOf(cls) === -1) return 'ERROR: trading_class must be meal, beverage, other or auto.';
+      if (!input.category && !input.dish) return 'ERROR: give a category or a dish.';
+      ppbUpdateCfg(function (c) { var m = input.dish ? c.trading.dishMap : c.trading.categoryMap, k = input.dish || input.category; if (cls === 'auto') delete m[k]; else m[k] = cls; });
+      if (cPage === 'morningbrief') ppbRenderPage();
+      return '✓ ' + (input.dish ? 'Dish "' + input.dish + '"' : 'Category "' + input.category + '"') + ' now counts as ' + cls + '.';
+    }
+    default: return 'ERROR: unknown action "' + a + '". Actions: takings, takings_config, send_takings, record_till_total, set_trading_class, autopilot, plan, reach, status, get_config, set_config, set_recipients, preview, send_now, post_notice, remove_notice, add_handover, resolve_handover, log_toolbox, add_web_topic, set_web_topic, remove_web_topic, get_log.';
+  }
+}
+
 
 // Note: an unused loadDemoLoyaltyData() function (8 hardcoded fake loyalty
 // members) previously lived here. It had no call sites anywhere in the
