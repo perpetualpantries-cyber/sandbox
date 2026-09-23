@@ -2638,6 +2638,22 @@ const NAV_ITEMS = [
 let _winOpen = []; // ordered list of open page ids
 let _winActive = null;
 
+// Open tabs + the active page survive a reload (leaving the app and coming back,
+// Chrome discarding a background tab, the back button).
+const WIN_STATE_KEY = 'pp_open_windows';
+function winSave() {
+  try { localStorage.setItem(WIN_STATE_KEY, JSON.stringify({ open: _winOpen, active: _winActive })); } catch(e) {}
+}
+function winRestore() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(WIN_STATE_KEY) || 'null'); } catch(e) {}
+  const valid = id => typeof id === 'string' && !!document.getElementById('page-' + id);
+  const open = (saved && Array.isArray(saved.open) ? saved.open : []).filter(valid);
+  if (!open.length) { winOpen('dashboard'); return; }
+  _winOpen = open;
+  winActivate(valid(saved.active) && open.includes(saved.active) ? saved.active : open[open.length - 1]);
+}
+
 function winOpen(pageId) {
   if (!_winOpen.includes(pageId)) _winOpen.push(pageId);
   winActivate(pageId);
@@ -2671,6 +2687,7 @@ function winActivate(pageId) {
   winRenderStrip();
   _winPrevPage = pageId;
   try { renderSidebar(); } catch(e) { console.error('[winActivate] renderSidebar failed:', e); }
+  winSave();
 }
 
 let _winPrevPage = null;
@@ -2690,6 +2707,7 @@ function winClose(pageId, e) {
     }
   }
   winRenderStrip();
+  winSave();
 }
 
 function winRenderStrip() {
@@ -16533,7 +16551,7 @@ function ppHideLock() {
 // Called after unlock OR on normal load when no lock is set
 function ppBootApp() {
   sDB(); sSup(); rDash(); uBadges(); schedCheck();
-  winOpen('dashboard');
+  winRestore();
   ppCheckFirstRun(); // Show onboarding wizard on first launch
 
   // ── URL Webhook listener ──────────────────────────────────────────────
