@@ -252,9 +252,19 @@
     </div>
 
     <div class="modal-backdrop" id="signin-lock">
-      <div class="modal-card" style="text-align:center;padding:60px 30px;">
+      <div class="modal-card" style="text-align:center;padding:40px 30px;max-width:380px;">
         <h1 style="margin-bottom:10px;">Sign in required</h1>
-        <p class="helptext">Select your name (or Owner) in the sidebar and enter your password to continue.</p>
+        <p class="helptext" style="margin-bottom:16px;">Choose your name (or Owner) and enter your password.</p>
+        <!-- Sign-in lives here, not behind prompt(): the backdrop covers the sidebar select, and
+             Chrome silently blocks prompt() once "prevent additional dialogs" is ticked. -->
+        <form id="lock-form" style="text-align:left;display:grid;gap:10px;" autocomplete="off">
+          <div><label for="lock-user">Sign in as</label><select id="lock-user"></select></div>
+          <div><label for="lock-pw">Password</label><input id="lock-pw" type="password" autocomplete="current-password"></div>
+          <div id="lock-pw2-row" style="display:none;"><label for="lock-pw2">Confirm new password</label><input id="lock-pw2" type="password" autocomplete="new-password"></div>
+          <p id="lock-note" class="helptext" style="margin:0;"></p>
+          <p id="lock-error" style="margin:0;color:#8a3b3b;font-size:13px;"></p>
+          <button type="submit" class="btn">Sign in</button>
+        </form>
       </div>
     </div>
 
@@ -949,7 +959,48 @@ function renderCurrentUserSelect(){
   sel.innerHTML = '<option value="">— Sign in —</option><option value="__owner__">Owner</option>' +
     teamMembers.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
   sel.value = currentUserId || '';
+  renderLockForm();
 }
+// Lock-screen sign-in (see #lock-form). First sign-in for an account sets its password.
+function lockNeedsNewPassword(val){
+  if(val==='__owner__') return !ownerPasswordHash;
+  const m = teamMembers.find(x=>x.id===val); return !!m && !m.passwordHash;
+}
+function renderLockForm(){
+  const sel = document.getElementById('lock-user'); if(!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = '<option value="__owner__">Owner</option>' +
+    teamMembers.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+  if(prev && [...sel.options].some(o=>o.value===prev)) sel.value = prev;
+  const isNew = lockNeedsNewPassword(sel.value);
+  document.getElementById('lock-pw2-row').style.display = isNew ? '' : 'none';
+  document.getElementById('lock-note').textContent = isNew ? 'No password set yet for this account — choose one now.' : '';
+}
+document.getElementById('lock-user').addEventListener('change', ()=>{ document.getElementById('lock-error').textContent=''; renderLockForm(); });
+document.getElementById('lock-form').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const val = document.getElementById('lock-user').value;
+  const pwEl = document.getElementById('lock-pw'), pw2El = document.getElementById('lock-pw2');
+  const err = document.getElementById('lock-error');
+  const pw = pwEl.value;
+  err.textContent = '';
+  if(!pw){ err.textContent = 'Enter a password.'; return; }
+  const member = val==='__owner__' ? null : teamMembers.find(m=>m.id===val);
+  if(val!=='__owner__' && !member){ err.textContent = 'Unknown account.'; return; }
+  if(lockNeedsNewPassword(val)){
+    if(pw !== pw2El.value){ err.textContent = 'Passwords did not match.'; return; }
+    const h = await hashPassword(pw);
+    if(member){ member.passwordHash = h; await saveTeam(); } else { ownerPasswordHash = h; await saveOwnerPassword(); }
+  } else {
+    const expected = member ? member.passwordHash : ownerPasswordHash;
+    if(await hashPassword(pw) !== expected){ err.textContent = 'Incorrect password.'; pwEl.select(); return; }
+  }
+  pwEl.value = ''; pw2El.value = '';
+  currentUserId = val;
+  await saveCurrentUserId();
+  renderCurrentUserSelect();
+  applyPermissions();
+});
 document.getElementById('current-user-select').addEventListener('change', async e=>{
   const val = e.target.value;
   if(!val){
