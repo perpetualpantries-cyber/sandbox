@@ -877,6 +877,7 @@ document.getElementById('nav').addEventListener('click', e=>{
   btn.classList.add('active');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+  setLocalSetting('active_tab', btn.dataset.tab);   // reopened on the next load (see boot)
   if(btn.dataset.tab==='dashboard') renderDashboard();
   if(btn.dataset.tab==='quote') renderQuoteBuilder();
   if(btn.dataset.tab==='history') renderHistory();
@@ -3565,6 +3566,10 @@ document.getElementById('add-comms-btn').addEventListener('click', async ()=>{
   renderPricingForm();
   renderEscalations();
   applyPermissions();
+  // Reopen the section the user was last in, if they're still allowed to see it.
+  const lastTab = getLocalSetting('active_tab');
+  const lastBtn = lastTab && document.querySelector(`#nav button[data-tab="${CSS.escape(lastTab)}"]`);
+  if (lastBtn && lastBtn.style.display !== 'none' && !lastBtn.classList.contains('active')) lastBtn.click();
   checkAutoExecutions();
   setInterval(checkAutoExecutions, 60*1000);
 })();
