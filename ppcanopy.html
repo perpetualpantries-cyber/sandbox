@@ -693,9 +693,10 @@ async function fetchWithTimeout(url, opts, ms){
   finally { clearTimeout(t); }
 }
 // ── PP backend client. Server mode is on when a server URL and a staff login token are set (Settings).
-// In server mode: creating a client creates the org (and shows its one-time key), products come from
-// linked sites' menu items, and Canopy→Ronin asks go through the operator-gated queue. Everything else
-// still lives locally for now (see PP_Backend_API_Spec §7.3 for the remaining migration).
+// In server mode: creating a client creates the org and shows a one-time, 24h org-level link code
+// (never a raw key — PP Command claims the code itself via POST /api/org/link/claim), products come
+// from linked sites' menu items, and Canopy→Ronin asks go through the operator-gated queue. Everything
+// else still lives locally for now (see PP_Backend_API_Spec §7.3 for the remaining migration).
 const SERVER = {
   url(){ return (getLocalSetting('server_url') || '').replace(/\/+$/, ''); },
   token(){ return getLocalSetting('staff_token'); },
@@ -714,17 +715,27 @@ const SERVER = {
     return data;
   },
 };
-// Create the org on the server for a local client record; returns the one-time org key.
+// Create the org on the server for a local client record; returns a one-time,
+// 24h org-level link code (not a raw key — PP Command claims it itself).
 async function serverCreateOrg(client){
   const r = await SERVER.req('POST', '/api/pp/clients', { name: client.name, sector: client.sector });
   if (!r.ok) throw new Error(r.data.error || ('HTTP ' + r.status));
   client.serverOrgId = r.data.client.id;
-  return r.data.org.api_key;
+  return r.data.linkCode;
 }
-function showOrgKeyOnce(client, key){
-  const msg = `PP Command org key for ${client.name} — shown ONCE. Paste it into that client's PP Command console (Settings → Org API key):\n\n${key}`;
-  try { navigator.clipboard?.writeText(key); } catch(e){}
-  alert(msg + '\n\n(Copied to clipboard.)');
+// If a code expires or is lost before PP Command claims it, mint a fresh one —
+// refused once the client has already been claimed, since links are permanent.
+async function serverRegenerateOrgLinkCode(client){
+  if (!client.serverOrgId) throw new Error('this client has no server org yet');
+  const r = await SERVER.req('POST', `/api/pp/clients/${client.serverOrgId}/link-code`, {});
+  if (!r.ok) throw new Error(r.data.error || ('HTTP ' + r.status));
+  return r.data;
+}
+function showOrgLinkCodeOnce(client, linkCode){
+  const expires = linkCode.expires_at ? new Date(linkCode.expires_at).toLocaleString() : 'in 24 hours';
+  const msg = `PP Command linking code for ${client.name} — expires ${expires}, single-use:\n\n${linkCode.code}\n\nGive this to that client's PP Command console (Settings → Linking code). It claims the code itself and gets its own credential — nothing to lose if you close this before copying, just generate a new one from the client's profile.`;
+  try { navigator.clipboard?.writeText(linkCode.code); } catch(e){}
+  alert(msg + '\n\n(Code copied to clipboard.)');
 }
 async function syncRoninAsksFromServer(){
   if (!SERVER.on()) return;
@@ -1446,7 +1457,7 @@ document.getElementById('add-client-btn').addEventListener('click', async ()=>{
     products: [],
     billing: { active:false, cycle:'monthly', nextInvoiceDate:'', notes:'' }
   });
-  if (SERVER.on()) { try { const c = clients[clients.length-1]; const key = await serverCreateOrg(c); showOrgKeyOnce(c, key); } catch(e){ alert('Client saved locally, but the server org could not be created: ' + e.message); } }
+  if (SERVER.on()) { try { const c = clients[clients.length-1]; const linkCode = await serverCreateOrg(c); showOrgLinkCodeOnce(c, linkCode); } catch(e){ alert('Client saved locally, but the server org could not be created: ' + e.message); } }
   await saveClients();
   document.getElementById('c-name').value=''; document.getElementById('c-email').value=''; document.getElementById('c-notes').value='';
   renderClients();
@@ -1494,6 +1505,7 @@ function renderClients(){
           <div class="meta">${escapeHtml(c.sector)} · ${c.venues.length} venue${c.venues.length===1?'':'s'} ${c.contactEmail?('· '+escapeHtml(c.contactEmail)):''}${c.ownerId ? (' · owner: '+escapeHtml((teamMembers.find(m=>m.id===c.ownerId)||{}).name||'—')) : ' · unassigned'}</div>
         </div>
         <div style="display:flex;gap:6px;">
+          ${SERVER.on() && c.serverOrgId ? `<button class="btn secondary" data-action="regen-link-code">Get linking code</button>` : ''}
           <button class="btn secondary" data-action="edit-client">Edit</button>
           <button class="btn danger" data-action="remove-client">Remove</button>
         </div>
@@ -1518,6 +1530,11 @@ document.getElementById('client-list').addEventListener('click', async e=>{
   const item = e.target.closest('.client-list-item'); if(!item) return;
   const client = clients.find(c=>c.id===item.dataset.id);
   const action = e.target.dataset.action;
+  if(action==='regen-link-code'){
+    try { showOrgLinkCodeOnce(client, await serverRegenerateOrgLinkCode(client)); }
+    catch(e){ alert('Could not get a linking code: ' + e.message); }
+    return;
+  }
   if(action==='edit-client'){
     editingClientId = client.id;
     renderClients();
@@ -2592,7 +2609,7 @@ async function executeTool(name, input){
         billing: { active:false, cycle:'monthly', nextInvoiceDate:'', notes:'' } };
       clients.push(client);
       let orgKeyNote = null;
-      if (SERVER.on()) { try { const key = await serverCreateOrg(client); showOrgKeyOnce(client, key); orgKeyNote = 'Org created on the PP server; the one-time org key was shown to the user on screen (never to you).'; } catch(e){ orgKeyNote = 'Saved locally, but server org creation failed: ' + e.message; } }
+      if (SERVER.on()) { try { const linkCode = await serverCreateOrg(client); showOrgLinkCodeOnce(client, linkCode); orgKeyNote = 'Org created on the PP server; a one-time linking code was shown to the user on screen (never to you) for them to give to that client\'s PP Command console.'; } catch(e){ orgKeyNote = 'Saved locally, but server org creation failed: ' + e.message; } }
       await saveClients(); renderClients(); renderDashboard();
       return { success:true, client:{name:client.name, sector:client.sector, venues:client.venues.length, owner: input.ownerName?findTeamMemberByName(input.ownerName).name:null}, server: orgKeyNote };
     }

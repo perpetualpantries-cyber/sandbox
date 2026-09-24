@@ -369,7 +369,8 @@ label{font-size:11px;color:var(--sub);text-transform:uppercase;letter-spacing:.0
     <div class="settings-sub">This build stores everything locally for one organisation — no separate server to point at.</div>
     <div class="field"><label>Organisation name</label><input id="set-orgname" placeholder="e.g. Fitzroy Coffee Group"></div>
     <div class="field"><label>PP server URL</label><input id="set-server-url" placeholder="https://api.perpetualpantries.example" autocomplete="off"></div>
-    <div class="field"><label>Org API key (from PPcanopy, shown once when the client was created)</label><input id="set-org-key" type="password" placeholder="ppo_…" autocomplete="off"></div>
+    <div class="field"><label>Linking code (from PPcanopy — one-time, expires in 24h)</label><input id="set-org-key" placeholder="e.g. K4RT8QWX" autocomplete="off" style="text-transform:uppercase;letter-spacing:1px"></div>
+    <div class="page-sub" id="set-link-status" style="margin-top:-6px;margin-bottom:4px"></div>
     <div class="field"><label>Anthropic API key (Ronin)</label><input id="set-apikey" type="password" placeholder="sk-ant-… — not needed inside a claude.ai artifact" autocomplete="off"></div>
     <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="set-demomode"> Demo mode (allows simulated linking and fabricated inbox results)</label></div>
     <div class="page-sub" id="set-storage-note" style="margin-bottom:4px"></div>
@@ -566,7 +567,8 @@ function openSettings(){
   document.getElementById('set-orgname').value = STATE.orgName || '';
   document.getElementById('set-apikey').value = getRoninKey() ? 'sk-ant-…(saved)' : '';
   document.getElementById('set-server-url').value = SERVER.url();
-  document.getElementById('set-org-key').value = SERVER.key() ? '(saved)' : '';
+  document.getElementById('set-org-key').value = '';
+  document.getElementById('set-link-status').textContent = SERVER.key() ? 'Already linked to the PP server — leave blank unless setting up on a new device.' : '';
   document.getElementById('set-demomode').checked = !!STATE.demoMode;
   document.getElementById('set-storage-note').textContent = (SERVER.on() ? 'Server mode · ' : 'Standalone · ') + 'Storage: ' + (STORE.backend === 'artifact' ? 'claude.ai artifact' : STORE.backend === 'local' ? 'this browser (localStorage)' : 'memory only — nothing persists');
   document.getElementById('settings-overlay').classList.add('show');
@@ -578,10 +580,18 @@ async function saveSettings(){
   const k = document.getElementById('set-apikey').value.trim();
   if (k && !k.includes('(saved)')) { try { localStorage.setItem('ppcommand_api_key', k); } catch(e){} }
   if (!k) { try { localStorage.removeItem('ppcommand_api_key'); } catch(e){} }
-  const su = document.getElementById('set-server-url').value.trim(); const ok = document.getElementById('set-org-key').value.trim();
+  const su = document.getElementById('set-server-url').value.trim(); const code = document.getElementById('set-org-key').value.trim();
   try { su ? localStorage.setItem('ppcommand_api_url', su.replace(/\/+$/, '')) : localStorage.removeItem('ppcommand_api_url'); } catch(e){}
-  if (ok && ok !== '(saved)') { try { localStorage.setItem('ppcommand_org_key', ok); } catch(e){} }
-  if (!ok) { try { localStorage.removeItem('ppcommand_org_key'); } catch(e){} }
+  if (code) {
+    if (!su) { toastMsg('Set the PP server URL before entering a linking code.'); return; }
+    try {
+      const r = await fetch(su.replace(/\/+$/, '') + '/api/org/link/claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { toastMsg('Linking code rejected: ' + (data.error || r.status)); return; }
+      try { localStorage.setItem('ppcommand_org_key', data.api_key); } catch(e){}
+      STATE.orgName = data.org_name || STATE.orgName;
+    } catch(e){ toastMsg('Could not reach the PP server: ' + e.message); return; }
+  }
   if (SERVER.on()) { try { await SERVER.load(); toastMsg('Connected to PP server as ' + STATE.orgName); } catch(e){ toastMsg('Could not reach server: ' + e.message); } }
   await saveState(true);
   closeSettings();
