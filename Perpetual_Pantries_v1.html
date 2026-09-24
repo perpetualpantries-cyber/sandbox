@@ -1671,6 +1671,7 @@ select.ob-input option{background:#0D1828;color:white}
           <div class="field" style="margin-bottom:6px"><label>☁️ PP Server URL</label><input type="url" id="srv-url" placeholder="https://api.yourserver.com.au" autocomplete="off"><div class="fn">Optional — PP Command / cloud backend. Leave blank to run fully local.</div></div>
           <div class="field" style="margin-bottom:6px"><label>🔗 PP Command link code</label><input type="text" id="srv-key" placeholder="8-character code from your PP Command console" autocomplete="off" style="text-transform:uppercase;letter-spacing:2px"><div class="fn">Generated in PP Command → Sites → Generate link code. Single use, expires in 24h. <span id="pp-srv-status"></span></div></div>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;margin-bottom:10px"><input type="checkbox" id="pp-share-payroll" onchange="localStorage.setItem('pp_share_payroll', this.checked ? '1' : '0'); if (PP_API.isConfigured()) PP_API.pushSnapshot();"> Share staff hours &amp; rates with PP Command (org-level labour reporting only — never TFN, bank or pay runs)</label>
+          <div class="field" style="margin-bottom:10px"><label>🏢 Check head-office requests every</label><select id="pp-inbox-interval" onchange="PP_API.setInboxInterval(this.value)"><option value="1">1 minute</option><option value="2">2 minutes</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select><div class="fn">How often Gavin checks PP Command (Ronin) for new requests while PP is open. It also checks whenever you come back to this tab. <span id="pp-inbox-last"></span></div></div>
           <div style="display:flex;gap:8px;margin-bottom:14px"><button class="btn btn-secondary btn-sm" onclick="saveServerConfig()">Save &amp; link</button><button class="btn btn-secondary btn-sm" id="sync-now-btn" onclick="syncNow()">Sync now</button><button class="btn btn-secondary btn-sm" onclick="PP_API.unlink(); toast('Unlinked from PP Command','ok'); showPage('settings')">Unlink</button></div>
           <div style="height:1px;background:var(--border);margin:10px 0 14px"></div>
           <div class="field" style="margin-bottom:6px"><label>🤖 Anthropic API Key</label><input type="password" id="anthropicKey" placeholder="sk-ant-…" autocomplete="off"><div class="fn">Required for Gavin AI assistant and docket scanning. Stored locally in your browser only.</div></div>
@@ -2256,6 +2257,7 @@ const PP_API = (function() {
         localStorage.setItem('oc_cafe', JSON.stringify(cafeDetails));
         pushSnapshot();
         setTimeout(pollInbox, 500);
+        scheduleInboxPoll();   // start the timer if PP booted before it was linked
       }
       return { ok: true, data };
     } catch(e) {
@@ -2270,11 +2272,51 @@ const PP_API = (function() {
   let _inbox = [];
   const _handled = new Set(JSON.parse(localStorage.getItem('pp_inbox_handled') || '[]'));
   function rememberHandled(id) { _handled.add(id); localStorage.setItem('pp_inbox_handled', JSON.stringify([..._handled].slice(-500))); }
+  // Check interval (minutes) is a per-device setting; see Settings → PP server.
+  const INBOX_INTERVALS = [1, 2, 5, 15, 30, 60];
+  let _inboxTimer = null, _inboxLastCheck = null;
+  function inboxIntervalMin() {
+    const v = Number(localStorage.getItem('pp_inbox_poll_min'));
+    return INBOX_INTERVALS.includes(v) ? v : 2;
+  }
+  function scheduleInboxPoll() {
+    if (_inboxTimer) clearInterval(_inboxTimer);
+    _inboxTimer = isConfigured() ? setInterval(pollInbox, inboxIntervalMin() * 60 * 1000) : null;
+  }
+  function setInboxInterval(min) {
+    localStorage.setItem('pp_inbox_poll_min', String(Number(min)));
+    scheduleInboxPoll();
+    if (typeof toast === 'function') toast('Gavin will check head-office requests every ' + (inboxIntervalMin() === 60 ? 'hour' : inboxIntervalMin() + ' min'), 'ok');
+  }
+  function renderInboxLast() {
+    const el = document.getElementById('pp-inbox-last'); if (!el) return;
+    el.textContent = !isConfigured() ? '' : (_inboxLastCheck ? 'Last checked ' + _inboxLastCheck.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) + '.' : 'Not checked yet.');
+  }
+  // Tell the manager about requests they haven't been told about yet (toast + browser notification).
+  function announceNewRequests(messages) {
+    let seen; try { seen = new Set(JSON.parse(localStorage.getItem('pp_inbox_seen') || '[]')); } catch(e) { seen = new Set(); }
+    const fresh = messages.filter(m => !seen.has(m.id));
+    if (!fresh.length) return;
+    fresh.forEach(m => seen.add(m.id));
+    localStorage.setItem('pp_inbox_seen', JSON.stringify([...seen].slice(-500)));
+    const org = (linkInfo() || {}).org_name || 'head office';
+    const what = fresh.map(m => String(m.intent || '').replace(/_/g, ' ')).slice(0, 3).join(', ');
+    const needApproval = fresh.some(m => m.status === 'awaiting_approval');
+    const text = `${fresh.length} new request${fresh.length === 1 ? '' : 's'} from ${org}: ${what}${needApproval ? ' — needs your approval (Dashboard)' : ''}`;
+    if (typeof toast === 'function') toast('🏢 ' + text, 'warn');
+    try {
+      if (typeof settings !== 'undefined' && settings.browserNotif && typeof Notification !== 'undefined' && Notification.permission === 'granted')
+        new Notification('🏢 ' + (cafeDetails?.name || 'Perpetual Pantries') + ' — request from ' + org, { body: text });
+    } catch(e) {}
+  }
   async function pollInbox() {
     if (!isConfigured()) return;
     const r = await req('GET', '/api/venue/inbox');
     if (!r.ok) return;
     _inbox = r.data.messages || [];
+    _inboxLastCheck = new Date();
+    renderInboxLast();
+    announceNewRequests(_inbox);
     renderInbox();
     for (const m of _inbox) {
       if (m.status === 'awaiting_approval' || _handled.has(m.id)) continue;
@@ -2481,7 +2523,10 @@ const PP_API = (function() {
     pushSnapshot();
     setInterval(pushSnapshot, 30 * 60 * 1000);
     pollInbox();
-    setInterval(pollInbox, 2 * 60 * 1000);
+    scheduleInboxPoll();
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden && isConfigured() && (!_inboxLastCheck || Date.now() - _inboxLastCheck > 30 * 1000)) pollInbox();
+    });
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -2500,6 +2545,7 @@ const PP_API = (function() {
     setBase: function(url) { localStorage.setItem('pp_api_url', url.replace(/\/+$/, '')); },
     setToken: function(tok) { localStorage.setItem('pp_jwt', tok); },
     linkInfo, venueId, pollInbox, inboxDecide, inboxTaskDone, renderInbox, inboxSnapshot,
+    inboxIntervalMin, setInboxInterval, renderInboxLast,
     unlink: function() { localStorage.removeItem('pp_jwt'); localStorage.removeItem('pp_link'); renderInbox(); },
   };
 })();
@@ -2562,7 +2608,7 @@ function rPage(n){if(n==='dashboard')rDash();else if(n==='inventory')rInv();else
       if (emailTabBtn) ppayTab('email', emailTabBtn);
     }, 100);
   }
-}}else if(n==='suppliers'){rSup();if(_activeSupTab==='pricing')rContingency();}else if(n==='orders'||n==='manual_order'){rOrders();if(n==='manual_order')switchOrderTab('manual',document.getElementById('ord-tab-manual'));}else if(n==='deliveries')rDeliveries();else if(n==='alerts')rAlerts();else if(n==='history')rHistory();else if(n==='wastage')rWastage();else if(n==='temp_logs'){if(typeof rTempLogs==='function')rTempLogs();}else if(n==='pos')rPOS();else if(n==='reports'){rReports();if(_rptMainTab==='stocktake')rStocktake();}else if(n==='calendar')rCalendar();else if(n==='morningbrief'){if(typeof ppbRenderPage==='function')ppbRenderPage();}else if(n==='admin')rAdmin();else if(n==='integrations'){/* static */ if (typeof renderEmailConnectionsPanel === 'function') renderEmailConnectionsPanel();}else if(n==='menu'){if(typeof rMenuPage==='function')rMenuPage();}else if(n==='loyalty'){if(typeof renderLoyalty==='function')renderLoyalty();}else if(n==='settings'){document.getElementById('warnPct').value=settings.warnPct;document.getElementById('stocktakeIntervalDays').value=settings.stocktakeIntervalDays||7;document.getElementById('recipeVarianceTagThreshold').value=settings.recipeVarianceTagThreshold||2;document.getElementById('recipeVarianceLookbackDays').value=settings.recipeVarianceLookbackDays||90;document.getElementById('notifEmail').value=settings.notifEmail||'';document.getElementById('browserNotif').checked=settings.browserNotif;const sk=localStorage.getItem('oc_api_key')||'';document.getElementById('anthropicKey').value=sk?'sk-ant-…(saved)':'';if(document.getElementById('srv-url')){document.getElementById('srv-url').value=localStorage.getItem('pp_api_url')||'';document.getElementById('srv-key').value='';const ss=document.getElementById('pp-srv-status');const li=PP_API.linkInfo();if(ss)ss.innerHTML=li?'<span style="color:#22C55E;font-weight:700">● Linked to '+String(li.org_name||'').replace(/</g,'&lt;')+'</span>':'<span style="color:var(--faint)">Not linked</span>';const sp=document.getElementById('pp-share-payroll');if(sp)sp.checked=localStorage.getItem('pp_share_payroll')==='1';}const lsk=localStorage.getItem('oc_ls_key')||'';if(document.getElementById('lightspeedKey'))document.getElementById('lightspeedKey').value=lsk?'(saved)':'';const xero=localStorage.getItem('oc_xero_id')||'';if(document.getElementById('xeroClientId'))document.getElementById('xeroClientId').value=xero;const jb=gJBConfig();if(document.getElementById('jb_bin')){document.getElementById('jb_bin').value=jb.binId;document.getElementById('jb_key').value=jb.apiKey?'saved':'';const mbin=localStorage.getItem('oc_jb_memory_bin')||'';if(document.getElementById('jb_memory_bin'))document.getElementById('jb_memory_bin').value=mbin;document.getElementById('jb_status').style.display='none';}ppRenderLockStatus();}uBadges();}
+}}else if(n==='suppliers'){rSup();if(_activeSupTab==='pricing')rContingency();}else if(n==='orders'||n==='manual_order'){rOrders();if(n==='manual_order')switchOrderTab('manual',document.getElementById('ord-tab-manual'));}else if(n==='deliveries')rDeliveries();else if(n==='alerts')rAlerts();else if(n==='history')rHistory();else if(n==='wastage')rWastage();else if(n==='temp_logs'){if(typeof rTempLogs==='function')rTempLogs();}else if(n==='pos')rPOS();else if(n==='reports'){rReports();if(_rptMainTab==='stocktake')rStocktake();}else if(n==='calendar')rCalendar();else if(n==='morningbrief'){if(typeof ppbRenderPage==='function')ppbRenderPage();}else if(n==='admin')rAdmin();else if(n==='integrations'){/* static */ if (typeof renderEmailConnectionsPanel === 'function') renderEmailConnectionsPanel();}else if(n==='menu'){if(typeof rMenuPage==='function')rMenuPage();}else if(n==='loyalty'){if(typeof renderLoyalty==='function')renderLoyalty();}else if(n==='settings'){document.getElementById('warnPct').value=settings.warnPct;document.getElementById('stocktakeIntervalDays').value=settings.stocktakeIntervalDays||7;document.getElementById('recipeVarianceTagThreshold').value=settings.recipeVarianceTagThreshold||2;document.getElementById('recipeVarianceLookbackDays').value=settings.recipeVarianceLookbackDays||90;document.getElementById('notifEmail').value=settings.notifEmail||'';document.getElementById('browserNotif').checked=settings.browserNotif;const sk=localStorage.getItem('oc_api_key')||'';document.getElementById('anthropicKey').value=sk?'sk-ant-…(saved)':'';if(document.getElementById('srv-url')){document.getElementById('srv-url').value=localStorage.getItem('pp_api_url')||'';document.getElementById('srv-key').value='';const ss=document.getElementById('pp-srv-status');const li=PP_API.linkInfo();if(ss)ss.innerHTML=li?'<span style="color:#22C55E;font-weight:700">● Linked to '+String(li.org_name||'').replace(/</g,'&lt;')+'</span>':'<span style="color:var(--faint)">Not linked</span>';const sp=document.getElementById('pp-share-payroll');if(sp)sp.checked=localStorage.getItem('pp_share_payroll')==='1';const ii=document.getElementById('pp-inbox-interval');if(ii)ii.value=String(PP_API.inboxIntervalMin());PP_API.renderInboxLast();}const lsk=localStorage.getItem('oc_ls_key')||'';if(document.getElementById('lightspeedKey'))document.getElementById('lightspeedKey').value=lsk?'(saved)':'';const xero=localStorage.getItem('oc_xero_id')||'';if(document.getElementById('xeroClientId'))document.getElementById('xeroClientId').value=xero;const jb=gJBConfig();if(document.getElementById('jb_bin')){document.getElementById('jb_bin').value=jb.binId;document.getElementById('jb_key').value=jb.apiKey?'saved':'';const mbin=localStorage.getItem('oc_jb_memory_bin')||'';if(document.getElementById('jb_memory_bin'))document.getElementById('jb_memory_bin').value=mbin;document.getElementById('jb_status').style.display='none';}ppRenderLockStatus();}uBadges();}
 function gSt(i){
   const onOrd=(i.onOrder||0);
   const effective=Math.round(((i.stock||0)+onOrd)*10000)/10000;
