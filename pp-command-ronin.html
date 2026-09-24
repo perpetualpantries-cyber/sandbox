@@ -371,6 +371,7 @@ label{font-size:11px;color:var(--sub);text-transform:uppercase;letter-spacing:.0
     <div class="field"><label>PP server URL</label><input id="set-server-url" placeholder="https://api.perpetualpantries.example" autocomplete="off"></div>
     <div class="field"><label>Org API key (from PPcanopy, shown once when the client was created)</label><input id="set-org-key" type="password" placeholder="ppo_…" autocomplete="off"></div>
     <div class="field"><label>Anthropic API key (Ronin)</label><input id="set-apikey" type="password" placeholder="sk-ant-… — not needed inside a claude.ai artifact" autocomplete="off"></div>
+    <div class="field"><label>Check for Canopy requests every</label><select id="set-canopy-interval"><option value="1">1 minute</option><option value="2">2 minutes</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select><div class="page-sub" style="margin-top:4px">How often Ronin checks the PP server for new requests from Perpetual Pantries (Canopy) and replies from your sites while this console is open. It also checks whenever you come back to this tab. <span id="set-canopy-last"></span></div></div>
     <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="set-demomode"> Demo mode (allows simulated linking and fabricated inbox results)</label></div>
     <div class="page-sub" id="set-storage-note" style="margin-bottom:4px"></div>
     <div class="row" style="margin-top:14px">
@@ -426,7 +427,36 @@ const SERVER = {
     };
   },
 };
-async function refreshFromServer(){ if (!SERVER.on()) return; try { await SERVER.load(); await saveState(true); renderAll(true); } catch(e){ toastMsg('Server refresh failed: ' + e.message); } }
+async function refreshFromServer(){ if (!SERVER.on()) return; try { await SERVER.load(); _lastRefresh = new Date(); announceNewCanopyRequests(); await saveState(true); renderAll(true); } catch(e){ toastMsg('Server refresh failed: ' + e.message); } }
+
+// How often Ronin re-checks the server (Canopy requests, site replies): per-device, Settings → "Check for Canopy requests every".
+const REFRESH_INTERVALS = [1, 2, 5, 15, 30, 60];
+let _refreshTimer = null, _lastRefresh = null;
+function refreshIntervalMin(){
+  let v = NaN; try { v = Number(localStorage.getItem('ppcommand_canopy_poll_min')); } catch(e){}
+  return REFRESH_INTERVALS.includes(v) ? v : 1;
+}
+function scheduleRefresh(){
+  if (_refreshTimer) clearInterval(_refreshTimer);
+  _refreshTimer = SERVER.on() ? setInterval(refreshFromServer, refreshIntervalMin() * 60 * 1000) : null;
+}
+function lastRefreshText(){
+  if (!SERVER.on()) return 'Only in server mode.';
+  return _lastRefresh ? 'Last checked ' + _lastRefresh.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) + '.' : 'Not checked yet.';
+}
+// Alert the operator once per new Canopy request that needs their decision (toast + browser notification if allowed).
+function announceNewCanopyRequests(){
+  const open = (STATE.canopyRequests || []).filter(r => r.status === 'awaiting_approval');
+  let seen; try { seen = new Set(JSON.parse(localStorage.getItem('ppcommand_canopy_seen') || '[]')); } catch(e){ seen = new Set(); }
+  const fresh = open.filter(r => !seen.has(r.id));
+  if (!fresh.length) return;
+  fresh.forEach(r => seen.add(r.id));
+  try { localStorage.setItem('ppcommand_canopy_seen', JSON.stringify([...seen].slice(-500))); } catch(e){}
+  const first = String(fresh[0].request_text || '').slice(0, 80);
+  const text = fresh.length === 1 ? `New request from Perpetual Pantries (Canopy): "${first}" — needs your decision` : `${fresh.length} new requests from Perpetual Pantries (Canopy) need your decision`;
+  toastMsg('🌿 ' + text);
+  try { if (typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification('🌿 ' + (STATE.orgName || 'PP Command') + ' — Canopy request', { body: text }); } catch(e){}
+}
 let STATE = null;
 let saveTimer = null;
 
@@ -568,6 +598,8 @@ function openSettings(){
   document.getElementById('set-server-url').value = SERVER.url();
   document.getElementById('set-org-key').value = SERVER.key() ? '(saved)' : '';
   document.getElementById('set-demomode').checked = !!STATE.demoMode;
+  document.getElementById('set-canopy-interval').value = String(refreshIntervalMin());
+  document.getElementById('set-canopy-last').textContent = lastRefreshText();
   document.getElementById('set-storage-note').textContent = (SERVER.on() ? 'Server mode · ' : 'Standalone · ') + 'Storage: ' + (STORE.backend === 'artifact' ? 'claude.ai artifact' : STORE.backend === 'local' ? 'this browser (localStorage)' : 'memory only — nothing persists');
   document.getElementById('settings-overlay').classList.add('show');
 }
@@ -582,7 +614,11 @@ async function saveSettings(){
   try { su ? localStorage.setItem('ppcommand_api_url', su.replace(/\/+$/, '')) : localStorage.removeItem('ppcommand_api_url'); } catch(e){}
   if (ok && ok !== '(saved)') { try { localStorage.setItem('ppcommand_org_key', ok); } catch(e){} }
   if (!ok) { try { localStorage.removeItem('ppcommand_org_key'); } catch(e){} }
-  if (SERVER.on()) { try { await SERVER.load(); toastMsg('Connected to PP server as ' + STATE.orgName); } catch(e){ toastMsg('Could not reach server: ' + e.message); } }
+  try { localStorage.setItem('ppcommand_canopy_poll_min', document.getElementById('set-canopy-interval').value); } catch(e){}
+  // Ask once for desktop notifications so new Canopy requests can alert while the console is in the background.
+  try { if (SERVER.on() && typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission(); } catch(e){}
+  if (SERVER.on()) { try { await SERVER.load(); _lastRefresh = new Date(); announceNewCanopyRequests(); toastMsg('Connected to PP server as ' + STATE.orgName); } catch(e){ toastMsg('Could not reach server: ' + e.message); } }
+  scheduleRefresh();
   await saveState(true);
   closeSettings();
   renderAll();
@@ -1545,7 +1581,11 @@ document.addEventListener('keydown', e => {
 (async function init(){
   await loadState();
   renderAll();
-  if (SERVER.on()) setInterval(refreshFromServer, 60 * 1000);
+  if (SERVER.on()) refreshFromServer();
+  scheduleRefresh();
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && SERVER.on() && (!_lastRefresh || Date.now() - _lastRefresh > 30 * 1000)) refreshFromServer();
+  });
 })();
 </script>
 </body>
