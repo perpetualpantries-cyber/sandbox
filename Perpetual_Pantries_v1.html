@@ -1672,6 +1672,8 @@ select.ob-input option{background:#0D1828;color:white}
           <div class="field" style="margin-bottom:6px"><label>🔗 PP Command link code</label><input type="text" id="srv-key" placeholder="8-character code from your PP Command console" autocomplete="off" style="text-transform:uppercase;letter-spacing:2px"><div class="fn">Generated in PP Command → Sites → Generate link code. Single use, expires in 24h. <span id="pp-srv-status"></span></div></div>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;margin-bottom:10px"><input type="checkbox" id="pp-share-payroll" onchange="localStorage.setItem('pp_share_payroll', this.checked ? '1' : '0'); if (PP_API.isConfigured()) PP_API.pushSnapshot();"> Share staff hours &amp; rates with PP Command (org-level labour reporting only — never TFN, bank or pay runs)</label>
           <div class="field" style="margin-bottom:10px"><label>🏢 Check head-office requests every</label><select id="pp-inbox-interval" onchange="PP_API.setInboxInterval(this.value)"><option value="1">1 minute</option><option value="2">2 minutes</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select><div class="fn">How often Gavin checks PP Command (Ronin) for new requests while PP is open. It also checks whenever you come back to this tab. <span id="pp-inbox-last"></span></div></div>
+          <div class="field" style="margin-bottom:6px"><label>📧 Order email relay URL</label><input type="url" id="pp-relay-url" placeholder="https://your-project.vercel.app/api/send-order-email" autocomplete="off" onchange="localStorage.setItem('pp_relay_url', this.value.trim())"></div>
+          <div class="field" style="margin-bottom:10px"><label>🔑 Relay secret</label><input type="password" id="pp-relay-secret" placeholder="PP_RELAY_SECRET from your Vercel project" autocomplete="off" onchange="if (this.value && this.value !== '(saved)') localStorage.setItem('pp_relay_secret', this.value.trim()); else if (!this.value) localStorage.removeItem('pp_relay_secret');"><div class="fn">Lets Gavin email approved head-office orders to suppliers without anyone clicking Send. Without it, those orders are saved as drafts in Orders for you to send.</div></div>
           <div style="display:flex;gap:8px;margin-bottom:14px"><button class="btn btn-secondary btn-sm" onclick="saveServerConfig()">Save &amp; link</button><button class="btn btn-secondary btn-sm" id="sync-now-btn" onclick="syncNow()">Sync now</button><button class="btn btn-secondary btn-sm" onclick="PP_API.unlink(); toast('Unlinked from PP Command','ok'); showPage('settings')">Unlink</button></div>
           <div style="height:1px;background:var(--border);margin:10px 0 14px"></div>
           <div class="field" style="margin-bottom:6px"><label>🤖 Anthropic API Key</label><input type="password" id="anthropicKey" placeholder="sk-ant-…" autocomplete="off"><div class="fn">Required for Gavin AI assistant and docket scanning. Stored locally in your browser only.</div></div>
@@ -2336,9 +2338,19 @@ const PP_API = (function() {
         // Not something Gavin runs on its own: surface as a task and complete once staff mark it done.
         status = null;
         taskFromInbox(m);
+        // Ordering requests: Gavin places them itself when it safely can (see hoAutoOrder); otherwise the
+        // task stays open with a draft PO and the reason.
+        if (typeof hoAutoOrder === 'function' && /order|restock|purchase|top.?up/i.test(m.intent + ' ' + (m.note || ''))) {
+          hoAutoOrder(m).catch(e => console.error('[hoAutoOrder]', e));
+        }
       }
     } catch (e) { status = 'failed'; note = e.message; }
     if (status) { await req('POST', '/api/venue/inbox/' + m.id + '/ack', { status, note, result }); pollInbox(); }
+  }
+  function annotateTask(id, reason) {
+    const tasks = JSON.parse(localStorage.getItem('pp_inbox_tasks') || '[]');
+    const t = tasks.find(x => x.id === id); if (!t) return;
+    t.reason = reason; localStorage.setItem('pp_inbox_tasks', JSON.stringify(tasks)); renderInbox();
   }
   function taskFromInbox(m) {
     const tasks = JSON.parse(localStorage.getItem('pp_inbox_tasks') || '[]');
@@ -2379,7 +2391,7 @@ const PP_API = (function() {
     const tasks = JSON.parse(localStorage.getItem('pp_inbox_tasks') || '[]');
     const pending = _inbox.filter(m => m.status === 'awaiting_approval');
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    const row = (m, btns) => `<div class="alert-item warning"><span class="alert-icon">🏢</span><div class="alert-text"><div class="alert-title">${esc(m.intent.replace(/_/g, ' '))}</div><div class="alert-sub">${esc(m.note || '')}</div></div>${btns}</div>`;
+    const row = (m, btns) => `<div class="alert-item warning"><span class="alert-icon">🏢</span><div class="alert-text"><div class="alert-title">${esc(m.intent.replace(/_/g, ' '))}</div><div class="alert-sub">${esc(m.note || '')}</div>${m.reason ? `<div class="alert-sub" style="color:var(--amber)">Gavin: ${esc(m.reason)}</div>` : ''}</div>${btns}</div>`;
     el.innerHTML = `<div class="card-header"><div><div class="card-title">🏢 Requests from ${esc(link.org_name || 'head office')}</div><div class="card-sub">${pending.length} awaiting your approval · ${tasks.length} task${tasks.length === 1 ? '' : 's'} for staff</div></div><button class="btn btn-secondary btn-sm" onclick="PP_API.pollInbox()">↻</button></div>
       <div style="padding:12px 16px;display:flex;flex-direction:column;gap:8px">
         ${pending.map(m => row(m, `<button class="alert-action" onclick="PP_API.inboxDecide('${m.id}','approve')">Approve</button><button class="alert-action" onclick="PP_API.inboxDecide('${m.id}','decline')">Decline</button>`)).join('')}
@@ -2545,7 +2557,7 @@ const PP_API = (function() {
     setBase: function(url) { localStorage.setItem('pp_api_url', url.replace(/\/+$/, '')); },
     setToken: function(tok) { localStorage.setItem('pp_jwt', tok); },
     linkInfo, venueId, pollInbox, inboxDecide, inboxTaskDone, renderInbox, inboxSnapshot,
-    inboxIntervalMin, setInboxInterval, renderInboxLast,
+    inboxIntervalMin, setInboxInterval, renderInboxLast, annotateTask,
     unlink: function() { localStorage.removeItem('pp_jwt'); localStorage.removeItem('pp_link'); renderInbox(); },
   };
 })();
@@ -2608,7 +2620,7 @@ function rPage(n){if(n==='dashboard')rDash();else if(n==='inventory')rInv();else
       if (emailTabBtn) ppayTab('email', emailTabBtn);
     }, 100);
   }
-}}else if(n==='suppliers'){rSup();if(_activeSupTab==='pricing')rContingency();}else if(n==='orders'||n==='manual_order'){rOrders();if(n==='manual_order')switchOrderTab('manual',document.getElementById('ord-tab-manual'));}else if(n==='deliveries')rDeliveries();else if(n==='alerts')rAlerts();else if(n==='history')rHistory();else if(n==='wastage')rWastage();else if(n==='temp_logs'){if(typeof rTempLogs==='function')rTempLogs();}else if(n==='pos')rPOS();else if(n==='reports'){rReports();if(_rptMainTab==='stocktake')rStocktake();}else if(n==='calendar')rCalendar();else if(n==='morningbrief'){if(typeof ppbRenderPage==='function')ppbRenderPage();}else if(n==='admin')rAdmin();else if(n==='integrations'){/* static */ if (typeof renderEmailConnectionsPanel === 'function') renderEmailConnectionsPanel();}else if(n==='menu'){if(typeof rMenuPage==='function')rMenuPage();}else if(n==='loyalty'){if(typeof renderLoyalty==='function')renderLoyalty();}else if(n==='settings'){document.getElementById('warnPct').value=settings.warnPct;document.getElementById('stocktakeIntervalDays').value=settings.stocktakeIntervalDays||7;document.getElementById('recipeVarianceTagThreshold').value=settings.recipeVarianceTagThreshold||2;document.getElementById('recipeVarianceLookbackDays').value=settings.recipeVarianceLookbackDays||90;document.getElementById('notifEmail').value=settings.notifEmail||'';document.getElementById('browserNotif').checked=settings.browserNotif;const sk=localStorage.getItem('oc_api_key')||'';document.getElementById('anthropicKey').value=sk?'sk-ant-…(saved)':'';if(document.getElementById('srv-url')){document.getElementById('srv-url').value=localStorage.getItem('pp_api_url')||'';document.getElementById('srv-key').value='';const ss=document.getElementById('pp-srv-status');const li=PP_API.linkInfo();if(ss)ss.innerHTML=li?'<span style="color:#22C55E;font-weight:700">● Linked to '+String(li.org_name||'').replace(/</g,'&lt;')+'</span>':'<span style="color:var(--faint)">Not linked</span>';const sp=document.getElementById('pp-share-payroll');if(sp)sp.checked=localStorage.getItem('pp_share_payroll')==='1';const ii=document.getElementById('pp-inbox-interval');if(ii)ii.value=String(PP_API.inboxIntervalMin());PP_API.renderInboxLast();}const lsk=localStorage.getItem('oc_ls_key')||'';if(document.getElementById('lightspeedKey'))document.getElementById('lightspeedKey').value=lsk?'(saved)':'';const xero=localStorage.getItem('oc_xero_id')||'';if(document.getElementById('xeroClientId'))document.getElementById('xeroClientId').value=xero;const jb=gJBConfig();if(document.getElementById('jb_bin')){document.getElementById('jb_bin').value=jb.binId;document.getElementById('jb_key').value=jb.apiKey?'saved':'';const mbin=localStorage.getItem('oc_jb_memory_bin')||'';if(document.getElementById('jb_memory_bin'))document.getElementById('jb_memory_bin').value=mbin;document.getElementById('jb_status').style.display='none';}ppRenderLockStatus();}uBadges();}
+}}else if(n==='suppliers'){rSup();if(_activeSupTab==='pricing')rContingency();}else if(n==='orders'||n==='manual_order'){rOrders();if(n==='manual_order')switchOrderTab('manual',document.getElementById('ord-tab-manual'));}else if(n==='deliveries')rDeliveries();else if(n==='alerts')rAlerts();else if(n==='history')rHistory();else if(n==='wastage')rWastage();else if(n==='temp_logs'){if(typeof rTempLogs==='function')rTempLogs();}else if(n==='pos')rPOS();else if(n==='reports'){rReports();if(_rptMainTab==='stocktake')rStocktake();}else if(n==='calendar')rCalendar();else if(n==='morningbrief'){if(typeof ppbRenderPage==='function')ppbRenderPage();}else if(n==='admin')rAdmin();else if(n==='integrations'){/* static */ if (typeof renderEmailConnectionsPanel === 'function') renderEmailConnectionsPanel();}else if(n==='menu'){if(typeof rMenuPage==='function')rMenuPage();}else if(n==='loyalty'){if(typeof renderLoyalty==='function')renderLoyalty();}else if(n==='settings'){document.getElementById('warnPct').value=settings.warnPct;document.getElementById('stocktakeIntervalDays').value=settings.stocktakeIntervalDays||7;document.getElementById('recipeVarianceTagThreshold').value=settings.recipeVarianceTagThreshold||2;document.getElementById('recipeVarianceLookbackDays').value=settings.recipeVarianceLookbackDays||90;document.getElementById('notifEmail').value=settings.notifEmail||'';document.getElementById('browserNotif').checked=settings.browserNotif;const sk=localStorage.getItem('oc_api_key')||'';document.getElementById('anthropicKey').value=sk?'sk-ant-…(saved)':'';if(document.getElementById('srv-url')){document.getElementById('srv-url').value=localStorage.getItem('pp_api_url')||'';document.getElementById('srv-key').value='';const ss=document.getElementById('pp-srv-status');const li=PP_API.linkInfo();if(ss)ss.innerHTML=li?'<span style="color:#22C55E;font-weight:700">● Linked to '+String(li.org_name||'').replace(/</g,'&lt;')+'</span>':'<span style="color:var(--faint)">Not linked</span>';const sp=document.getElementById('pp-share-payroll');if(sp)sp.checked=localStorage.getItem('pp_share_payroll')==='1';const ii=document.getElementById('pp-inbox-interval');if(ii)ii.value=String(PP_API.inboxIntervalMin());const ru=document.getElementById('pp-relay-url');if(ru)ru.value=localStorage.getItem('pp_relay_url')||'';const rs=document.getElementById('pp-relay-secret');if(rs)rs.value=localStorage.getItem('pp_relay_secret')?'(saved)':'';PP_API.renderInboxLast();}const lsk=localStorage.getItem('oc_ls_key')||'';if(document.getElementById('lightspeedKey'))document.getElementById('lightspeedKey').value=lsk?'(saved)':'';const xero=localStorage.getItem('oc_xero_id')||'';if(document.getElementById('xeroClientId'))document.getElementById('xeroClientId').value=xero;const jb=gJBConfig();if(document.getElementById('jb_bin')){document.getElementById('jb_bin').value=jb.binId;document.getElementById('jb_key').value=jb.apiKey?'saved':'';const mbin=localStorage.getItem('oc_jb_memory_bin')||'';if(document.getElementById('jb_memory_bin'))document.getElementById('jb_memory_bin').value=mbin;document.getElementById('jb_status').style.display='none';}ppRenderLockStatus();}uBadges();}
 function gSt(i){
   const onOrd=(i.onOrder||0);
   const effective=Math.round(((i.stock||0)+onOrd)*10000)/10000;
@@ -4808,6 +4820,10 @@ function moResendDraft(id){
   o.poNumber='PP'+String(newPO).padStart(5,'0');
   o.status='sent';
   saveManualOrders();
+  if(o.inboxRequestId&&typeof PP_API!=='undefined'&&!manualOrders.some(x=>x.inboxRequestId===o.inboxRequestId&&x.status==='draft')){
+    const sent=manualOrders.filter(x=>x.inboxRequestId===o.inboxRequestId).map(x=>`PO ${x.poNumber} to ${x.supplierName} ($${x.total.toFixed(2)})`).join('; ');
+    PP_API.inboxTaskDone(o.inboxRequestId,true,'Ordered by the manager: '+sent);
+  }
   if(o.supplierEmail){const s=sup[o.supplierId];const subject=`Purchase Order ${o.poNumber} — ${cafeDetails.name||'My Cafe'} ${new Date().toLocaleDateString('en-AU')}`;const body=`Hi ${o.supplierName},\n\nPURCHASE ORDER: ${o.poNumber}\n\n`+o.lines.map(l=>`- ${l.itemName}: ${l.qty} ${l.unit} @ $${l.unitCost.toFixed(2)}`).join('\n')+`\n\nTotal: $${o.total.toFixed(2)} ex-GST\n\nKind regards,\n${cafeDetails.name||'My Cafe'}`;window.open(`mailto:${o.supplierEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);}
   toast(`PO ${o.poNumber} sent`,'ok');
   moRenderHistory();
@@ -14344,7 +14360,7 @@ function aimBuildContext() {
       return `\nHEAD OFFICE REQUESTS (from ${snap.org} via PP Command; "Ronin" is head office's assistant, NOT a supplier — manage these with head_office_requests):`
         + `\n Awaiting manager approval: ${snap.pending.length ? snap.pending.map(line).join(' | ') : 'none'}`
         + `\n Approved, to do: ${snap.tasks.length ? snap.tasks.map(line).join(' | ') : 'none'}`
-        + `\n Mention any open request when relevant. Approve/decline only when the manager says so. For an approved ordering request, place it with send_order to the café's own supplier for that item (ask which supplier/quantity if unclear), then close it with action "done".`;
+        + `\n Mention any open request when relevant. Approve/decline only when the manager says so. Approved ordering requests are placed automatically (PO emailed via the relay) when every item matches, suppliers have emails and the total is within the order-approval limit; otherwise a draft PO is saved in Orders → Manual and the task shows "Gavin: …" with the reason — help the manager resolve it (e.g. add the missing item/supplier, or send the draft), then close it with action "done" if it wasn't closed by sending the draft.`;
     } catch(e) { return ''; }
   })();
 
@@ -25562,6 +25578,114 @@ RULES: name MUST be exactly as provided. kg/L/ea only. Return ONLY JSON.`;
 }
 
 // ── Auto-Order Scheduler ──────────────────────────────────────────────────
+// ═══ HEAD-OFFICE ORDERS (approved Ronin requests) ════════════════════════════
+// Once the manager approves an ordering request from PP Command, Gavin reads it, maps it onto stock
+// items and either emails the PO(s) straight to the supplier(s) — only when EVERY item is matched, each
+// supplier has an email, the email relay is set up and the total is within the order-approval limit
+// (Settings → Business rules, $500 when unset) — or saves draft PO(s) in Orders and leaves the task open
+// with the reason. Head office is told the outcome either way (on send; drafts report when sent).
+const HO_AUTO_ORDER_DEFAULT_LIMIT = 500;
+function ppRelayConfigured(){ return !!(localStorage.getItem('pp_relay_url') && localStorage.getItem('pp_relay_secret')); }
+async function ppRelaySend(to, subject, text){
+  const url = localStorage.getItem('pp_relay_url'), secret = localStorage.getItem('pp_relay_secret');
+  if (!url || !secret) return { ok:false, error:'email relay not set up' };
+  try {
+    const r = await fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ secret, to, subject, text }) });
+    const d = await r.json().catch(() => ({}));
+    return r.ok ? { ok:true } : { ok:false, error: d.error || ('relay HTTP ' + r.status) };
+  } catch(e) { return { ok:false, error: e.message }; }
+}
+// Ask Claude to map the free-text request onto stock item ids + quantities in each item's own unit.
+async function hoExtractOrderLines(m){
+  const items = Object.values(db.items).map(i => ({ id:i.id, name:i.name, unit:i.unit, supplier: supName(i.supplierId) }));
+  if (!items.length) return { lines:[], unmatched:'there are no stock items in PP yet' };
+  const tool = { name:'order_lines', description:'The stock items and quantities this request asks for.',
+    input_schema:{ type:'object', properties:{
+      lines:{ type:'array', items:{ type:'object', properties:{ item_id:{type:'string'}, quantity:{type:'number', description:"In the item's own unit, e.g. 2 dozen of an item counted in 'ea' = 24"} }, required:['item_id','quantity'] } },
+      unmatched:{ type:'string', description:'Anything requested that is not on the list or has no clear quantity; empty if everything matched' } }, required:['lines'] } };
+  const r = await fetch('https://api.anthropic.com/v1/messages', { method:'POST', headers: aimHeaders(), body: JSON.stringify({
+    model:'claude-haiku-4-5-20251001', max_tokens:600, tools:[tool], tool_choice:{ type:'tool', name:'order_lines' },
+    system:"Map a head-office ordering request onto this café's stock list. Use only item ids from the list; never invent items or quantities. If an item or its quantity is unclear, leave it out and describe it in unmatched.",
+    messages:[{ role:'user', content: 'STOCK ITEMS (JSON):\n' + JSON.stringify(items) + '\n\nREQUEST: ' + String(m.intent||'').replace(/_/g,' ') + (m.note ? ' — ' + m.note : '') }] }) });
+  if (!r.ok) throw new Error('Claude API ' + r.status);
+  const d = await r.json();
+  const out = (d.content || []).find(c => c.type === 'tool_use');
+  const lines = ((out && out.input && out.input.lines) || [])
+    .filter(l => db.items[l.item_id] && Number.isFinite(Number(l.quantity)) && Number(l.quantity) > 0)
+    .map(l => ({ item: db.items[l.item_id], qty: Math.round(Number(l.quantity) * 1000) / 1000 }));
+  return { lines, unmatched: String((out && out.input && out.input.unmatched) || '').trim() };
+}
+function hoPoText(poNumber, s, lines, total, m){
+  const addr = [cafeDetails?.address, cafeDetails?.suburb, cafeDetails?.state].filter(Boolean).join(', ');
+  return 'Hi ' + s.name + ',\n\nPURCHASE ORDER: ' + poNumber + '\nDate: ' + new Date().toLocaleDateString('en-AU')
+    + '\nFrom: ' + (cafeDetails?.name || 'My Cafe') + (addr ? ', ' + addr : '') + '\n\nORDER ITEMS:\n'
+    + lines.map(l => '  - ' + l.itemName + ': ' + l.qty + ' ' + l.unit + ' @ $' + l.unitCost.toFixed(2) + '/' + l.unit).join('\n')
+    + '\n\nORDER TOTAL: $' + total.toFixed(2) + ' ex-GST' + (m.note ? '\n\nNotes: ' + m.note : '')
+    + '\n\nPlease quote PO ' + poNumber + ' on your invoice and delivery docket.\n\nKind regards,\n' + (cafeDetails?.name || 'My Cafe');
+}
+function hoNextPo(){ const n = parseInt(localStorage.getItem('oc_last_po') || '10000') + 1; localStorage.setItem('oc_last_po', String(n)); return 'PP' + String(n).padStart(5, '0'); }
+async function hoAutoOrder(m){
+  const say = reason => { PP_API.annotateTask(m.id, reason); if (typeof toast === 'function') toast('🏢 Head-office order: ' + reason, 'warn'); };
+  if (!gAPIKey()) return say('left for you — Gavin needs an Anthropic API key (Settings) to read order requests.');
+  let parsed;
+  try { parsed = await hoExtractOrderLines(m); } catch(e) { return say('left for you — could not read the request (' + e.message + ').'); }
+  if (!parsed.lines.length) return say('left for you — ' + (parsed.unmatched || 'no matching stock items') + '.');
+  // Group by supplier
+  const groups = {};
+  parsed.lines.forEach(({ item, qty }) => {
+    const sid = item.supplierId || '';
+    (groups[sid] = groups[sid] || []).push({ itemId:item.id, itemName:item.name, unit:item.unit, qty, unitCost:item.unitCost || 0, stockAtOrder:item.stock });
+  });
+  const total = parsed.lines.reduce((t, { item, qty }) => t + qty * (item.unitCost || 0), 0);
+  const rules = getBizRules();
+  const limit = rules.orderApproval > 0 ? rules.orderApproval : HO_AUTO_ORDER_DEFAULT_LIMIT;
+  const reasons = [];
+  if (parsed.unmatched) reasons.push('not everything matched a stock item (' + parsed.unmatched + ')');
+  if (groups['']) reasons.push('some items have no supplier');
+  Object.keys(groups).filter(Boolean).forEach(sid => { if (!sup[sid]) reasons.push('unknown supplier for ' + groups[sid][0].itemName); else if (!sup[sid].email) reasons.push(sup[sid].name + ' has no email address'); });
+  if (total > limit) reasons.push('total $' + total.toFixed(2) + ' is over the $' + limit.toFixed(2) + ' auto-order limit');
+  if (checkOrderRules(total).blocked) reasons.push('over the maximum order value in Business rules');
+  if (!ppRelayConfigured()) reasons.push('the order email relay is not set up (Settings)');
+
+  if (!reasons.length) {
+    const sent = [], failed = [];
+    for (const sid of Object.keys(groups)) {
+      const s = sup[sid], lines = groups[sid];
+      const gTotal = lines.reduce((t, l) => t + l.qty * l.unitCost, 0);
+      const poNumber = hoNextPo();
+      const subject = 'Purchase Order ' + poNumber + ' — ' + (cafeDetails?.name || 'My Cafe') + ' ' + new Date().toLocaleDateString('en-AU');
+      const res = await ppRelaySend(s.email, subject, hoPoText(poNumber, s, lines, gTotal, m));
+      if (!res.ok) { failed.push({ sid, error: res.error }); continue; }
+      lines.forEach(l => { const it = db.items[l.itemId]; if (it) it.onOrder = (it.onOrder || 0) + l.qty; });
+      supplierOrders.unshift({ id:'sord_' + Date.now() + '_' + sid, poNumber, auto:true, source:'head_office', inboxRequestId:m.id, date:new Date().toISOString(),
+        supplierId:sid, supplierName:s.name, supplierIcon:s.icon || '🏭', supplierEmail:s.email, supplierPhone:s.phone || '', lines, total:gTotal, status:'sent', notes:'Head-office request: ' + (m.note || m.intent) });
+      sent.push('PO ' + poNumber + ' to ' + s.name + ' ($' + gTotal.toFixed(2) + ')');
+    }
+    saveSupplierOrders(); sDB(); if (typeof uBadges === 'function') uBadges();
+    if (!failed.length) {
+      await PP_API.inboxTaskDone(m.id, true, 'Ordered automatically by Gavin: ' + sent.join('; '));
+      if (typeof toast === 'function') toast('🏢 Head-office order sent: ' + sent.join('; '), 'ok');
+      return;
+    }
+    // Send failed for some suppliers: draft those, keep the task open
+    failed.forEach(f => { reasons.push('email to ' + sup[f.sid].name + ' failed (' + f.error + ')'); });
+    Object.keys(groups).forEach(sid => { if (!failed.some(f => f.sid === sid)) delete groups[sid]; });
+    if (sent.length) reasons.unshift('sent ' + sent.join('; '));
+  }
+  // Draft what can be drafted (items with a known supplier)
+  const drafted = [];
+  Object.keys(groups).filter(sid => sid && sup[sid]).forEach(sid => {
+    const s = sup[sid], lines = groups[sid];
+    const gTotal = lines.reduce((t, l) => t + l.qty * l.unitCost, 0);
+    manualOrders.unshift({ id:'mo_' + Date.now() + '_' + sid, poNumber:'DRAFT', date:new Date().toISOString(), supplierId:sid, supplierName:s.name, supplierIcon:s.icon || '📋',
+      supplierEmail:s.email || '', supplierPhone:s.phone || '', lines: lines.map(l => ({ itemId:l.itemId, itemName:l.itemName, unit:l.unit, qty:l.qty, unitCost:l.unitCost })),
+      total:gTotal, notes:'Head-office request: ' + (m.note || m.intent), status:'draft', source:'head_office', inboxRequestId:m.id });
+    drafted.push(s.name);
+  });
+  if (drafted.length) saveManualOrders();
+  say((drafted.length ? 'draft PO for ' + drafted.join(', ') + ' in Orders → Manual, ready to send' : 'left for you') + ' — ' + reasons.join('; ') + '.');
+}
+
 let _autoOrderLastCheck = {};
 
 function autoOrderCheck() {
