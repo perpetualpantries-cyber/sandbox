@@ -251,6 +251,26 @@
       <div class="modal-card" id="employeeops-card"></div>
     </div>
 
+    <!-- In-page replacement for uiAlert()/prompt()/confirm(): Chrome dismisses native dialogs when you
+         switch tabs and blocks them once "prevent additional dialogs" is ticked. See uiDialog(). -->
+    <div class="modal-backdrop" id="ui-dialog" style="z-index:70;" role="dialog" aria-modal="true" aria-labelledby="uid-title">
+      <div class="modal-card" style="max-width:440px;">
+        <h2 id="uid-title" style="margin-bottom:8px;"></h2>
+        <p id="uid-msg" style="white-space:pre-wrap;margin:0 0 12px;"></p>
+        <div id="uid-copy" style="display:none;gap:8px;margin-bottom:12px;">
+          <input id="uid-copy-input" readonly style="font-family:var(--mono,monospace);">
+          <button type="button" class="btn secondary" id="uid-copy-btn">Copy</button>
+        </div>
+        <form id="uid-form" autocomplete="off">
+          <input id="uid-input" style="display:none;margin-bottom:12px;">
+          <div style="display:flex;gap:8px;">
+            <button type="submit" class="btn" id="uid-ok">OK</button>
+            <button type="button" class="btn secondary" id="uid-cancel">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- Device settings: a form instead of a prompt() chain, which Chrome cancels when you switch
          tabs mid-way (and blocks outright once "prevent additional dialogs" is ticked). -->
     <div class="modal-backdrop" id="device-settings" style="z-index:60;">
@@ -767,9 +787,9 @@ async function serverCreateOrg(client){
   return r.data.org.api_key;
 }
 function showOrgKeyOnce(client, key){
-  const msg = `PP Command org key for ${client.name} — shown ONCE. Paste it into that client's PP Command console (Settings → Org API key):\n\n${key}`;
   try { navigator.clipboard?.writeText(key); } catch(e){}
-  alert(msg + '\n\n(Copied to clipboard.)');
+  return uiAlert(`Paste this into ${client.name}'s PP Command console (Settings → Org API key). It is shown only once — save it before closing. (Also copied to your clipboard.)`,
+    { title: 'PP Command org key — shown once', copy: key });
 }
 async function syncRoninAsksFromServer(){
   if (!SERVER.on()) return;
@@ -1046,16 +1066,16 @@ document.getElementById('current-user-select').addEventListener('change', async 
   }
   if(val==='__owner__'){
     if(!ownerPasswordHash){
-      const pw1 = prompt('First time setup — create the Owner password:');
+      const pw1 = await uiPrompt('First time setup — create the Owner password:', {type:'password'});
       if(!pw1){ renderCurrentUserSelect(); return; }
-      const pw2 = prompt('Confirm Owner password:');
-      if(pw1!==pw2){ alert('Passwords did not match — try again.'); renderCurrentUserSelect(); return; }
+      const pw2 = await uiPrompt('Confirm Owner password:', {type:'password'});
+      if(pw1!==pw2){ uiAlert('Passwords did not match — try again.'); renderCurrentUserSelect(); return; }
       ownerPasswordHash = await hashPassword(pw1);
       await saveOwnerPassword();
     } else {
-      const pw = prompt('Owner password:');
+      const pw = await uiPrompt('Owner password:', {type:'password'});
       if(pw===null){ renderCurrentUserSelect(); return; }
-      if(await hashPassword(pw) !== ownerPasswordHash){ alert('Incorrect password.'); renderCurrentUserSelect(); return; }
+      if(await hashPassword(pw) !== ownerPasswordHash){ uiAlert('Incorrect password.'); renderCurrentUserSelect(); return; }
     }
     currentUserId = '__owner__';
     await saveCurrentUserId();
@@ -1065,32 +1085,32 @@ document.getElementById('current-user-select').addEventListener('change', async 
   const member = teamMembers.find(m=>m.id===val);
   if(!member){ renderCurrentUserSelect(); return; }
   if(!member.passwordHash){
-    const pw1 = prompt(`No password set yet for ${member.name} — create one now:`);
+    const pw1 = await uiPrompt(`No password set yet for ${member.name} — create one now:`, {type:'password'});
     if(!pw1){ renderCurrentUserSelect(); return; }
-    const pw2 = prompt('Confirm password:');
-    if(pw1!==pw2){ alert('Passwords did not match — try again.'); renderCurrentUserSelect(); return; }
+    const pw2 = await uiPrompt('Confirm password:', {type:'password'});
+    if(pw1!==pw2){ uiAlert('Passwords did not match — try again.'); renderCurrentUserSelect(); return; }
     member.passwordHash = await hashPassword(pw1);
     await saveTeam();
   } else {
-    const pw = prompt(`Password for ${member.name}:`);
+    const pw = await uiPrompt(`Password for ${member.name}:`, {type:'password'});
     if(pw===null){ renderCurrentUserSelect(); return; }
-    if(await hashPassword(pw) !== member.passwordHash){ alert('Incorrect password.'); renderCurrentUserSelect(); return; }
+    if(await hashPassword(pw) !== member.passwordHash){ uiAlert('Incorrect password.'); renderCurrentUserSelect(); return; }
   }
   currentUserId = val;
   await saveCurrentUserId();
   applyPermissions();
 });
 document.getElementById('change-owner-pw-btn').addEventListener('click', async ()=>{
-  const current = prompt('Current Owner password:');
+  const current = await uiPrompt('Current Owner password:', {type:'password'});
   if(current===null) return;
-  if(await hashPassword(current) !== ownerPasswordHash){ alert('Incorrect current password.'); return; }
-  const next1 = prompt('New Owner password:');
+  if(await hashPassword(current) !== ownerPasswordHash){ uiAlert('Incorrect current password.'); return; }
+  const next1 = await uiPrompt('New Owner password:', {type:'password'});
   if(!next1) return;
-  const next2 = prompt('Confirm new password:');
-  if(next1!==next2){ alert('Passwords did not match.'); return; }
+  const next2 = await uiPrompt('Confirm new password:', {type:'password'});
+  if(next1!==next2){ uiAlert('Passwords did not match.'); return; }
   ownerPasswordHash = await hashPassword(next1);
   await saveOwnerPassword();
-  alert('Owner password updated.');
+  uiAlert('Owner password updated.');
 });
 function dsRender(){
   const set = (id, v) => { document.getElementById(id).value = v; };
@@ -1336,7 +1356,7 @@ function openClientOps(clientId){
     const ask = { id:uid(), clientId: client.id, clientName: client.name, message, askedAt: new Date().toISOString(), status:'awaiting_approval' };
     if (SERVER.on() && client.serverOrgId) {
       const r = await SERVER.req('POST', '/api/pp/ronin-asks', { org_id: client.serverOrgId, message, canopy_ask_id: ask.id });
-      if (!r.ok) { alert('Could not queue with the server: ' + (r.data.error || r.status)); return; }
+      if (!r.ok) { uiAlert('Could not queue with the server: ' + (r.data.error || r.status)); return; }
       ask.serverId = r.data.id; ask.canopyAskId = ask.id;
     }
     roninAsks.push(ask);
@@ -1482,14 +1502,14 @@ function openEmployeeOps(employeeId){
   document.getElementById('eo-close').addEventListener('click', closeEmployeeOps);
   document.getElementById('eo-role').addEventListener('change', updateRoleDescription);
   document.getElementById('eo-role-save').addEventListener('click', async ()=>{
-    if(currentRole()!=='Owner'){ alert('Only the Owner can change a permission role.'); return; }
+    if(currentRole()!=='Owner'){ uiAlert('Only the Owner can change a permission role.'); return; }
     member.permissionRole = document.getElementById('eo-role').value;
     await saveTeam();
     if(currentUserId===member.id) applyPermissions();
     renderTeam();
   });
   document.getElementById('eo-budget-save').addEventListener('click', async ()=>{
-    if(currentRole()!=='Owner'){ alert('Only the Owner can set budget or incentive figures.'); return; }
+    if(currentRole()!=='Owner'){ uiAlert('Only the Owner can set budget or incentive figures.'); return; }
     member.budgetPeriod = document.getElementById('eo-budget-period').value;
     member.budgetAmount = Number(document.getElementById('eo-budget-amount').value)||0;
     member.incentiveRatePerVenue = Number(document.getElementById('eo-incentive-rate').value)||0;
@@ -1497,14 +1517,14 @@ function openEmployeeOps(employeeId){
     openEmployeeOps(employeeId);
   });
   document.getElementById('eo-pw-save').addEventListener('click', async ()=>{
-    if(!(currentRole()==='Owner' || currentUserId===member.id)){ alert("Only the Owner or this account's own holder can reset this password."); return; }
+    if(!(currentRole()==='Owner' || currentUserId===member.id)){ uiAlert("Only the Owner or this account's own holder can reset this password."); return; }
     const pw1 = document.getElementById('eo-pw-new').value;
     const pw2 = document.getElementById('eo-pw-confirm').value;
-    if(!pw1){ alert('Enter a new password.'); return; }
-    if(pw1!==pw2){ alert('Passwords did not match.'); return; }
+    if(!pw1){ uiAlert('Enter a new password.'); return; }
+    if(pw1!==pw2){ uiAlert('Passwords did not match.'); return; }
     member.passwordHash = await hashPassword(pw1);
     await saveTeam();
-    alert(`Password updated for ${member.name}.`);
+    uiAlert(`Password updated for ${member.name}.`);
     openEmployeeOps(employeeId);
   });
   document.getElementById('eo-hours-log').addEventListener('click', async ()=>{
@@ -1559,7 +1579,7 @@ document.getElementById('add-client-btn').addEventListener('click', async ()=>{
     products: [],
     billing: { active:false, cycle:'monthly', nextInvoiceDate:'', notes:'' }
   });
-  if (SERVER.on()) { try { const c = clients[clients.length-1]; const key = await serverCreateOrg(c); showOrgKeyOnce(c, key); } catch(e){ alert('Client saved locally, but the server org could not be created: ' + e.message); } }
+  if (SERVER.on()) { try { const c = clients[clients.length-1]; const key = await serverCreateOrg(c); showOrgKeyOnce(c, key); } catch(e){ uiAlert('Client saved locally, but the server org could not be created: ' + e.message); } }
   await saveClients();
   document.getElementById('c-name').value=''; document.getElementById('c-email').value=''; document.getElementById('c-notes').value='';
   renderClients();
@@ -1715,7 +1735,7 @@ document.getElementById('pp-tiers-table').addEventListener('input', e=>{
 });
 document.getElementById('pp-tiers-table').addEventListener('click', e=>{
   if(e.target.dataset.action==='remove-pp-tier'){
-    if(pricing.ppTiers.length<=1){ alert('At least one PP tier is required.'); return; }
+    if(pricing.ppTiers.length<=1){ uiAlert('At least one PP tier is required.'); return; }
     const tr = e.target.closest('tr[data-i]');
     pricing.ppTiers.splice(+tr.dataset.i,1);
     renderPpTiersTable();
@@ -1805,7 +1825,7 @@ function renderQuoteBuilder(){
   pendingPrefill = null;
   computeQuote();
 }
-(function(){ const notes = document.getElementById('q-notes'); if(notes && !document.getElementById('q-discount')){ const wrap = document.createElement('div'); wrap.innerHTML = '<label>Discount off list (%) — anything above '+DISCOUNT_AUTO_APPROVE_PCT+'% must go through an escalation</label><input type="number" id="q-discount" min="0" max="100" step="0.5" value="0">'; notes.parentNode.insertBefore(wrap, notes.parentNode.firstChild); document.getElementById('q-discount').addEventListener('input', ()=>{ const v = Number(document.getElementById('q-discount').value)||0; if(v > DISCOUNT_AUTO_APPROVE_PCT && currentRole()!=='Owner'){ document.getElementById('q-discount').value = DISCOUNT_AUTO_APPROVE_PCT; alert('Discounts above '+DISCOUNT_AUTO_APPROVE_PCT+'% need an escalation (ask Canopy) or the Owner.'); } computeQuote(); }); } })();
+(function(){ const notes = document.getElementById('q-notes'); if(notes && !document.getElementById('q-discount')){ const wrap = document.createElement('div'); wrap.innerHTML = '<label>Discount off list (%) — anything above '+DISCOUNT_AUTO_APPROVE_PCT+'% must go through an escalation</label><input type="number" id="q-discount" min="0" max="100" step="0.5" value="0">'; notes.parentNode.insertBefore(wrap, notes.parentNode.firstChild); document.getElementById('q-discount').addEventListener('input', ()=>{ const v = Number(document.getElementById('q-discount').value)||0; if(v > DISCOUNT_AUTO_APPROVE_PCT && currentRole()!=='Owner'){ document.getElementById('q-discount').value = DISCOUNT_AUTO_APPROVE_PCT; uiAlert('Discounts above '+DISCOUNT_AUTO_APPROVE_PCT+'% need an escalation (ask Canopy) or the Owner.'); } computeQuote(); }); } })();
 ['q-client','q-band','q-term','q-pppay','q-pppayroll'].forEach(id=>{
   document.getElementById(id).addEventListener('change', ()=>{
     if(id==='q-client'){
@@ -2517,6 +2537,43 @@ document.getElementById('history-list').addEventListener('click', e=>{
 });
 
 /* ---------- helpers ---------- */
+// ---------- in-page dialogs (replace alert/prompt/confirm) ----------
+// One at a time: calls queue behind whichever dialog is open. Resolve: alert → undefined,
+// confirm → true/false, prompt → string or null (cancel / Esc).
+let _uiQueue = Promise.resolve();
+function uiDialog(opts){
+  const run = () => new Promise(resolve => {
+    const $ = id => document.getElementById(id);
+    const box = $('ui-dialog'), input = $('uid-input');
+    $('uid-title').textContent = opts.title || (opts.input ? 'Enter a value' : opts.cancel ? 'Please confirm' : 'Notice');
+    $('uid-msg').textContent = opts.message || '';
+    $('uid-copy').style.display = opts.copy ? 'flex' : 'none';
+    $('uid-copy-input').value = opts.copy || '';
+    $('uid-copy-btn').textContent = 'Copy';
+    $('uid-copy-btn').onclick = () => { const c = $('uid-copy-input'); c.select(); try { navigator.clipboard?.writeText(c.value); } catch(e){ document.execCommand('copy'); } $('uid-copy-btn').textContent = 'Copied'; };
+    input.style.display = opts.input ? '' : 'none';
+    input.type = opts.type || 'text';
+    input.value = opts.value || '';
+    $('uid-ok').textContent = opts.okText || 'OK';
+    $('uid-cancel').style.display = (opts.input || opts.cancel) ? '' : 'none';
+    const finish = v => { box.classList.remove('open'); document.removeEventListener('keydown', onKey, true); resolve(v); };
+    const cancelValue = opts.input ? null : false;
+    const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); finish(opts.input || opts.cancel ? cancelValue : undefined); } };
+    $('uid-form').onsubmit = e => { e.preventDefault(); finish(opts.input ? input.value : (opts.cancel ? true : undefined)); };
+    $('uid-cancel').onclick = () => finish(cancelValue);
+    document.addEventListener('keydown', onKey, true);
+    box.classList.add('open');
+    (opts.input ? input : (opts.copy ? $('uid-copy-input') : $('uid-ok'))).focus();
+    if (opts.copy) $('uid-copy-input').select();
+  });
+  const p = _uiQueue.then(run);
+  _uiQueue = p.catch(() => {});
+  return p;
+}
+function uiAlert(message, o){ return uiDialog({ ...(o||{}), message: String(message) }); }
+function uiConfirm(message, o){ return uiDialog({ ...(o||{}), message: String(message), cancel: true }); }
+function uiPrompt(message, o){ return uiDialog({ ...(o||{}), message: String(message), input: true }); }
+
 function escapeHtml(s){ return String(s??'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function escapeAttr(s){ return escapeHtml(s); }
 
@@ -3180,7 +3237,7 @@ async function executeEscalationAction(e){
   }
 }
 async function resolveEscalation(id, status){
-  if(currentRole()!=='Owner'){ alert('Only the Owner can approve or decline escalations.'); return; }
+  if(currentRole()!=='Owner'){ uiAlert('Only the Owner can approve or decline escalations.'); return; }
   const item = escalations.find(e=>e.id===id);
   if(!item) return;
   item.status = status;
@@ -3333,7 +3390,7 @@ function renderTeam(){
   renderCurrentUserSelect();
 }
 document.getElementById('add-team-btn').addEventListener('click', async ()=>{
-  if(currentRole()!=='Owner'){ alert('Only the Owner can create a new team member account.'); return; }
+  if(currentRole()!=='Owner'){ uiAlert('Only the Owner can create a new team member account.'); return; }
   const name = document.getElementById('tm-name').value.trim();
   if(!name) return;
   teamMembers.push({
@@ -3355,7 +3412,7 @@ document.getElementById('add-team-btn').addEventListener('click', async ()=>{
 });
 document.getElementById('team-list').addEventListener('click', async e=>{
   if(e.target.dataset.action==='remove-team'){
-    if(currentRole()!=='Owner'){ alert('Only the Owner can remove a team member.'); return; }
+    if(currentRole()!=='Owner'){ uiAlert('Only the Owner can remove a team member.'); return; }
     const item = e.target.closest('.client-list-item');
     teamMembers = teamMembers.filter(m=>m.id!==item.dataset.id);
     await saveTeam(); renderTeam(); renderSchedule();
@@ -3620,8 +3677,8 @@ function renderHoursTab(){
 document.getElementById('add-hours-btn').addEventListener('click', async ()=>{
   const employeeId = document.getElementById('lh-employee').value;
   const hours = Number(document.getElementById('lh-hours').value)||0;
-  if(!employeeId){ alert('Select a team member.'); return; }
-  if(hours<=0){ alert('Enter hours greater than 0.'); return; }
+  if(!employeeId){ uiAlert('Select a team member.'); return; }
+  if(hours<=0){ uiAlert('Enter hours greater than 0.'); return; }
   hoursLog.push({
     id: uid(), employeeId,
     date: document.getElementById('lh-date').value || new Date().toISOString().slice(0,10),
