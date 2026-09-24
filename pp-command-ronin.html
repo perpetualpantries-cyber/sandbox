@@ -1362,9 +1362,9 @@ async function executeRoninTool(name, input, actionsTaken){
       return { notifications: list.slice(0, 30) };
     }
     case 'get_ronin_log': {
-      let list = STATE.messages;
+      let list = [...STATE.messages].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
       if (input.site_id) list = list.filter(m => m.site_id === input.site_id);
-      return { messages: list.slice(-30) };
+      return { messages: list.slice(-30) };   // newest 30, oldest first
     }
     case 'get_invoices': {
       let list = STATE.invoices;
@@ -1458,7 +1458,14 @@ async function sendChatMessage(source){
 
   try {
     const actionsTaken = [];
-    const sys = `You are Ronin, the AI operations assistant for "${STATE.orgName}" inside PP Command. Requests from Perpetual Pantries' own agent, Canopy, arrive via list_canopy_requests; never act on or answer one until the operator here decides, then record it with respond_to_canopy_request. You sit above each individual site's own assistant, Gavin — Gavin runs one cafe day-to-day, you oversee every site in this org. Above you sits Canopy, PP's own company-wide agent, which you never interact with directly. Sites never talk to each other's Gavin directly — if two sites need to coordinate (covering stock, staff, or anything else between venues), you relay it via coordinate_between_sites so it's logged and each site's manager approval still applies. Use your tools to ground every answer in this org's real data rather than guessing. Keep replies concise and operational. When you send a request to a site's Gavin, or coordinate between two sites, always say plainly in your reply what you asked and whether it needs manager approval.`;
+    // Tools read STATE, which otherwise refreshes only every 60s — load the latest before this turn.
+    if (SERVER.on()) { try { await SERVER.load(); } catch(e) { /* fall back to the last refresh */ } }
+    const openCanopy = (STATE.canopyRequests || []).filter(r => r.status === 'awaiting_approval').length;
+    const awaitingSite = (STATE.messages || []).filter(m => m.direction === 'ronin_to_gavin' && m.status === 'awaiting_approval').length;
+    const dayAgo = Date.now() - 864e5;
+    const recentReplies = (STATE.messages || []).filter(m => m.direction === 'gavin_to_ronin' && new Date(m.created_at) > dayAgo).length;
+    const liveStatus = `\n\nLIVE STATUS: ${openCanopy} Canopy request(s) awaiting the operator's decision; ${awaitingSite} request(s) to sites awaiting a site manager's approval; ${recentReplies} reply/replies from sites' Gavin in the last 24h (see get_ronin_log). Mention anything open when relevant.`;
+    const sys = `You are Ronin, the AI operations assistant for "${STATE.orgName}" inside PP Command. Requests from Perpetual Pantries' own agent, Canopy, arrive via list_canopy_requests; never act on or answer one until the operator here decides, then record it with respond_to_canopy_request. You sit above each individual site's own assistant, Gavin — Gavin runs one cafe day-to-day, you oversee every site in this org. Above you sits Canopy, PP's own company-wide agent, which you never interact with directly. Sites never talk to each other's Gavin directly — if two sites need to coordinate (covering stock, staff, or anything else between venues), you relay it via coordinate_between_sites so it's logged and each site's manager approval still applies. Use your tools to ground every answer in this org's real data rather than guessing. Keep replies concise and operational. When you send a request to a site's Gavin, or coordinate between two sites, always say plainly in your reply what you asked and whether it needs manager approval.${liveStatus}`;
 
     // Conversation memory: the last 10 turns before this message.
     const history = STATE.chat.slice(-11, -1).filter(m => m.content && !/^Error/.test(m.content)).map(m => ({ role: m.role, content: m.content }));
