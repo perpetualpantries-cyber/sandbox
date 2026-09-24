@@ -10601,7 +10601,7 @@ const AIM_TOOLS = [
   { name:'get_pl_report', description:'Generate an estimated P&L: revenue (from sales × dish prices), COGS (deliveries), labour (roster), wastage cost, net profit.', input_schema:{ type:'object', properties:{ period_days:{type:'number'} } } },
   { name:'send_email', description:'Send an actual email via Gmail. Use for purchase orders, staff rosters, supplier follow-ups, or any outbound communication.', input_schema:{ type:'object', properties:{ to:{type:'string'}, subject:{type:'string'}, body:{type:'string'} }, required:['to','subject','body'] } },
   { name:'search_web', description:'General internet search for anything outside the ATO/Fair Work/FSANZ/OHS regulators covered by check_compliance — supplier prices, product info, local events, recipes, industry news, competitor menus, equipment specs. Returns a concise summary with sources. Use check_compliance (not this) for tax, wages, super, food safety or WHS questions.', input_schema:{ type:'object', properties:{ query:{type:'string',description:'What to search for, phrased as a question or keywords'} }, required:['query'] } },
-  { name:'head_office_requests', description:'Requests sent to this café by head office (the org\'s PP Command console, whose assistant is called Ronin) — Ronin is head office, NOT a supplier. action "list" shows requests awaiting the manager\'s approval and approved tasks. "approve"/"decline" decide an awaiting request (only on the manager\'s explicit say-so). "done"/"cant" close an approved task and report back to head office — use "done" only after the work is actually done (e.g. after send_order for an ordering request), with a short note of what was done.', input_schema:{ type:'object', properties:{ action:{type:'string',enum:['list','approve','decline','done','cant']}, id:{type:'string',description:'Request id from list (required except for list)'}, note:{type:'string',description:'For done/cant: what was done or why not, reported to head office'} }, required:['action'] } },
+  { name:'head_office_requests', description:'Requests sent to this café by head office (the org\'s PP Command console, whose assistant is called Ronin) — Ronin is head office, NOT a supplier. action "list" shows requests awaiting the manager\'s approval and approved tasks. "approve"/"decline" decide an awaiting request (only on the manager\'s explicit say-so). "done"/"cant" close an approved task and report back to head office — use "done" only after the work is actually done, with a short note of what was done. "place_order" re-runs automatic ordering for an approved ordering task (after the missing supplier/item/email has been added): it emails the PO via the relay and closes the task, or saves a draft and explains why — prefer it over send_order for head-office orders.', input_schema:{ type:'object', properties:{ action:{type:'string',enum:['list','approve','decline','place_order','done','cant']}, id:{type:'string',description:'Request id from list (required except for list)'}, note:{type:'string',description:'For done/cant: what was done or why not, reported to head office'} }, required:['action'] } },
   { name:'check_compliance', description:'Search ATO, Fair Work, FSANZ, or OHS/WHS and sector regulators for current Australian laws, tax rates, award rates, super obligations, food safety rules, or workplace/sector safety obligations. Use source="ohs" for work health and safety or sector-specific (aged care, childcare, education, hospitality, hotels, sporting venues) regulatory questions -- it automatically targets the saved business state WHS regulator and sector body/bodies from Admin -> Cafe Details. ALWAYS use before advising on pay, tax, super, food safety, or OHS/sector compliance -- never guess.', input_schema:{ type:'object', properties:{ topic:{type:'string',description:'e.g. "current superannuation rate 2025", "casual conversion Fair Work", "GST takeaway coffee ATO", "WHS incident notification requirements", "aged care quality standards update"'}, source:{type:'string',enum:['ato','fairwork','fsanz','ohs','any'],description:'Default: any'} }, required:['topic'] } },
   { name:'log_actual_hours', description:'Log actual hours worked vs rostered for a staff member. Used for payroll accuracy and timesheet records.', input_schema:{ type:'object', properties:{ staff_name:{type:'string'}, date:{type:'string'}, start_time:{type:'string'}, end_time:{type:'string'}, break_mins:{type:'number'}, notes:{type:'string'} }, required:['staff_name','start_time','end_time'] } },
   { name:'clock_in',  description:'Clock a staff member in. In the staff app, clocks in the logged-in user. In manager mode, specify staff_name to clock anyone in by name. Checks against the roster and flags lateness.', input_schema:{ type:'object', properties:{ staff_name:{type:'string',description:'Name of staff member to clock in (required when used by a manager, not needed in staff app)'}, notes:{type:'string'} } } },
@@ -11193,21 +11193,23 @@ function aimRefreshUI() {
   uBadges();
   rPage(cPage);
 }
-function aimFindItem(name) {
-  if (!name) return null;
-  const n = name.toLowerCase().trim();
-  const items = Object.values(db.items);
-  return items.find(i => i.name.toLowerCase() === n)
-      || items.find(i => i.name.toLowerCase().includes(n) || n.includes(i.name.toLowerCase().slice(0,6)))
+// Name lookups tolerate records with a missing/blank name (they used to throw, or match everything
+// via "".includes) and only fall back to fuzzy matching on a meaningful fragment.
+function aimNameKey(v) { return String(v == null ? '' : v).toLowerCase().replace(/\s+/g, ' ').trim(); }
+function aimFuzzyFind(list, name, prefixLen) {
+  const n = aimNameKey(name);
+  if (!n) return null;
+  const named = list.filter(x => aimNameKey(x && x.name));
+  return named.find(x => aimNameKey(x.name) === n)
+      || (n.length >= 3 ? named.find(x => aimNameKey(x.name).includes(n)) : null)
+      || named.find(x => { const k = aimNameKey(x.name).slice(0, prefixLen); return k.length >= Math.min(prefixLen, 4) && n.includes(k); })
       || null;
 }
+function aimFindItem(name) {
+  return aimFuzzyFind(Object.values(db.items), name, 6);
+}
 function aimFindSupplier(name) {
-  if (!name) return null;
-  const n = name.toLowerCase().trim();
-  const sups2 = Object.values(sup);
-  return sups2.find(s => s.name.toLowerCase() === n)
-      || sups2.find(s => s.name.toLowerCase().includes(n) || n.includes(s.name.toLowerCase().slice(0,5)))
-      || null;
+  return aimFuzzyFind(Object.values(sup), name, 5);
 }
 
 function aimFindStaff(name) {
@@ -11711,7 +11713,13 @@ async function aimExecuteTool(toolName, input) {
       }
 
       case 'upsert_supplier': {
-        const existing = aimFindSupplier(input.name);
+        const cleanName = String(input.name || '').trim();
+        if (!cleanName) return 'ERROR: supplier name is required.';
+        if (input.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(input.email).trim())) return `ERROR: "${input.email}" doesn't look like an email address.`;
+        if (input.email) input.email = String(input.email).trim();
+        // Only an exact (case/space-insensitive) name match edits an existing supplier — a fuzzy match here
+        // used to rename a different supplier instead of adding the new one.
+        const existing = Object.values(sup).find(x => aimNameKey(x && x.name) === aimNameKey(cleanName));
         if (existing) {
           // Edit existing
           if (input.category) existing.category = input.category;
@@ -11721,8 +11729,6 @@ async function aimExecuteTool(toolName, input) {
           if (input.address)  existing.address  = input.address;
           if (input.icon)     existing.icon     = input.icon;
           if (input.notes)    existing.notes    = input.notes;
-          // Allow name correction only if input name differs from found name
-          if (input.name && input.name.trim() !== existing.name) existing.name = input.name.trim();
           sSup();
           if (cPage === 'suppliers') rPage(cPage);
           return `✓ Supplier "${existing.name}" updated.`;
@@ -11731,7 +11737,7 @@ async function aimExecuteTool(toolName, input) {
           const newSid = 'sup_' + Date.now();
           sup[newSid] = {
             id: newSid,
-            name: input.name.trim(),
+            name: cleanName,
             category: input.category || 'Other',
             phone:    input.phone    || '',
             email:    input.email    || '',
@@ -12122,6 +12128,14 @@ Note: Revenue is estimated from recorded sales × dish prices. This is not a sub
           const snap = PP_API.inboxSnapshot();
           const task = snap.tasks.find(t => t.id === input.id);
           return task ? `Approved. It is now a task: ${fmt(task)}. Do the work (e.g. send_order to the right supplier), then close it with action "done".` : 'Approved — Gavin is handling it automatically; head office will see the result.';
+        }
+        if (input.action === 'place_order') {
+          const task = PP_API.inboxSnapshot().tasks.find(t => t.id === input.id);
+          if (!task) return 'No approved task with that id — call with action "list" first.';
+          if (typeof hoAutoOrder !== 'function') return 'Automatic ordering is not available in this build.';
+          await hoAutoOrder(task);
+          const still = PP_API.inboxSnapshot().tasks.find(t => t.id === input.id);
+          return still ? `Not sent automatically — ${still.reason || 'see the Dashboard task'}` : 'Ordered and reported to head office.';
         }
         if (input.action === 'done' || input.action === 'cant') {
           const r = await PP_API.inboxTaskDone(input.id, input.action === 'done', input.note);
@@ -14360,7 +14374,7 @@ function aimBuildContext() {
       return `\nHEAD OFFICE REQUESTS (from ${snap.org} via PP Command; "Ronin" is head office's assistant, NOT a supplier — manage these with head_office_requests):`
         + `\n Awaiting manager approval: ${snap.pending.length ? snap.pending.map(line).join(' | ') : 'none'}`
         + `\n Approved, to do: ${snap.tasks.length ? snap.tasks.map(line).join(' | ') : 'none'}`
-        + `\n Mention any open request when relevant. Approve/decline only when the manager says so. Approved ordering requests are placed automatically (PO emailed via the relay) when every item matches, suppliers have emails and the total is within the order-approval limit; otherwise a draft PO is saved in Orders → Manual and the task shows "Gavin: …" with the reason — help the manager resolve it (e.g. add the missing item/supplier, or send the draft), then close it with action "done" if it wasn't closed by sending the draft.`;
+        + `\n Mention any open request when relevant. Approve/decline only when the manager says so. Approved ordering requests are placed automatically (PO emailed via the relay) when every item matches, suppliers have emails and the total is within the order-approval limit; otherwise a draft PO is saved in Orders → Manual and the task shows "Gavin: …" with the reason — help the manager resolve it (add the missing item/supplier with add_inventory_item/upsert_supplier), then retry with action "place_order"; if they'd rather send the draft themselves, it closes when they do.`;
     } catch(e) { return ''; }
   })();
 
