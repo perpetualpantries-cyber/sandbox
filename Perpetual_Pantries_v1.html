@@ -2307,12 +2307,20 @@ const PP_API = (function() {
     const r = await req('POST', '/api/venue/inbox/' + id + '/' + decision, {});
     if (r.ok) { if (typeof toast === 'function') toast(decision === 'approve' ? 'Approved — Gavin will action it' : 'Declined', 'ok'); await pollInbox(); }
     else if (typeof toast === 'function') toast('Could not ' + decision + ': ' + (r.data?.error || r.status), 'err');
+    return { ok: r.ok, error: r.ok ? null : (r.data?.error || r.status) };
   }
-  async function inboxTaskDone(id, ok) {
+  async function inboxTaskDone(id, ok, note) {
     const tasks = JSON.parse(localStorage.getItem('pp_inbox_tasks') || '[]').filter(t => t.id !== id);
     localStorage.setItem('pp_inbox_tasks', JSON.stringify(tasks));
-    await req('POST', '/api/venue/inbox/' + id + '/ack', { status: ok ? 'completed' : 'failed', note: ok ? 'Done by staff' : 'Could not be done' });
+    const r = await req('POST', '/api/venue/inbox/' + id + '/ack', { status: ok ? 'completed' : 'failed', note: note || (ok ? 'Done by staff' : 'Could not be done') });
     pollInbox();
+    return { ok: r.ok, error: r.ok ? null : (r.data?.error || r.status) };
+  }
+  // Head-office requests as Gavin sees them: awaiting the manager's approval, and approved tasks for staff.
+  function inboxSnapshot() {
+    const tasks = JSON.parse(localStorage.getItem('pp_inbox_tasks') || '[]');
+    return { linked: !!linkInfo() && isConfigured(), org: (linkInfo() || {}).org_name || 'head office',
+             pending: _inbox.filter(m => m.status === 'awaiting_approval'), tasks };
   }
   function renderInbox() {
     let el = document.getElementById('ppInboxCard');
@@ -2491,7 +2499,7 @@ const PP_API = (function() {
     // Expose for settings UI
     setBase: function(url) { localStorage.setItem('pp_api_url', url.replace(/\/+$/, '')); },
     setToken: function(tok) { localStorage.setItem('pp_jwt', tok); },
-    linkInfo, venueId, pollInbox, inboxDecide, inboxTaskDone, renderInbox,
+    linkInfo, venueId, pollInbox, inboxDecide, inboxTaskDone, renderInbox, inboxSnapshot,
     unlink: function() { localStorage.removeItem('pp_jwt'); localStorage.removeItem('pp_link'); renderInbox(); },
   };
 })();
@@ -10302,7 +10310,7 @@ let _currentStaff = null;
 let _staffHistory = [];
 
 const STAFF_TOOL_PERMS = {
-  manager:    ['navigate_to','get_item_details','adjust_stock','log_wastage','log_delivery','send_order','start_stocktake','add_inventory_item','edit_inventory_item','delete_inventory_item','upsert_supplier','edit_recipe','check_recipe_trends','record_sales','manage_staff','manage_roster','get_business_intel','show_busiest_times_heatmap','set_dish_price','get_menu_costing','calculate_payroll','log_covers','get_demand_forecast','get_pl_report','send_email','search_web','log_actual_hours','check_compliance','clock_in','clock_out','manage_morning_brief'],
+  manager:    ['navigate_to','get_item_details','adjust_stock','log_wastage','log_delivery','send_order','start_stocktake','add_inventory_item','edit_inventory_item','delete_inventory_item','upsert_supplier','edit_recipe','check_recipe_trends','record_sales','manage_staff','manage_roster','get_business_intel','show_busiest_times_heatmap','set_dish_price','get_menu_costing','calculate_payroll','log_covers','get_demand_forecast','get_pl_report','send_email','search_web','log_actual_hours','check_compliance','clock_in','clock_out','manage_morning_brief','head_office_requests'],
   supervisor: ['navigate_to','get_item_details','adjust_stock','log_wastage','log_delivery','record_sales','start_stocktake','add_inventory_item','get_business_intel','show_busiest_times_heatmap','log_covers','get_demand_forecast','log_actual_hours','search_web','manage_morning_brief'],
   staff:      ['navigate_to','get_item_details','adjust_stock','log_wastage','record_sales','check_compliance','clock_in','clock_out']
 };
@@ -10316,7 +10324,7 @@ function staffLevel(role) {
 
 // Tool groups for smart selection
 const TOOL_GROUPS = {
-  core:      ['navigate_to','get_item_details','adjust_stock','log_wastage','log_delivery','record_sales','check_compliance','clock_in','clock_out'],
+  core:      ['navigate_to','get_item_details','adjust_stock','log_wastage','log_delivery','record_sales','check_compliance','clock_in','clock_out','head_office_requests'],
   inventory: ['add_inventory_item','edit_inventory_item','delete_inventory_item','get_item_details','adjust_stock'],
   ordering:  ['send_order','log_delivery','upsert_supplier','add_inventory_item','manage_events'],
   staff:     ['manage_staff','manage_roster','calculate_payroll','log_actual_hours','get_demand_forecast','show_busiest_times_heatmap','check_compliance'],
@@ -10531,6 +10539,7 @@ const AIM_TOOLS = [
   { name:'get_pl_report', description:'Generate an estimated P&L: revenue (from sales × dish prices), COGS (deliveries), labour (roster), wastage cost, net profit.', input_schema:{ type:'object', properties:{ period_days:{type:'number'} } } },
   { name:'send_email', description:'Send an actual email via Gmail. Use for purchase orders, staff rosters, supplier follow-ups, or any outbound communication.', input_schema:{ type:'object', properties:{ to:{type:'string'}, subject:{type:'string'}, body:{type:'string'} }, required:['to','subject','body'] } },
   { name:'search_web', description:'General internet search for anything outside the ATO/Fair Work/FSANZ/OHS regulators covered by check_compliance — supplier prices, product info, local events, recipes, industry news, competitor menus, equipment specs. Returns a concise summary with sources. Use check_compliance (not this) for tax, wages, super, food safety or WHS questions.', input_schema:{ type:'object', properties:{ query:{type:'string',description:'What to search for, phrased as a question or keywords'} }, required:['query'] } },
+  { name:'head_office_requests', description:'Requests sent to this café by head office (the org\'s PP Command console, whose assistant is called Ronin) — Ronin is head office, NOT a supplier. action "list" shows requests awaiting the manager\'s approval and approved tasks. "approve"/"decline" decide an awaiting request (only on the manager\'s explicit say-so). "done"/"cant" close an approved task and report back to head office — use "done" only after the work is actually done (e.g. after send_order for an ordering request), with a short note of what was done.', input_schema:{ type:'object', properties:{ action:{type:'string',enum:['list','approve','decline','done','cant']}, id:{type:'string',description:'Request id from list (required except for list)'}, note:{type:'string',description:'For done/cant: what was done or why not, reported to head office'} }, required:['action'] } },
   { name:'check_compliance', description:'Search ATO, Fair Work, FSANZ, or OHS/WHS and sector regulators for current Australian laws, tax rates, award rates, super obligations, food safety rules, or workplace/sector safety obligations. Use source="ohs" for work health and safety or sector-specific (aged care, childcare, education, hospitality, hotels, sporting venues) regulatory questions -- it automatically targets the saved business state WHS regulator and sector body/bodies from Admin -> Cafe Details. ALWAYS use before advising on pay, tax, super, food safety, or OHS/sector compliance -- never guess.', input_schema:{ type:'object', properties:{ topic:{type:'string',description:'e.g. "current superannuation rate 2025", "casual conversion Fair Work", "GST takeaway coffee ATO", "WHS incident notification requirements", "aged care quality standards update"'}, source:{type:'string',enum:['ato','fairwork','fsanz','ohs','any'],description:'Default: any'} }, required:['topic'] } },
   { name:'log_actual_hours', description:'Log actual hours worked vs rostered for a staff member. Used for payroll accuracy and timesheet records.', input_schema:{ type:'object', properties:{ staff_name:{type:'string'}, date:{type:'string'}, start_time:{type:'string'}, end_time:{type:'string'}, break_mins:{type:'number'}, notes:{type:'string'} }, required:['staff_name','start_time','end_time'] } },
   { name:'clock_in',  description:'Clock a staff member in. In the staff app, clocks in the logged-in user. In manager mode, specify staff_name to clock anyone in by name. Checks against the roster and flags lateness.', input_schema:{ type:'object', properties:{ staff_name:{type:'string',description:'Name of staff member to clock in (required when used by a manager, not needed in staff app)'}, notes:{type:'string'} } } },
@@ -12029,6 +12038,34 @@ Note: Revenue is estimated from recorded sales × dish prices. This is not a sub
 
           return finalText ? finalText.slice(0, 800) : 'No results found for that query.';
         } catch(e) { return `Search failed: ${e.message}`; }
+      }
+
+      case 'head_office_requests': {
+        if (typeof PP_API === 'undefined' || !PP_API.inboxSnapshot) return 'Head-office requests are not available in this build.';
+        if (!PP_API.inboxSnapshot().linked) return 'This café is not linked to head office (Settings → PP Server URL + link code), so there are no head-office requests.';
+        const fmt = m => `${m.id} · ${String(m.intent||'').replace(/_/g,' ')}${m.note ? ' — ' + m.note : ''} (received ${new Date(m.created_at).toLocaleString('en-AU')})`;
+        if (input.action === 'list') {
+          await PP_API.pollInbox();
+          const snap = PP_API.inboxSnapshot();
+          if (!snap.pending.length && !snap.tasks.length) return `No open requests from ${snap.org}.`;
+          return [`Requests from ${snap.org}:`,
+            snap.pending.length ? 'AWAITING MANAGER APPROVAL:\n' + snap.pending.map(fmt).join('\n') : 'Awaiting approval: none',
+            snap.tasks.length ? 'APPROVED — TO DO:\n' + snap.tasks.map(fmt).join('\n') : 'Approved tasks: none'].join('\n');
+        }
+        if (!input.id) return 'ERROR: id is required — call with action "list" first.';
+        if (input.action === 'approve' || input.action === 'decline') {
+          const r = await PP_API.inboxDecide(input.id, input.action);
+          if (!r.ok) return `Could not ${input.action}: ${r.error}`;
+          if (input.action === 'decline') return 'Declined — head office has been told.';
+          const snap = PP_API.inboxSnapshot();
+          const task = snap.tasks.find(t => t.id === input.id);
+          return task ? `Approved. It is now a task: ${fmt(task)}. Do the work (e.g. send_order to the right supplier), then close it with action "done".` : 'Approved — Gavin is handling it automatically; head office will see the result.';
+        }
+        if (input.action === 'done' || input.action === 'cant') {
+          const r = await PP_API.inboxTaskDone(input.id, input.action === 'done', input.note);
+          return r.ok ? `Marked ${input.action === 'done' ? 'done' : 'not possible'} and reported to head office.` : `Could not update head office: ${r.error}`;
+        }
+        return 'ERROR: unknown action.';
       }
 
       case 'check_compliance': {
@@ -14251,7 +14288,21 @@ function aimBuildContext() {
     ? '\n⚠ FOOD SAFETY PROGRAM REVIEW OVERDUE: Standard 3.2.1 of the Food Standards Code requires a documented Food Safety Program to be reviewed at least every 12 months (sooner after a significant change). It has been 12+ months (or never) since the last recorded review. Proactively flag this to the operator and offer to check_compliance with source="ohs" or topic mentioning "food safety program review" for current requirements.\n'
     : '';
 
-  return `You are Gavin, the AI manager for ${cafeName}. You have full access to the café's live data and can take real actions via tools.
+  // Head-office (PP Command / Ronin) requests, from the last inbox poll
+  const hoCtx = (()=>{
+    try {
+      if (typeof PP_API === 'undefined' || !PP_API.inboxSnapshot) return '';
+      const snap = PP_API.inboxSnapshot();
+      if (!snap.linked) return '';
+      const line = m => `${m.id}: ${String(m.intent||'').replace(/_/g,' ')}${m.note ? ' — ' + m.note : ''}`;
+      return `\nHEAD OFFICE REQUESTS (from ${snap.org} via PP Command; "Ronin" is head office's assistant, NOT a supplier — manage these with head_office_requests):`
+        + `\n Awaiting manager approval: ${snap.pending.length ? snap.pending.map(line).join(' | ') : 'none'}`
+        + `\n Approved, to do: ${snap.tasks.length ? snap.tasks.map(line).join(' | ') : 'none'}`
+        + `\n Mention any open request when relevant. Approve/decline only when the manager says so. For an approved ordering request, place it with send_order to the café's own supplier for that item (ask which supplier/quantity if unclear), then close it with action "done".`;
+    } catch(e) { return ''; }
+  })();
+
+  return `You are Gavin, the AI manager for ${cafeName}. You have full access to the café's live data and can take real actions via tools.${hoCtx}
 
 CORE BEHAVIOUR:
 - Always confirm before destructive actions (delete, large stock reductions, sending orders over $${getBizRules().orderApproval||500})
