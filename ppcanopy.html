@@ -251,6 +251,41 @@
       <div class="modal-card" id="employeeops-card"></div>
     </div>
 
+    <!-- Device settings: a form instead of a prompt() chain, which Chrome cancels when you switch
+         tabs mid-way (and blocks outright once "prevent additional dialogs" is ticked). -->
+    <div class="modal-backdrop" id="device-settings" style="z-index:60;">
+      <div class="modal-card" style="max-width:460px;">
+        <button class="close-x" type="button" id="ds-close" aria-label="Close">✕</button>
+        <h2 style="margin-bottom:4px;">Settings (this device)</h2>
+        <p class="helptext">Stored in this browser only. Leave a key box empty to keep what's saved.</p>
+        <form id="ds-form" autocomplete="off">
+          <label for="ds-api-key">Anthropic API key (Canopy)</label>
+          <input id="ds-api-key" type="password" autocomplete="off">
+          <label style="display:flex;gap:6px;align-items:center;font-weight:400;"><input type="checkbox" id="ds-api-key-clear" style="width:auto;"> Remove saved key</label>
+          <label for="ds-gmail">Gmail connector token (optional)</label>
+          <input id="ds-gmail" type="password" autocomplete="off">
+          <label style="display:flex;gap:6px;align-items:center;font-weight:400;"><input type="checkbox" id="ds-gmail-clear" style="width:auto;"> Remove saved token</label>
+          <h3 style="margin:18px 0 0;font-size:14px;">PP server</h3>
+          <p class="helptext" id="ds-server-status"></p>
+          <label for="ds-server-url">Server URL</label>
+          <input id="ds-server-url" type="url" placeholder="https://pp-server-pi.vercel.app">
+          <label for="ds-email">Staff email</label>
+          <input id="ds-email" type="email" autocomplete="username">
+          <label for="ds-password">Password</label>
+          <input id="ds-password" type="password" autocomplete="current-password">
+          <p class="helptext">Fill in email and password to sign in (or sign in again).</p>
+          <label style="display:flex;gap:6px;align-items:center;font-weight:400;"><input type="checkbox" id="ds-disconnect" style="width:auto;"> Disconnect from the server on this device</label>
+          <h3 style="margin:18px 0 0;font-size:14px;">Sign-in lock</h3>
+          <label style="display:flex;gap:6px;align-items:center;font-weight:400;"><input type="checkbox" id="ds-bypass" style="width:auto;"> Bypass the PPcanopy sign-in on this device (reloads the page)</label>
+          <p id="ds-msg" style="margin:14px 0 0;font-size:13px;"></p>
+          <div style="margin-top:14px;display:flex;gap:8px;">
+            <button type="submit" class="btn">Save</button>
+            <button type="button" class="btn secondary" id="ds-cancel">Close</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div class="modal-backdrop" id="signin-lock">
       <div class="modal-card" style="text-align:center;padding:40px 30px;max-width:380px;">
         <h1 style="margin-bottom:10px;">Sign in required</h1>
@@ -1057,21 +1092,47 @@ document.getElementById('change-owner-pw-btn').addEventListener('click', async (
   await saveOwnerPassword();
   alert('Owner password updated.');
 });
+function dsRender(){
+  const set = (id, v) => { document.getElementById(id).value = v; };
+  set('ds-api-key', ''); set('ds-gmail', ''); set('ds-password', ''); set('ds-email', '');
+  document.getElementById('ds-api-key').placeholder = getLocalSetting('api_key') ? '(saved)' : (STORE.backend==='artifact' ? 'not needed here' : 'sk-ant-…');
+  document.getElementById('ds-gmail').placeholder = getLocalSetting('gmail_token') ? '(saved)' : '';
+  ['ds-api-key-clear','ds-gmail-clear','ds-disconnect'].forEach(id => document.getElementById(id).checked = false);
+  set('ds-server-url', SERVER.url() || '');
+  document.getElementById('ds-server-status').textContent = SERVER.on() ? 'Signed in to ' + SERVER.url() + ' on this device.' : (SERVER.url() ? 'Not signed in — enter email and password.' : 'Not connected (standalone).');
+  document.getElementById('ds-bypass').checked = getLocalSetting('bypass_signin') === '1';
+  const msg = document.getElementById('ds-msg'); msg.textContent = ''; msg.style.color = '';
+}
+function dsClose(){ document.getElementById('device-settings').classList.remove('open'); }
 document.getElementById('local-settings-btn').addEventListener('click', ()=>{
-  const k = prompt('Anthropic API key for Canopy on this device (leave blank to keep, type "clear" to remove).\nStorage backend: ' + STORE.backend + (STORE.backend==='artifact' ? ' — key not needed here.' : ''), getLocalSetting('api_key') ? '(saved)' : '');
-  if(k!==null && k!=='(saved)'){ setLocalSetting('api_key', k.trim()==='clear' ? '' : k.trim()); }
-  const g = prompt('Gmail connector OAuth token (optional; blank to keep, "clear" to remove):', getLocalSetting('gmail_token') ? '(saved)' : '');
-  if(g!==null && g!=='(saved)'){ setLocalSetting('gmail_token', g.trim()==='clear' ? '' : g.trim()); }
-  const su = prompt('PP server URL (blank = standalone, "clear" to disconnect):', SERVER.url() || '');
-  if (su !== null) {
-    if (su.trim() === 'clear') { setLocalSetting('server_url', ''); setLocalSetting('staff_token', ''); }
-    else if (su.trim()) {
-      const em = prompt('Staff email for the PP server:'); const pw = em ? prompt('Password:') : null;
-      if (em && pw) { SERVER.login(su.trim(), em.trim(), pw).then(d => alert('Signed in to PP server as ' + d.name + ' (' + d.role + ').')).catch(e => alert('Server login failed: ' + e.message)); }
-    }
+  dsRender(); document.getElementById('device-settings').classList.add('open');
+});
+document.getElementById('ds-close').addEventListener('click', dsClose);
+document.getElementById('ds-cancel').addEventListener('click', dsClose);
+document.getElementById('ds-form').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const v = id => document.getElementById(id).value.trim();
+  const on = id => document.getElementById(id).checked;
+  const msg = document.getElementById('ds-msg');
+  const say = (t, bad) => { msg.textContent = t; msg.style.color = bad ? '#8a3b3b' : 'var(--verdigris-dark)'; };
+  if (on('ds-api-key-clear')) setLocalSetting('api_key', ''); else if (v('ds-api-key')) setLocalSetting('api_key', v('ds-api-key'));
+  if (on('ds-gmail-clear')) setLocalSetting('gmail_token', ''); else if (v('ds-gmail')) setLocalSetting('gmail_token', v('ds-gmail'));
+  const bypassChanged = on('ds-bypass') !== (getLocalSetting('bypass_signin') === '1');
+  setLocalSetting('bypass_signin', on('ds-bypass') ? '1' : '');
+  if (on('ds-disconnect')) {
+    setLocalSetting('server_url', ''); setLocalSetting('staff_token', '');
+  } else if (v('ds-server-url') && v('ds-email') && document.getElementById('ds-password').value) {
+    say('Signing in…');
+    try {
+      const d = await SERVER.login(v('ds-server-url'), v('ds-email'), document.getElementById('ds-password').value);
+      document.getElementById('ds-password').value = '';
+      dsRender(); say('Saved. Signed in to PP server as ' + d.name + ' (' + d.role + ').');
+    } catch (err) { say('Other settings saved, but server sign-in failed: ' + err.message, true); return; }
+  } else if (v('ds-server-url') !== (SERVER.url() || '')) {
+    setLocalSetting('server_url', v('ds-server-url').replace(/\/+$/, '')); setLocalSetting('staff_token', '');
   }
-  const b = confirm('Bypass sign-in on this device while building? OK = yes, Cancel = no. (Currently ' + (getLocalSetting('bypass_signin')==='1' ? 'ON' : 'OFF') + '. Reload to apply.)');
-  setLocalSetting('bypass_signin', b ? '1' : '');
+  if (bypassChanged) { location.reload(); return; }
+  if (!msg.textContent) { dsRender(); say('Saved.'); }
 });
 document.getElementById('signout-btn').addEventListener('click', async ()=>{
   currentUserId = null;
