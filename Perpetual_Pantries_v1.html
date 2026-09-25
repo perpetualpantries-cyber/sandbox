@@ -1667,6 +1667,7 @@ select.ob-input option{background:#0D1828;color:white}
           <div class="field" style="margin-bottom:14px"><label>Recipe Variance — Lookback Window (days)</label><input type="number" id="recipeVarianceLookbackDays" value="90" min="7" max="365" step="1"><div class="fn">How far back Gavin looks for recurring tags — keeps an already-corrected recipe from resurfacing forever off one old tag</div></div>
           <div class="field" style="margin-bottom:14px"><label>Notification Email</label><input type="email" id="notifEmail" placeholder="owner@yourcafe.com.au"></div>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;margin-bottom:14px"><input type="checkbox" id="browserNotif" onchange="toggleBrowserNotif(this)"> Enable browser notifications</label>
+          <div class="field" style="margin-bottom:14px"><label>🧪 Test Mode — Redirect Supplier/Order Emails To</label><input type="email" id="testEmailRedirect" placeholder="leave blank for normal (live) behaviour" oninput="const v=this.value.trim(); if(v){localStorage.setItem('pp_test_email_redirect',v);}else{localStorage.removeItem('pp_test_email_redirect');}"><div class="fn" style="color:var(--red)">While set, every supplier order email (manual, auto-scheduled, and Gavin-sent) goes to this address instead of the real supplier. Clear this before going live.</div></div>
           <div style="height:1px;background:var(--border);margin:10px 0 14px"></div>
           <div class="field" style="margin-bottom:6px"><label>☁️ PP Server URL</label><input type="url" id="srv-url" placeholder="https://api.yourserver.com.au" autocomplete="off"><div class="fn">Optional — PP Command / cloud backend. Leave blank to run fully local.</div></div>
           <div class="field" style="margin-bottom:6px"><label>🔗 PP Command link code</label><input type="text" id="srv-key" placeholder="8-character code from your PP Command console" autocomplete="off" style="text-transform:uppercase;letter-spacing:2px"><div class="fn">Generated in PP Command → Sites → Generate link code. Single use, expires in 24h. <span id="pp-srv-status"></span></div></div>
@@ -2554,7 +2555,7 @@ function rPage(n){if(n==='dashboard')rDash();else if(n==='inventory')rInv();else
       if (emailTabBtn) ppayTab('email', emailTabBtn);
     }, 100);
   }
-}}else if(n==='suppliers'){rSup();if(_activeSupTab==='pricing')rContingency();}else if(n==='orders'||n==='manual_order'){rOrders();if(n==='manual_order')switchOrderTab('manual',document.getElementById('ord-tab-manual'));}else if(n==='deliveries')rDeliveries();else if(n==='alerts')rAlerts();else if(n==='history')rHistory();else if(n==='wastage')rWastage();else if(n==='temp_logs'){if(typeof rTempLogs==='function')rTempLogs();}else if(n==='pos')rPOS();else if(n==='reports'){rReports();if(_rptMainTab==='stocktake')rStocktake();}else if(n==='calendar')rCalendar();else if(n==='morningbrief'){if(typeof ppbRenderPage==='function')ppbRenderPage();}else if(n==='admin')rAdmin();else if(n==='integrations'){/* static */ if (typeof renderEmailConnectionsPanel === 'function') renderEmailConnectionsPanel();}else if(n==='menu'){if(typeof rMenuPage==='function')rMenuPage();}else if(n==='loyalty'){if(typeof renderLoyalty==='function')renderLoyalty();}else if(n==='settings'){document.getElementById('warnPct').value=settings.warnPct;document.getElementById('stocktakeIntervalDays').value=settings.stocktakeIntervalDays||7;document.getElementById('recipeVarianceTagThreshold').value=settings.recipeVarianceTagThreshold||2;document.getElementById('recipeVarianceLookbackDays').value=settings.recipeVarianceLookbackDays||90;document.getElementById('notifEmail').value=settings.notifEmail||'';document.getElementById('browserNotif').checked=settings.browserNotif;const sk=localStorage.getItem('oc_api_key')||'';document.getElementById('anthropicKey').value=sk?'sk-ant-…(saved)':'';if(document.getElementById('srv-url')){document.getElementById('srv-url').value=localStorage.getItem('pp_api_url')||'';document.getElementById('srv-key').value='';const ss=document.getElementById('pp-srv-status');const li=PP_API.linkInfo();if(ss)ss.innerHTML=li?'<span style="color:#22C55E;font-weight:700">● Linked to '+String(li.org_name||'').replace(/</g,'&lt;')+'</span>':'<span style="color:var(--faint)">Not linked</span>';const sp=document.getElementById('pp-share-payroll');if(sp)sp.checked=localStorage.getItem('pp_share_payroll')==='1';}const lsk=localStorage.getItem('oc_ls_key')||'';if(document.getElementById('lightspeedKey'))document.getElementById('lightspeedKey').value=lsk?'(saved)':'';const xero=localStorage.getItem('oc_xero_id')||'';if(document.getElementById('xeroClientId'))document.getElementById('xeroClientId').value=xero;const jb=gJBConfig();if(document.getElementById('jb_bin')){document.getElementById('jb_bin').value=jb.binId;document.getElementById('jb_key').value=jb.apiKey?'saved':'';const mbin=localStorage.getItem('oc_jb_memory_bin')||'';if(document.getElementById('jb_memory_bin'))document.getElementById('jb_memory_bin').value=mbin;document.getElementById('jb_status').style.display='none';}ppRenderLockStatus();}uBadges();}
+}}else if(n==='suppliers'){rSup();if(_activeSupTab==='pricing')rContingency();}else if(n==='orders'||n==='manual_order'){rOrders();if(n==='manual_order')switchOrderTab('manual',document.getElementById('ord-tab-manual'));}else if(n==='deliveries')rDeliveries();else if(n==='alerts')rAlerts();else if(n==='history')rHistory();else if(n==='wastage')rWastage();else if(n==='temp_logs'){if(typeof rTempLogs==='function')rTempLogs();}else if(n==='pos')rPOS();else if(n==='reports'){rReports();if(_rptMainTab==='stocktake')rStocktake();}else if(n==='calendar')rCalendar();else if(n==='morningbrief'){if(typeof ppbRenderPage==='function')ppbRenderPage();}else if(n==='admin')rAdmin();else if(n==='integrations'){/* static */ if (typeof renderEmailConnectionsPanel === 'function') renderEmailConnectionsPanel();}else if(n==='menu'){if(typeof rMenuPage==='function')rMenuPage();}else if(n==='loyalty'){if(typeof renderLoyalty==='function')renderLoyalty();}else if(n==='settings'){document.getElementById('warnPct').value=settings.warnPct;document.getElementById('stocktakeIntervalDays').value=settings.stocktakeIntervalDays||7;document.getElementById('recipeVarianceTagThreshold').value=settings.recipeVarianceTagThreshold||2;document.getElementById('recipeVarianceLookbackDays').value=settings.recipeVarianceLookbackDays||90;document.getElementById('notifEmail').value=settings.notifEmail||'';document.getElementById('browserNotif').checked=settings.browserNotif;if(document.getElementById('testEmailRedirect'))document.getElementById('testEmailRedirect').value=localStorage.getItem('pp_test_email_redirect')||'';const sk=localStorage.getItem('oc_api_key')||'';document.getElementById('anthropicKey').value=sk?'sk-ant-…(saved)':'';if(document.getElementById('srv-url')){document.getElementById('srv-url').value=localStorage.getItem('pp_api_url')||'';document.getElementById('srv-key').value='';const ss=document.getElementById('pp-srv-status');const li=PP_API.linkInfo();if(ss)ss.innerHTML=li?'<span style="color:#22C55E;font-weight:700">● Linked to '+String(li.org_name||'').replace(/</g,'&lt;')+'</span>':'<span style="color:var(--faint)">Not linked</span>';const sp=document.getElementById('pp-share-payroll');if(sp)sp.checked=localStorage.getItem('pp_share_payroll')==='1';}const lsk=localStorage.getItem('oc_ls_key')||'';if(document.getElementById('lightspeedKey'))document.getElementById('lightspeedKey').value=lsk?'(saved)':'';const xero=localStorage.getItem('oc_xero_id')||'';if(document.getElementById('xeroClientId'))document.getElementById('xeroClientId').value=xero;const jb=gJBConfig();if(document.getElementById('jb_bin')){document.getElementById('jb_bin').value=jb.binId;document.getElementById('jb_key').value=jb.apiKey?'saved':'';const mbin=localStorage.getItem('oc_jb_memory_bin')||'';if(document.getElementById('jb_memory_bin'))document.getElementById('jb_memory_bin').value=mbin;document.getElementById('jb_status').style.display='none';}ppRenderLockStatus();}uBadges();}
 function gSt(i){
   const onOrd=(i.onOrder||0);
   const effective=Math.round(((i.stock||0)+onOrd)*10000)/10000;
@@ -2790,7 +2791,7 @@ function rSup(){
     const unpaidTotal=unpaidInvs.reduce((t,i)=>t+(i.total||0),0);
     const payBadge=ppayIsEnabled()&&unpaidInvs.length?` <span style="font-size:10px;background:var(--lamber);color:var(--amber);padding:1px 7px;border-radius:1px;font-weight:700;margin-left:6px">💳 $${unpaidTotal.toFixed(0)} unpaid</span>`:(ppayIsEnabled()&&supInvs.length?` <span style="font-size:10px;background:var(--lgreen);color:var(--green);padding:1px 7px;border-radius:1px;font-weight:700;margin-left:6px">✓ Paid up</span>`:'');
     const payDetails=s.abn||s.bsb||s.paymentTerms?`<div style="font-size:11px;color:var(--faint);margin-top:3px">${[s.abn?`ABN ${s.abn}`:'',s.paymentTerms?`Terms: ${s.paymentTerms}`:'',s.bsb?`BSB ${s.bsb}`:'',s.bpayBillerCode?`BPAY ${s.bpayBillerCode}`:''].filter(Boolean).join(' · ')}</div>`:'';
-    return`<div class="sup-card"><div class="sup-header"><div><div class="sup-name">${s.name}${ha?` <span style="font-size:10px;background:var(--lred);color:var(--red);padding:1px 6px;border-radius:1px;margin-left:5px">⚠ Alert</span>`:''}${payBadge}</div><div class="sup-cat">${s.category}</div>${payDetails}</div><div class="sup-logo">${s.icon||'🏭'}</div></div><div class="sup-body">${s.phone?`<div class="sup-field"><span class="sup-field-label">Phone</span><span class="sup-field-value"><a href="tel:${s.phone}">${s.phone}</a></span></div>`:''} ${s.email?`<div class="sup-field"><span class="sup-field-label">Email</span><span class="sup-field-value"><a href="mailto:${s.email}">${s.email}</a></span></div>`:''} ${s.website?`<div class="sup-field"><span class="sup-field-label">Website</span><span class="sup-field-value"><a href="${s.website}" target="_blank">${s.website.replace('https://','')}</a></span></div>`:''} ${s.address?`<div class="sup-field"><span class="sup-field-label">Address</span><span class="sup-field-value">${s.address}</span></div>`:''} ${s.notes?`<div style="font-size:11px;color:var(--sub);margin-top:6px;line-height:1.5;font-style:italic">${s.notes}</div>`:''}</div>${si.length?`<div class="sup-items"><div class="sup-items-label">Supplies (${si.length} items)</div>${si.map(i=>{const st=gSt(i);const c=st==='out'?'color:var(--red)':st==='low'?'color:var(--amber)':'';return`<span class="sup-item-pill" style="${c}" onclick="filterCat('${i.category}',document.querySelectorAll('.tab')[0]);showPage('inventory')" title="${i.stock} ${i.unit} on hand">${i.name}${st!=='ok'?' ⚠':''}</span>`;}).join('')}</div>`:''}<div class="sup-footer"><button class="btn btn-secondary btn-sm" onclick="openModal('editSupplier','${s.id}')">Edit</button><button class="btn btn-teal btn-sm" onclick="switchSupTab('pricing',document.getElementById('sup-tab-price'))">🔄 Pricing</button>${ha?`<button class="btn btn-teal btn-sm" onclick="openDocketScan()">Log Delivery</button>`:''}${ppayIsEnabled()&&unpaidInvs.length?`<button class="btn btn-primary btn-sm" onclick="openPPPay();setTimeout(()=>ppayTab('invoices',document.querySelector('#ppay_tabs .tab')),200)">💳 ${unpaidInvs.length} unpaid</button>`:''}${s.email?`<a class="btn btn-secondary btn-sm" href="mailto:${s.email}?subject=Order - ${cafeDetails.name||'My Cafe'} ${new Date().toLocaleDateString('en-AU')}&body=Hi,%0A%0AWe would like to place the following order:%0A%0A${(s.items||[]).map(id=>db.items[id]?.name).filter(Boolean).join('%0A')}%0A%0AKind regards,%0A${cafeDetails.name||'My Cafe'}">📧 Email Order</a>`:''}${s.phone?`<a class="btn btn-secondary btn-sm" href="tel:${s.phone}">📞 Call</a>`:''}</div></div>`;
+    return`<div class="sup-card"><div class="sup-header"><div><div class="sup-name">${s.name}${ha?` <span style="font-size:10px;background:var(--lred);color:var(--red);padding:1px 6px;border-radius:1px;margin-left:5px">⚠ Alert</span>`:''}${payBadge}</div><div class="sup-cat">${s.category}</div>${payDetails}</div><div class="sup-logo">${s.icon||'🏭'}</div></div><div class="sup-body">${s.phone?`<div class="sup-field"><span class="sup-field-label">Phone</span><span class="sup-field-value"><a href="tel:${s.phone}">${s.phone}</a></span></div>`:''} ${s.email?`<div class="sup-field"><span class="sup-field-label">Email</span><span class="sup-field-value"><a href="mailto:${s.email}">${s.email}</a></span></div>`:''} ${s.website?`<div class="sup-field"><span class="sup-field-label">Website</span><span class="sup-field-value"><a href="${s.website}" target="_blank">${s.website.replace('https://','')}</a></span></div>`:''} ${s.address?`<div class="sup-field"><span class="sup-field-label">Address</span><span class="sup-field-value">${s.address}</span></div>`:''} ${s.notes?`<div style="font-size:11px;color:var(--sub);margin-top:6px;line-height:1.5;font-style:italic">${s.notes}</div>`:''}</div>${si.length?`<div class="sup-items"><div class="sup-items-label">Supplies (${si.length} items)</div>${si.map(i=>{const st=gSt(i);const c=st==='out'?'color:var(--red)':st==='low'?'color:var(--amber)':'';return`<span class="sup-item-pill" style="${c}" onclick="filterCat('${i.category}',document.querySelectorAll('.tab')[0]);showPage('inventory')" title="${i.stock} ${i.unit} on hand">${i.name}${st!=='ok'?' ⚠':''}</span>`;}).join('')}</div>`:''}<div class="sup-footer"><button class="btn btn-secondary btn-sm" onclick="openModal('editSupplier','${s.id}')">Edit</button><button class="btn btn-teal btn-sm" onclick="switchSupTab('pricing',document.getElementById('sup-tab-price'))">🔄 Pricing</button>${ha?`<button class="btn btn-teal btn-sm" onclick="openDocketScan()">Log Delivery</button>`:''}${ppayIsEnabled()&&unpaidInvs.length?`<button class="btn btn-primary btn-sm" onclick="openPPPay();setTimeout(()=>ppayTab('invoices',document.querySelector('#ppay_tabs .tab')),200)">💳 ${unpaidInvs.length} unpaid</button>`:''}${s.email?`<a class="btn btn-secondary btn-sm" href="mailto:${ppTestEmailRedirect(s.email)}?subject=Order - ${cafeDetails.name||'My Cafe'} ${new Date().toLocaleDateString('en-AU')}&body=Hi,%0A%0AWe would like to place the following order:%0A%0A${(s.items||[]).map(id=>db.items[id]?.name).filter(Boolean).join('%0A')}%0A%0AKind regards,%0A${cafeDetails.name||'My Cafe'}">📧 Email Order</a>`:''}${s.phone?`<a class="btn btn-secondary btn-sm" href="tel:${s.phone}">📞 Call</a>`:''}</div></div>`;
   }).join('')||`<div class="empty"><div class="empty-icon">🏭</div><div class="empty-title">No suppliers</div></div>`;
 }
 
@@ -2921,7 +2922,7 @@ function sendOrder(sid){
   const subject=`Purchase Order ${poNumber} — ${cafeDetails.name||'My Cafe'} ${new Date().toLocaleDateString('en-AU')}`;
   const addr=[cafeDetails.address,cafeDetails.suburb,cafeDetails.state].filter(Boolean).join(', ');
   const body=`Hi ${s?.name||'Team'},\n\nPlease find our purchase order below.\n\nPURCHASE ORDER: ${poNumber}\nDate: ${new Date().toLocaleDateString('en-AU')}\nFrom: ${cafeDetails.name||'My Cafe'}${addr?', '+addr:''}\n\nORDER ITEMS:\n`+orderLines.map(l=>`  - ${l.itemName}: ${l.qty} ${l.unit}  @ $${l.unitCost.toFixed(2)}/${l.unit}  =  $${(l.qty*l.unitCost).toFixed(2)}`).join('\n')+`\n\nORDER TOTAL: $${orderTotal.toFixed(2)} ex-GST\n\nPlease quote PO number ${poNumber} on your invoice and delivery docket.\nPlease confirm receipt of this order and advise estimated delivery date.\n\nKind regards,\n${cafeDetails.name||'My Cafe'}${addr?'\n'+addr:''}${s?.phone?'\nPhone: '+s.phone:''}`;
-  if(s?.email)window.open(`mailto:${s.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+  if(s?.email)window.open(`mailto:${ppTestEmailRedirect(s.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
   const sec=document.getElementById('order_sec_'+sid);
   if(sec){sec.style.transition='opacity .3s,transform .3s';sec.style.opacity='0';sec.style.transform='translateX(20px)';setTimeout(()=>sec.remove(),350);}
   toast(`PO ${poNumber} sent to ${s?.name||'supplier'} · ${orderLines.length} items on order · <button onclick="printPO('${orderRecord.id}')" style="background:none;border:none;color:white;text-decoration:underline;cursor:pointer;font-size:inherit;padding:0">View PO</button>`,'ok');
@@ -2933,7 +2934,7 @@ function renderOrderHistory(){
   if(!supplierOrders.length){el.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">No orders sent yet</div><div>Sent orders appear here after clicking Email &amp; Send Order</div></div>`;return;}
   el.innerHTML=`<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-secondary btn-sm" onclick="exportSupplierOrders()">↓ Export PO Register (.xlsx)</button></div>`+supplierOrders.map(o=>`<div class="card" style="margin-bottom:12px"><div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between"><div style="display:flex;align-items:center;gap:10px"><span style="font-size:20px">${o.supplierIcon}</span><div><div style="font-weight:600;color:var(--navy)">${o.supplierName}</div><div class="mono" style="font-size:11px;color:var(--faint)">${fmtDateTime(o.date)}${o.poNumber?` &nbsp;·&nbsp; <strong>PO: ${o.poNumber}</strong>`:''}</div></div></div><div style="display:flex;align-items:center;gap:10px"><span style="font-weight:600;font-family:'JetBrains Mono',monospace">$${o.total.toFixed(2)}</span><span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:1px;background:${o.status==='received'?'var(--lgreen)':'var(--lamber)'};color:${o.status==='received'?'var(--green)':'var(--amber)'}">${o.status==='received'?'✓ Received':'⏳ Awaiting Delivery'}</span>${o.poNumber?`<button onclick="event.stopPropagation();printPO('${o.id}')" style="font-size:11px;padding:3px 9px;border-radius:1px;border:1px solid var(--border);background:white;color:var(--navy);cursor:pointer;font-weight:600">📄 PO</button>`:''}${o.supplierEmail?`<button class="btn btn-secondary btn-xs" onclick="resendOrder('${o.id}')">↩ Resend</button>`:''}<button class="btn btn-secondary btn-xs" onclick="markDelivered('${o.id}')" ${o.status==='received'?'disabled style="opacity:.4"':''}>✓ Mark Received</button></div></div><table style="font-size:12px"><thead><tr><th>Item</th><th>Qty Ordered</th><th>Unit</th><th>Unit Cost</th><th>Line Total</th><th>Stock at Order</th></tr></thead><tbody>${o.lines.map(l=>`<tr><td class="col-name">${l.itemName}</td><td class="mono">${l.qty}</td><td>${l.unit}</td><td class="mono">$${l.unitCost.toFixed(2)}</td><td class="mono">$${(l.qty*l.unitCost).toFixed(2)}</td><td class="mono" style="color:var(--faint)">${l.stockAtOrder} ${l.unit}</td></tr>`).join('')}</tbody></table></div>`).join('');
 }
-function resendOrder(id){const o=supplierOrders.find(x=>x.id===id);if(!o)return;const subject=`Order Resend — ${cafeDetails.name||'My Cafe'} ${new Date().toLocaleDateString('en-AU')}`;const body=`Hi ${o.supplierName},\n\nResending our order from ${fmtDate(o.date)}:\n\n`+o.lines.map(l=>`- ${l.itemName}: ${l.qty} ${l.unit}`).join('\n')+`\n\nKind regards,\n${cafeDetails.name||'My Cafe'}`;if(o.supplierEmail)window.open(`mailto:${o.supplierEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);toast('Email reopened for '+o.supplierName);}
+function resendOrder(id){const o=supplierOrders.find(x=>x.id===id);if(!o)return;const subject=`Order Resend — ${cafeDetails.name||'My Cafe'} ${new Date().toLocaleDateString('en-AU')}`;const body=`Hi ${o.supplierName},\n\nResending our order from ${fmtDate(o.date)}:\n\n`+o.lines.map(l=>`- ${l.itemName}: ${l.qty} ${l.unit}`).join('\n')+`\n\nKind regards,\n${cafeDetails.name||'My Cafe'}`;if(o.supplierEmail)window.open(`mailto:${ppTestEmailRedirect(o.supplierEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);toast('Email reopened for '+o.supplierName);}
 function markDelivered(id){
   const o=supplierOrders.find(x=>x.id===id);
   if(!o||o.status==='received')return;
@@ -4666,7 +4667,7 @@ function moSendOrder(){
   // Open email
   const subject=`Purchase Order ${poNumber} — ${cafeDetails.name||'My Cafe'} ${new Date().toLocaleDateString('en-AU')}`;
   const body=`Hi ${s?.name||'Team'},\n\nPlease find our purchase order below.\n\nPURCHASE ORDER: ${poNumber}\nDate: ${new Date().toLocaleDateString('en-AU')}\nFrom: ${cafeDetails.name||'My Cafe'}${cafeDetails.address?', '+cafeDetails.address:''}\n\nORDER ITEMS:\n`+lines.map(l=>`  - ${l.customName||(db.items[l.itemId]?.name||'')}: ${l.qty} ${l.unit} @ $${l.cost.toFixed(2)}/${l.unit} = $${(l.qty*l.cost).toFixed(2)}`).join('\n')+`\n\nORDER TOTAL: $${total.toFixed(2)} ex-GST\n${notes?'\nNotes: '+notes+'\n':''}\nPlease quote PO number ${poNumber} on your invoice and delivery docket.\n\nKind regards,\n${cafeDetails.name||'My Cafe'}\n${cafeDetails.address||''}`;
-  if(s?.email)window.open(`mailto:${s.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+  if(s?.email)window.open(`mailto:${ppTestEmailRedirect(s.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
 
   toast(`PO ${poNumber} created · ${lines.length} items · ${lines.filter(l=>l.isNew).length} new items added to inventory`,'ok');
   moClear();
@@ -4724,7 +4725,7 @@ function moResend(id){
   const o=manualOrders.find(x=>x.id===id);if(!o||!o.supplierEmail)return;
   const subject=`${o.poNumber&&o.poNumber!=='DRAFT'?'PO '+o.poNumber+' — ':'Order — '}${cafeDetails.name||'My Cafe'} ${new Date().toLocaleDateString('en-AU')}`;
   const body=`Hi ${o.supplierName},\n\nResending our order:\n\n`+o.lines.map(l=>`- ${l.itemName}: ${l.qty} ${l.unit} @ $${l.unitCost.toFixed(2)}/${l.unit}`).join('\n')+`\n\nTotal: $${o.total.toFixed(2)} ex-GST\n\nKind regards,\n${cafeDetails.name||'My Cafe'}`;
-  window.open(`mailto:${o.supplierEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+  window.open(`mailto:${ppTestEmailRedirect(o.supplierEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
 }
 
 function moResendDraft(id){
@@ -4736,7 +4737,7 @@ function moResendDraft(id){
   o.poNumber='PP'+String(newPO).padStart(5,'0');
   o.status='sent';
   saveManualOrders();
-  if(o.supplierEmail){const s=sup[o.supplierId];const subject=`Purchase Order ${o.poNumber} — ${cafeDetails.name||'My Cafe'} ${new Date().toLocaleDateString('en-AU')}`;const body=`Hi ${o.supplierName},\n\nPURCHASE ORDER: ${o.poNumber}\n\n`+o.lines.map(l=>`- ${l.itemName}: ${l.qty} ${l.unit} @ $${l.unitCost.toFixed(2)}`).join('\n')+`\n\nTotal: $${o.total.toFixed(2)} ex-GST\n\nKind regards,\n${cafeDetails.name||'My Cafe'}`;window.open(`mailto:${o.supplierEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);}
+  if(o.supplierEmail){const s=sup[o.supplierId];const subject=`Purchase Order ${o.poNumber} — ${cafeDetails.name||'My Cafe'} ${new Date().toLocaleDateString('en-AU')}`;const body=`Hi ${o.supplierName},\n\nPURCHASE ORDER: ${o.poNumber}\n\n`+o.lines.map(l=>`- ${l.itemName}: ${l.qty} ${l.unit} @ $${l.unitCost.toFixed(2)}`).join('\n')+`\n\nTotal: $${o.total.toFixed(2)} ex-GST\n\nKind regards,\n${cafeDetails.name||'My Cafe'}`;window.open(`mailto:${ppTestEmailRedirect(o.supplierEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);}
   toast(`PO ${o.poNumber} sent`,'ok');
   moRenderHistory();
 }
@@ -5881,6 +5882,15 @@ function tlLoadAlertSettingsIntoForm() {
   var sEl = document.getElementById('tla_sms_enabled');   if (sEl) sEl.checked = cfg.smsEnabled !== false;
 }
 
+// Pre-launch soak test: redirects every outgoing supplier/order email to one inbox
+// instead of the real supplier, so nothing reaches a real business while testing.
+// Set localStorage.pp_test_email_redirect to the test address; leave unset for
+// normal behaviour. Remove this and its call sites once testing is done.
+function ppTestEmailRedirect(realEmail) {
+  const override = (localStorage.getItem('pp_test_email_redirect') || '').trim();
+  return (override && realEmail) ? override : realEmail;
+}
+
 // Sends a real email via connected Gmail (same mechanism Gavin's send_email tool uses), falling
 // back to opening a pre-filled mailto draft if Gmail isn't connected or the call fails.
 // mailto:/sms: links only need the popup window for the instant it takes the browser to hand off
@@ -5896,6 +5906,8 @@ function ppOpenAndAutoClose(url, delayMs) {
 
 async function ppSendAlertEmail(to, subject, body) {
   if (!to) return { ok:false, detail:'not sent — no alert email address set' };
+  const realTo = to; to = ppTestEmailRedirect(to);
+  const redirNote = to !== realTo ? ' (test redirect — would have gone to '+realTo+')' : '';
   try {
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -5910,11 +5922,11 @@ async function ppSendAlertEmail(to, subject, body) {
     });
     const data = await resp.json();
     if (data.error) throw new Error(data.error.message);
-    return { ok:true, detail:'sent via connected Gmail to '+to };
+    return { ok:true, detail:'sent via connected Gmail to '+to+redirNote };
   } catch(e) {
     try {
       ppOpenAndAutoClose(`mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
-      return { ok:false, detail:'Gmail send failed ('+e.message+') — opened a draft email to '+to+' instead' };
+      return { ok:false, detail:'Gmail send failed ('+e.message+') — opened a draft email to '+to+redirNote+' instead' };
     } catch(e2) {
       return { ok:false, detail:'email failed: '+e.message };
     }
@@ -9689,7 +9701,7 @@ function showReorderEmails() {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div style="font-weight:600;color:var(--navy)">${r.supplier?.icon||'🏭'} ${r.supplier?.name||'Unknown Supplier'}</div>
         <div style="display:flex;gap:6px">
-          ${r.supplier?.email ? `<a class="btn btn-sm" style="background:var(--teal);color:white;text-decoration:none" href="mailto:${r.supplier.email}?subject=${encodeURIComponent(r.subject)}&body=${encodeURIComponent(r.body)}">📧 Send Email</a>` : ''}
+          ${r.supplier?.email ? `<a class="btn btn-sm" style="background:var(--teal);color:white;text-decoration:none" href="mailto:${ppTestEmailRedirect(r.supplier.email)}?subject=${encodeURIComponent(r.subject)}&body=${encodeURIComponent(r.body)}">📧 Send Email</a>` : ''}
           ${r.supplier?.phone ? `<a class="btn btn-secondary btn-sm" href="tel:${r.supplier.phone}">📞 ${r.supplier.phone}</a>` : ''}
         </div>
       </div>
@@ -11286,7 +11298,7 @@ async function aimExecuteTool(toolName, input) {
           + lines.map(l => `  - ${l.itemName}: ${l.qty} ${l.unit} @ $${l.unitCost.toFixed(2)}/${l.unit}`).join('\n')
           + `\n\nORDER TOTAL: $${total.toFixed(2)} ex-GST\n${input.notes?'\nNotes: '+input.notes+'\n':''}\nPlease quote PO ${poNumber} on delivery.\n\nKind regards,\n${cafeDetails?.name||'My Cafe'}`;
         const subject = `Purchase Order ${poNumber} — ${cafeDetails?.name||'My Cafe'} ${new Date().toLocaleDateString('en-AU')}`;
-        if (s?.email) window.open(`mailto:${s.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+        if (s?.email) window.open(`mailto:${ppTestEmailRedirect(s.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
         return `✓ PO ${poNumber} created for ${supName} — ${lines.length} items, $${total.toFixed(2)}. ${s?.email ? 'Email client opened.' : 'No email address on file for this supplier.'}`;
       }
 
@@ -12088,6 +12100,8 @@ Note: Revenue is estimated from recorded sales × dish prices. This is not a sub
 
       case 'send_email': {
         // Try Gmail MCP first, fall back to mailto if not available
+        const realTo = input.to; const to = ppTestEmailRedirect(input.to);
+        const redirNote = to !== realTo ? ' (test redirect — would have gone to '+realTo+')' : '';
         try {
           const mailResp = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
@@ -12097,17 +12111,17 @@ Note: Revenue is estimated from recorded sales × dish prices. This is not a sub
               max_tokens: 512,
               mcp_servers: [{ type: 'url', url: 'https://gmail.mcp.claude.com/mcp', name: 'gmail' }],
               system: 'You are an email-sending assistant. Send the email exactly as specified, then confirm it was sent. Do not add any content or modify the email.',
-              messages: [{ role: 'user', content: `Send an email to ${input.to} with subject line: "${input.subject}"\n\nEmail body:\n${input.body}` }]
+              messages: [{ role: 'user', content: `Send an email to ${to} with subject line: "${input.subject}"\n\nEmail body:\n${input.body}` }]
             })
           });
           const mailData = await mailResp.json();
           if (mailData.error) throw new Error(mailData.error.message);
           const confirmText = (mailData.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-          return `✓ Email sent to ${input.to} — "${input.subject}"\n${confirmText}`;
+          return `✓ Email sent to ${to}${redirNote} — "${input.subject}"\n${confirmText}`;
         } catch(e) {
-          const mailtoUrl = `mailto:${input.to}?subject=${encodeURIComponent(input.subject)}&body=${encodeURIComponent(input.body)}`;
+          const mailtoUrl = `mailto:${to}?subject=${encodeURIComponent(input.subject)}&body=${encodeURIComponent(input.body)}`;
           window.open(mailtoUrl);
-          return `Email client opened for ${input.to} — "${input.subject}". (Gmail integration returned error: ${e.message})`;
+          return `Email client opened for ${to}${redirNote} — "${input.subject}". (Gmail integration returned error: ${e.message})`;
         }
       }
 
@@ -18228,7 +18242,7 @@ function evtsReleaseOne(ev, sp) {
       + po.lines.map(function(l){ return '  - ' + l.itemName + ': ' + l.qty + ' ' + l.unit + ' @ $' + l.unitCost.toFixed(2) + ' = $' + (l.qty*l.unitCost).toFixed(2); }).join('\n')
       + '\n\nORDER TOTAL: $' + po.total.toFixed(2) + ' ex-GST\n\nPlease quote PO number ' + po.poNumber + ' on your invoice and delivery docket.\n\nKind regards,\n' + (cafeDetails.name||'My Cafe');
     var popupOpened = false;
-    try { popupOpened = !!window.open('mailto:' + supplierEmail + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body)); } catch(e) {}
+    try { popupOpened = !!window.open('mailto:' + ppTestEmailRedirect(supplierEmail) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body)); } catch(e) {}
     // Archive to supplierOrders too, matching how a normal sent order is recorded, so it shows in Order History.
     supplierOrders.unshift(Object.assign({}, po, { lines: po.lines.map(function(l){ return Object.assign({}, l, { stockAtOrder: l.itemId ? (db.items[l.itemId]||{}).stock||0 : 0 }); }) }));
     saveSupplierOrders();
@@ -25539,7 +25553,7 @@ function autoOrderCheck() {
       + '\n\nKind regards,\n' + (cafeDetails.name || 'My Cafe');
 
     if (supplier.email) {
-      window.open('mailto:' + supplier.email + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body));
+      window.open('mailto:' + ppTestEmailRedirect(supplier.email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body));
     }
 
     toast('⏰ Auto-order sent: PO ' + poNumber + ' to ' + supplier.name + ' — ' + orderLines.length + ' items ($' + orderTotal.toFixed(2) + ')', 'ok');
