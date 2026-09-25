@@ -2467,6 +2467,16 @@ const PP_API = (function() {
     return await req('GET', '/health');
   }
 
+  // Pushes one auto-send scheduled PO to the server so it releases and emails
+  // the supplier on schedule even if this browser is closed when the release
+  // date arrives. Draft-only (non-auto-send) scheduled POs never call this —
+  // those stay local, released whenever the browser is next opened, for a
+  // human to review in Orders.
+  async function pushScheduledPO(po) {
+    if (!isConfigured()) return { ok: false, offline: true };
+    return await req('POST', '/api/venue/scheduled-pos', po);
+  }
+
   // ── Auto-snapshot on key events ───────────────────────────────────────────
   function scheduleSnapshot() {
     if (!isConfigured()) return;
@@ -2482,6 +2492,7 @@ const PP_API = (function() {
     isConfigured,
     authenticate,
     pushSnapshot,
+    pushScheduledPO,
     pushAllData,
     pullAllData,
     getStaffOnboarding,
@@ -18098,11 +18109,12 @@ function evtsScheduleGeneratePOs() {
 
   var released = (ev.scheduledPOs||[]).filter(function(p){ return p.status === 'released'; });
   var fresh = [];
+  var serverEligible = !!ev.poAutoSend && PP_API.isConfigured();
   Object.entries(bySup).forEach(function(entry) {
     var sid = entry[0], items = entry[1];
     var s = sup[sid] || {};
     var total = items.reduce(function(t,i){ return t + i.totalQty*(i.unitCost||0); }, 0);
-    fresh.push({
+    var schedEntry = {
       id: 'evt_sched_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
       supplierId: sid === '_none' ? '' : sid,
       supplierName: s.name || 'Unassigned',
@@ -18112,15 +18124,33 @@ function evtsScheduleGeneratePOs() {
       scheduledSendDate: sendDate,
       status: 'scheduled',
       createdAt: new Date().toISOString(),
-      releasedOrderId: null
-    });
+      releasedOrderId: null,
+      serverManaged: false
+    };
+    // Auto-send promises must not depend on this browser staying open until the
+    // release date — push those to the backend, which has its own cron + email
+    // sender. Draft-only schedules (the default) stay entirely local, since a
+    // human reviews those in Orders whenever they next open the app anyway.
+    if (serverEligible && s.email) {
+      schedEntry.serverManaged = true;
+      PP_API.pushScheduledPO({
+        event_name: ev.name, event_date: ev.date, po_number: null,
+        supplier_name: s.name || 'Unassigned', supplier_email: s.email,
+        lines: items.map(function(i){ return { name: i.name, qty: Math.round(i.totalQty*100)/100, unit: i.unit||'', unit_cost: i.unitCost||0 }; }),
+        release_date: sendDate,
+      }).then(function(r){
+        if (!r.ok) { schedEntry.serverManaged = false; toast('Could not schedule ' + (s.name||'supplier') + ' PO on the server — it will fall back to local, browser-open-only scheduling. ' + (r.data && r.data.error ? r.data.error : ''), 'warn'); saveEvents(); evtsRenderPOSchedule(); }
+      });
+    }
+    fresh.push(schedEntry);
   });
 
   ev.scheduledPOs = released.concat(fresh);
   ev.poScheduledAt = new Date().toISOString();
   saveEvents();
   evtsRenderPOSchedule();
-  toast(fresh.length + ' PO' + (fresh.length!==1?'s':'') + ' scheduled to release ' + new Date(sendDate+'T12:00:00').toLocaleDateString('en-AU') + (ev.poExactSendDate ? ' (exact date)' : ' (' + (ev.poLeadDays!=null?ev.poLeadDays:14) + ' days before event)'), 'ok');
+  var serverCount = fresh.filter(function(p){ return p.serverManaged; }).length;
+  toast(fresh.length + ' PO' + (fresh.length!==1?'s':'') + ' scheduled to release ' + new Date(sendDate+'T12:00:00').toLocaleDateString('en-AU') + (ev.poExactSendDate ? ' (exact date)' : ' (' + (ev.poLeadDays!=null?ev.poLeadDays:14) + ' days before event)') + (serverCount ? ' — ' + serverCount + ' will auto-send from the server even if this browser is closed' : ''), 'ok');
 }
 window.evtsScheduleGeneratePOs = evtsScheduleGeneratePOs;
 
@@ -18172,12 +18202,14 @@ function evtsRenderPOSchedule() {
     } else if (p.status === 'released' && p.driftPct) {
       driftBadge = '<span style="font-size:10px;color:var(--sub);margin-right:6px">(' + (p.driftPct>0?'+':'') + p.driftPct + '% vs schedule-time price)</span>';
     }
+    var serverBadge = p.serverManaged ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--lteal,var(--lgreen));color:var(--teal);margin-right:6px" title="Sent from the server on schedule, independent of this browser">🌐 Server-managed</span>' : '';
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px">'
       + '<div><div style="font-weight:600">' + p.supplierIcon + ' ' + p.supplierName + '</div>'
       + '<div style="font-size:11px;color:var(--sub);display:flex;align-items:center;gap:6px">' + p.itemCount + ' items &middot; ~$' + (p.totalAtSchedule||0).toFixed(2) + ' at schedule time &middot; ' + (when||'') + (p.status==='scheduled' ? dateEditor : '') + '</div></div>'
       + '<span style="display:flex;align-items:center;gap:8px">'
       + driftBadge
-      + (p.status==='scheduled' ? '<button class="btn btn-secondary btn-xs" onclick="evtsReleaseScheduledPONow(\'' + p.id + '\')">Release Now</button>' : '')
+      + serverBadge
+      + (p.status==='scheduled' && !p.serverManaged ? '<button class="btn btn-secondary btn-xs" onclick="evtsReleaseScheduledPONow(\'' + p.id + '\')">Release Now</button>' : '')
       + '<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:12px;background:' + st.bg + ';color:' + st.col + '">' + st.label + '</span>'
       + '</span>'
       + '</div>';
@@ -18192,6 +18224,7 @@ function evtsReleaseScheduledPONow(schedId) {
   if (!ev) return;
   var sp = ev.scheduledPOs.find(function(p){ return p.id===schedId; });
   if (!sp || sp.status === 'released') return;
+  if (sp.serverManaged) { toast(sp.supplierName + ' PO is server-managed — it will send automatically on its release date, independent of this browser.', 'warn'); return; }
   var wasAutoSent = evtsReleaseOne(ev, sp);
   saveEvents();
   evtsRenderPOSchedule();
@@ -18395,6 +18428,7 @@ function eventScheduledPOCheck() {
   (_events||[]).forEach(function(ev) {
     (ev.scheduledPOs||[]).forEach(function(sp) {
       if (sp.status !== 'scheduled') return;
+      if (sp.serverManaged) return; // the backend cron owns release + send for these
       if (!sp.scheduledSendDate || sp.scheduledSendDate > todayStr) return;
       var lockKey = sp.id + '_' + todayStr;
       if (_eventPOCheckedToday[lockKey]) return;
