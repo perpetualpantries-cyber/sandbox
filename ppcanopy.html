@@ -244,6 +244,39 @@
       <div class="modal-card" id="employeeops-card"></div>
     </div>
 
+    <!-- Device settings: a form instead of a prompt() chain, which Chrome cancels when you switch
+         tabs mid-way (and blocks outright once "prevent additional dialogs" is ticked). -->
+    <div class="modal-backdrop" id="device-settings" style="z-index:60;">
+      <div class="modal-card" style="max-width:460px;">
+        <button class="close-x" type="button" id="ds-close" aria-label="Close">✕</button>
+        <h2 style="margin-bottom:4px;">Settings (this device)</h2>
+        <p class="helptext">Stored in this browser only. Leave a key box empty to keep what's saved.</p>
+        <form id="ds-form" autocomplete="off">
+          <label for="ds-api-key">Anthropic API key (Canopy)</label>
+          <input id="ds-api-key" type="password" autocomplete="off">
+          <label style="display:flex;gap:6px;align-items:center;font-weight:400;"><input type="checkbox" id="ds-api-key-clear" style="width:auto;"> Remove saved key</label>
+          <label for="ds-gmail">Gmail connector token (optional)</label>
+          <input id="ds-gmail" type="password" autocomplete="off">
+          <label style="display:flex;gap:6px;align-items:center;font-weight:400;"><input type="checkbox" id="ds-gmail-clear" style="width:auto;"> Remove saved token</label>
+          <h3 style="margin:18px 0 0;font-size:14px;">PP server</h3>
+          <p class="helptext" id="ds-server-status"></p>
+          <label for="ds-server-url">Server URL</label>
+          <input id="ds-server-url" type="url" placeholder="https://pp-server-pi.vercel.app">
+          <label for="ds-email">Staff email</label>
+          <input id="ds-email" type="email" autocomplete="username">
+          <label for="ds-password">Password</label>
+          <input id="ds-password" type="password" autocomplete="current-password">
+          <p class="helptext">Fill in email and password to sign in (or sign in again).</p>
+          <label style="display:flex;gap:6px;align-items:center;font-weight:400;"><input type="checkbox" id="ds-disconnect" style="width:auto;"> Disconnect from the server on this device</label>
+          <p id="ds-msg" style="margin:14px 0 0;font-size:13px;"></p>
+          <div style="margin-top:14px;display:flex;gap:8px;">
+            <button type="submit" class="btn">Save</button>
+            <button type="button" class="btn secondary" id="ds-cancel">Close</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <button class="canopy-fab" id="canopy-fab" title="Talk to Canopy">
       <span class="canopy-fab-dot"></span>Canopy
     </button>
@@ -679,10 +712,9 @@ async function fetchWithTimeout(url, opts, ms){
   finally { clearTimeout(t); }
 }
 // ── PP backend client. Server mode is on when a server URL and a staff login token are set (Settings).
-// In server mode: creating a client creates the org and shows a one-time, 24h org-level link code
-// (never a raw key — PP Command claims the code itself via POST /api/org/link/claim), products come
-// from linked sites' menu items, and Canopy→Ronin asks go through the operator-gated queue. Everything
-// else still lives locally for now (see PP_Backend_API_Spec §7.3 for the remaining migration).
+// In server mode: creating a client creates the org (and shows its one-time key), products come from
+// linked sites' menu items, and Canopy→Ronin asks go through the operator-gated queue. Everything else
+// still lives locally for now (see PP_Backend_API_Spec §7.3 for the remaining migration).
 const SERVER = {
   url(){ return (getLocalSetting('server_url') || '').replace(/\/+$/, ''); },
   token(){ return getLocalSetting('staff_token'); },
@@ -874,6 +906,7 @@ document.getElementById('nav').addEventListener('click', e=>{
   btn.classList.add('active');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+  setLocalSetting('active_tab', btn.dataset.tab);   // reopened on the next load (see boot)
   if(btn.dataset.tab==='dashboard') renderDashboard();
   if(btn.dataset.tab==='quote') renderQuoteBuilder();
   if(btn.dataset.tab==='history') renderHistory();
@@ -889,18 +922,6 @@ document.getElementById('nav').addEventListener('click', e=>{
 });
 
 /* ---------- PERMISSIONS / IDENTITY ---------- */
-// No real backend/server-side auth exists — this is a single client-side
-// page. Passwords are hashed (SHA-256) before storage rather than kept in
-// plaintext, and nobody gets a role without entering the matching password
-// for that specific account — a Sales Manager or IT Staff login can only
-// ever grant the role attached to that account, never Owner. That's real:
-// it stops someone casually clicking a different name in a dropdown.
-// What it does NOT stop: anyone with the browser's dev tools open can read
-// the hash comparison happening in this file's own JS and could in
-// principle patch around it, or read another person's stored hash and
-// brute-force it offline. Treat this as a real per-account lock for normal
-// use, not as protection against someone deliberately attacking the page.
-//
 // Sign-in / per-role lockdown has been removed — the app is always used at
 // full (Owner) access. currentRole() is kept because a lot of code below
 // still calls it (and the agent's own tool-permission checks reference it),
@@ -917,19 +938,43 @@ function applyPermissions(){
     commsAuthor.value = currentUserId==='__owner__' ? 'Owner' : (member ? member.name : '—');
   }
 }
+function dsRender(){
+  const set = (id, v) => { document.getElementById(id).value = v; };
+  set('ds-api-key', ''); set('ds-gmail', ''); set('ds-password', ''); set('ds-email', '');
+  document.getElementById('ds-api-key').placeholder = getLocalSetting('api_key') ? '(saved)' : (STORE.backend==='artifact' ? 'not needed here' : 'sk-ant-…');
+  document.getElementById('ds-gmail').placeholder = getLocalSetting('gmail_token') ? '(saved)' : '';
+  ['ds-api-key-clear','ds-gmail-clear','ds-disconnect'].forEach(id => document.getElementById(id).checked = false);
+  set('ds-server-url', SERVER.url() || '');
+  document.getElementById('ds-server-status').textContent = SERVER.on() ? 'Signed in to ' + SERVER.url() + ' on this device.' : (SERVER.url() ? 'Not signed in — enter email and password.' : 'Not connected (standalone).');
+  const msg = document.getElementById('ds-msg'); msg.textContent = ''; msg.style.color = '';
+}
+function dsClose(){ document.getElementById('device-settings').classList.remove('open'); }
 document.getElementById('local-settings-btn').addEventListener('click', ()=>{
-  const k = prompt('Anthropic API key for Canopy on this device (leave blank to keep, type "clear" to remove).\nStorage backend: ' + STORE.backend + (STORE.backend==='artifact' ? ' — key not needed here.' : ''), getLocalSetting('api_key') ? '(saved)' : '');
-  if(k!==null && k!=='(saved)'){ setLocalSetting('api_key', k.trim()==='clear' ? '' : k.trim()); }
-  const g = prompt('Gmail connector OAuth token (optional; blank to keep, "clear" to remove):', getLocalSetting('gmail_token') ? '(saved)' : '');
-  if(g!==null && g!=='(saved)'){ setLocalSetting('gmail_token', g.trim()==='clear' ? '' : g.trim()); }
-  const su = prompt('PP server URL (blank = standalone, "clear" to disconnect):', SERVER.url() || '');
-  if (su !== null) {
-    if (su.trim() === 'clear') { setLocalSetting('server_url', ''); setLocalSetting('staff_token', ''); }
-    else if (su.trim()) {
-      const em = prompt('Staff email for the PP server:'); const pw = em ? prompt('Password:') : null;
-      if (em && pw) { SERVER.login(su.trim(), em.trim(), pw).then(d => alert('Signed in to PP server as ' + d.name + ' (' + d.role + ').')).catch(e => alert('Server login failed: ' + e.message)); }
-    }
+  dsRender(); document.getElementById('device-settings').classList.add('open');
+});
+document.getElementById('ds-close').addEventListener('click', dsClose);
+document.getElementById('ds-cancel').addEventListener('click', dsClose);
+document.getElementById('ds-form').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const v = id => document.getElementById(id).value.trim();
+  const on = id => document.getElementById(id).checked;
+  const msg = document.getElementById('ds-msg');
+  const say = (t, bad) => { msg.textContent = t; msg.style.color = bad ? '#8a3b3b' : 'var(--verdigris-dark)'; };
+  if (on('ds-api-key-clear')) setLocalSetting('api_key', ''); else if (v('ds-api-key')) setLocalSetting('api_key', v('ds-api-key'));
+  if (on('ds-gmail-clear')) setLocalSetting('gmail_token', ''); else if (v('ds-gmail')) setLocalSetting('gmail_token', v('ds-gmail'));
+  if (on('ds-disconnect')) {
+    setLocalSetting('server_url', ''); setLocalSetting('staff_token', '');
+  } else if (v('ds-server-url') && v('ds-email') && document.getElementById('ds-password').value) {
+    say('Signing in…');
+    try {
+      const d = await SERVER.login(v('ds-server-url'), v('ds-email'), document.getElementById('ds-password').value);
+      document.getElementById('ds-password').value = '';
+      dsRender(); say('Saved. Signed in to PP server as ' + d.name + ' (' + d.role + ').');
+    } catch (err) { say('Other settings saved, but server sign-in failed: ' + err.message, true); return; }
+  } else if (v('ds-server-url') !== (SERVER.url() || '')) {
+    setLocalSetting('server_url', v('ds-server-url').replace(/\/+$/, '')); setLocalSetting('staff_token', '');
   }
+  if (!msg.textContent) { dsRender(); say('Saved.'); }
 });
 
 /* ---------- DASHBOARD ---------- */
@@ -3474,6 +3519,10 @@ document.getElementById('add-comms-btn').addEventListener('click', async ()=>{
   renderPricingForm();
   renderEscalations();
   applyPermissions();
+  // Reopen the section the user was last in, if they're still allowed to see it.
+  const lastTab = getLocalSetting('active_tab');
+  const lastBtn = lastTab && document.querySelector(`#nav button[data-tab="${CSS.escape(lastTab)}"]`);
+  if (lastBtn && lastBtn.style.display !== 'none' && !lastBtn.classList.contains('active')) lastBtn.click();
   checkAutoExecutions();
   setInterval(checkAutoExecutions, 60*1000);
 })();
