@@ -194,14 +194,7 @@
       <div class="sub">Client Ops</div>
     </div>
     <div style="padding:10px 18px;border-bottom:1px solid var(--line);">
-      <label style="font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:#8a8975;">Signed in as</label>
-      <select id="current-user-select" style="width:100%;margin-top:4px;"><option value="">— Sign in —</option></select>
-      <div style="font-size:10.5px;color:#8a8975;margin-top:4px;">Role: <span id="current-role-label">Not signed in</span></div>
-      <button class="btn secondary" id="local-settings-btn" style="width:100%;margin-top:6px;padding:5px;font-size:11px;">Settings (this device)</button>
-      <div style="display:flex;gap:6px;margin-top:6px;">
-        <button class="btn secondary" id="signout-btn" style="flex:1;padding:5px;font-size:11px;">Sign out</button>
-        <button class="btn secondary" id="change-owner-pw-btn" style="flex:1;padding:5px;font-size:11px;display:none;">Owner pw</button>
-      </div>
+      <button class="btn secondary" id="local-settings-btn" style="width:100%;padding:5px;font-size:11px;">Settings (this device)</button>
     </div>
     <nav id="nav">
       <button data-tab="dashboard" class="active"><span class="tri"></span>Dashboard</button>
@@ -249,13 +242,6 @@
 
     <div class="modal-backdrop" id="employeeops-backdrop">
       <div class="modal-card" id="employeeops-card"></div>
-    </div>
-
-    <div class="modal-backdrop" id="signin-lock">
-      <div class="modal-card" style="text-align:center;padding:60px 30px;">
-        <h1 style="margin-bottom:10px;">Sign in required</h1>
-        <p class="helptext">Select your name (or Owner) in the sidebar and enter your password to continue.</p>
-      </div>
     </div>
 
     <button class="canopy-fab" id="canopy-fab" title="Talk to Canopy">
@@ -915,107 +901,22 @@ document.getElementById('nav').addEventListener('click', e=>{
 // brute-force it offline. Treat this as a real per-account lock for normal
 // use, not as protection against someone deliberately attacking the page.
 //
-// BYPASS_SIGNIN: set to true while testing/building so the app is usable
-// without going through sign-in each time — unauthenticated access then
-// defaults to full Owner permissions instead of being locked out. All the
-// password/role infrastructure above stays intact underneath; flip this
-// back to false to re-require sign-in with no other changes needed.
-// Off by default. To bypass while building, set localStorage ppcanopy_bypass_signin = '1'
-// in this browser only — it never syncs and never affects another device.
-const BYPASS_SIGNIN = getLocalSetting('bypass_signin') === '1';
+// Sign-in / per-role lockdown has been removed — the app is always used at
+// full (Owner) access. currentRole() is kept because a lot of code below
+// still calls it (and the agent's own tool-permission checks reference it),
+// but it no longer locks anyone out.
 function currentRole(){
-  if(BYPASS_SIGNIN) return 'Owner'; // unconditional while bypassed — ignores any persisted "signed in as" choice too
-  if(currentUserId==='__owner__') return 'Owner';
-  const member = teamMembers.find(m=>m.id===currentUserId);
-  if(!member) return null; // nobody signed in — locked
-  return PERMISSION_ROLES.includes(member.permissionRole) ? member.permissionRole : 'Sales Manager';
+  return 'Owner';
 }
 function applyPermissions(){
-  const role = currentRole();
-  const allowed = role ? (TAB_PERMISSIONS[role] || TAB_PERMISSIONS['Sales Manager']) : [];
-  document.querySelectorAll('#nav button[data-tab]').forEach(btn=>{
-    btn.style.display = allowed.includes(btn.dataset.tab) ? '' : 'none';
-  });
-  document.getElementById('signin-lock').classList.toggle('open', !role);
-  const fab = document.getElementById('canopy-fab'); if(fab && !document.getElementById('canopy-widget').classList.contains('open')) fab.style.display = role ? 'flex' : 'none';
-  const settingsBtn = document.getElementById('local-settings-btn'); if(settingsBtn) settingsBtn.style.display = '';
-  const activeBtn = document.querySelector('#nav button.active');
-  if(role && activeBtn && !allowed.includes(activeBtn.dataset.tab)){
-    const fallback = document.querySelector(`#nav button[data-tab="${allowed[0]}"]`);
-    if(fallback) fallback.click();
-  }
-  const roleLabel = document.getElementById('current-role-label');
-  if(roleLabel) roleLabel.textContent = BYPASS_SIGNIN ? 'Owner (sign-in bypassed)' : (role || 'Not signed in');
-  const changePwBtn = document.getElementById('change-owner-pw-btn');
-  if(changePwBtn) changePwBtn.style.display = role==='Owner' ? '' : 'none';
+  document.querySelectorAll('#nav button[data-tab]').forEach(btn=>{ btn.style.display = ''; });
+  const fab = document.getElementById('canopy-fab'); if(fab && !document.getElementById('canopy-widget').classList.contains('open')) fab.style.display = 'flex';
   const commsAuthor = document.getElementById('cm-author');
   if(commsAuthor){
     const member = teamMembers.find(m=>m.id===currentUserId);
     commsAuthor.value = currentUserId==='__owner__' ? 'Owner' : (member ? member.name : '—');
   }
 }
-function renderCurrentUserSelect(){
-  const sel = document.getElementById('current-user-select');
-  sel.innerHTML = '<option value="">— Sign in —</option><option value="__owner__">Owner</option>' +
-    teamMembers.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
-  sel.value = currentUserId || '';
-}
-document.getElementById('current-user-select').addEventListener('change', async e=>{
-  const val = e.target.value;
-  if(!val){
-    currentUserId = null;
-    await saveCurrentUserId();
-    applyPermissions();
-    return;
-  }
-  if(val==='__owner__'){
-    if(!ownerPasswordHash){
-      const pw1 = prompt('First time setup — create the Owner password:');
-      if(!pw1){ renderCurrentUserSelect(); return; }
-      const pw2 = prompt('Confirm Owner password:');
-      if(pw1!==pw2){ alert('Passwords did not match — try again.'); renderCurrentUserSelect(); return; }
-      ownerPasswordHash = await hashPassword(pw1);
-      await saveOwnerPassword();
-    } else {
-      const pw = prompt('Owner password:');
-      if(pw===null){ renderCurrentUserSelect(); return; }
-      if(await hashPassword(pw) !== ownerPasswordHash){ alert('Incorrect password.'); renderCurrentUserSelect(); return; }
-    }
-    currentUserId = '__owner__';
-    await saveCurrentUserId();
-    applyPermissions();
-    return;
-  }
-  const member = teamMembers.find(m=>m.id===val);
-  if(!member){ renderCurrentUserSelect(); return; }
-  if(!member.passwordHash){
-    const pw1 = prompt(`No password set yet for ${member.name} — create one now:`);
-    if(!pw1){ renderCurrentUserSelect(); return; }
-    const pw2 = prompt('Confirm password:');
-    if(pw1!==pw2){ alert('Passwords did not match — try again.'); renderCurrentUserSelect(); return; }
-    member.passwordHash = await hashPassword(pw1);
-    await saveTeam();
-  } else {
-    const pw = prompt(`Password for ${member.name}:`);
-    if(pw===null){ renderCurrentUserSelect(); return; }
-    if(await hashPassword(pw) !== member.passwordHash){ alert('Incorrect password.'); renderCurrentUserSelect(); return; }
-  }
-  currentUserId = val;
-  await saveCurrentUserId();
-  applyPermissions();
-});
-document.getElementById('change-owner-pw-btn').addEventListener('click', async ()=>{
-  const current = prompt('Current Owner password:');
-  if(current===null) return;
-  if(await hashPassword(current) !== ownerPasswordHash){ alert('Incorrect current password.'); return; }
-  const next1 = prompt('New Owner password:');
-  if(!next1) return;
-  const next2 = prompt('Confirm new password:');
-  if(next1!==next2){ alert('Passwords did not match.'); return; }
-  ownerPasswordHash = await hashPassword(next1);
-  await saveOwnerPassword();
-  alert('Owner password updated.');
-});
 document.getElementById('local-settings-btn').addEventListener('click', ()=>{
   const k = prompt('Anthropic API key for Canopy on this device (leave blank to keep, type "clear" to remove).\nStorage backend: ' + STORE.backend + (STORE.backend==='artifact' ? ' — key not needed here.' : ''), getLocalSetting('api_key') ? '(saved)' : '');
   if(k!==null && k!=='(saved)'){ setLocalSetting('api_key', k.trim()==='clear' ? '' : k.trim()); }
@@ -1029,14 +930,6 @@ document.getElementById('local-settings-btn').addEventListener('click', ()=>{
       if (em && pw) { SERVER.login(su.trim(), em.trim(), pw).then(d => alert('Signed in to PP server as ' + d.name + ' (' + d.role + ').')).catch(e => alert('Server login failed: ' + e.message)); }
     }
   }
-  const b = confirm('Bypass sign-in on this device while building? OK = yes, Cancel = no. (Currently ' + (getLocalSetting('bypass_signin')==='1' ? 'ON' : 'OFF') + '. Reload to apply.)');
-  setLocalSetting('bypass_signin', b ? '1' : '');
-});
-document.getElementById('signout-btn').addEventListener('click', async ()=>{
-  currentUserId = null;
-  await saveCurrentUserId();
-  renderCurrentUserSelect();
-  applyPermissions();
 });
 
 /* ---------- DASHBOARD ---------- */
@@ -3234,7 +3127,6 @@ function renderTeam(){
     s.innerHTML = `<option value="">${placeholder}</option>` + teamMembers.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
     if(teamMembers.some(m=>m.id===current)) s.value = current;
   });
-  renderCurrentUserSelect();
 }
 document.getElementById('add-team-btn').addEventListener('click', async ()=>{
   if(currentRole()!=='Owner'){ alert('Only the Owner can create a new team member account.'); return; }
