@@ -2915,7 +2915,7 @@ function sendOrder(sid){
   const poNumber='PP'+String(newPO).padStart(5,'0');
   orderLines.forEach(l=>{if(db.items[l.itemId])db.items[l.itemId].onOrder=(db.items[l.itemId].onOrder||0)+l.qty;});
   sDB();
-  const orderRecord={id:'sord_'+Date.now(),poNumber,date:new Date().toISOString(),supplierId:sid,supplierName:s?.name||'Unknown',supplierIcon:s?.icon||'🏭',supplierEmail:s?.email||'',supplierPhone:s?.phone||'',lines:orderLines,total:orderLines.reduce((t,l)=>t+l.qty*l.unitCost,0),status:'sent'};
+  const orderRecord={id:'sord_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),poNumber,date:new Date().toISOString(),supplierId:sid,supplierName:s?.name||'Unknown',supplierIcon:s?.icon||'🏭',supplierEmail:s?.email||'',supplierPhone:s?.phone||'',lines:orderLines,total:orderLines.reduce((t,l)=>t+l.qty*l.unitCost,0),status:'sent'};
   supplierOrders.unshift(orderRecord);
   if(supplierOrders.length>500)supplierOrders=supplierOrders.slice(0,500);
   saveSupplierOrders();
@@ -2952,7 +2952,7 @@ function markDelivered(id){
   });
   // Also log as a delivery docket so it appears in Deliveries page
   db.deliveries.push({
-    id:'dlv_'+Date.now(),
+    id:'dlv_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
     supplier:o.supplierName,
     date,
     docketNo:'',
@@ -3159,7 +3159,7 @@ function logAccidentalWastage() {
   const prev = item.stock;
   item.stock = Math.max(0, Math.round((item.stock - qty) * 10000) / 10000);
   item.lastUpdated = new Date().toISOString();
-  const entry = { id:'wst_'+Date.now(), date:new Date().toISOString(), type:'accidental', itemId:id, itemName:item.name, unit:item.unit, qty, prevStock:prev, newStock:item.stock, reason, notes };
+  const entry = { id:'wst_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), date:new Date().toISOString(), type:'accidental', itemId:id, itemName:item.name, unit:item.unit, qty, prevStock:prev, newStock:item.stock, reason, notes };
   wastageLog.unshift(entry);
   db.movements.push({ date:entry.date, itemId:id, itemName:item.name, unit:item.unit, qty:-qty, prevStock:prev, newStock:item.stock, type:'wastage', notes:`${reason}${notes?' — '+notes:''}` });
   sDB(); saveWastage();
@@ -3182,7 +3182,7 @@ function logYieldWastage() {
   const prev = item.stock;
   item.stock = Math.max(0, Math.round((item.stock - loss) * 10000) / 10000);
   item.lastUpdated = new Date().toISOString();
-  const entry = { id:'wst_'+Date.now(), date:new Date().toISOString(), type:'yield', itemId:id, itemName:item.name, unit:item.unit, qty:loss, gross, pct, usable, prevStock:prev, newStock:item.stock, reason:'Yield / trim', notes };
+  const entry = { id:'wst_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), date:new Date().toISOString(), type:'yield', itemId:id, itemName:item.name, unit:item.unit, qty:loss, gross, pct, usable, prevStock:prev, newStock:item.stock, reason:'Yield / trim', notes };
   wastageLog.unshift(entry);
   db.movements.push({ date:entry.date, itemId:id, itemName:item.name, unit:item.unit, qty:-loss, prevStock:prev, newStock:item.stock, type:'wastage', notes:`Yield ${pct}% — trim loss ${loss} ${item.unit}${notes?' — '+notes:''}` });
   sDB(); saveWastage();
@@ -3267,7 +3267,7 @@ function logStaffMeal() {
     item.stock = Math.max(0, Math.round((item.stock - l.qty) * 10000) / 10000);
     item.lastUpdated = date;
     const entry = {
-      id: 'wst_' + Date.now() + '_' + idx,
+      id: 'wst_' + Date.now()+'_'+Math.random().toString(36).slice(2,6) + '_' + idx,
       date, type: 'staff_meal',
       itemId: item.id, itemName: item.name, unit: item.unit,
       qty: l.qty, prevStock: prev, newStock: item.stock,
@@ -3566,7 +3566,7 @@ function openServicewareManager() {
       <button class="btn btn-secondary btn-sm" onclick="
         const icons=['☕','🍽','🍴','🥂','🥣','🫖'];
         const ico=icons[Math.floor(Math.random()*icons.length)];
-        SERVICEWARE_ASSETS.push({id:'sw_'+Date.now(),name:'New Asset',cat:'Other',icon:ico,purchasePrice:10,expectedUses:500});
+        SERVICEWARE_ASSETS.push({id:'sw_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),name:'New Asset',cat:'Other',icon:ico,purchasePrice:10,expectedUses:500});
         saveServiceware();openServicewareManager()">+ Add Asset</button>
       <button class="btn btn-secondary btn-sm" onclick="SERVICEWARE_ASSETS.length=0;SW_DEFAULTS.forEach(a=>SERVICEWARE_ASSETS.push(Object.assign({},a)));saveServiceware();openServicewareManager()">↺ Reset to Defaults</button>
       <button class="btn btn-primary" onclick="saveServiceware();toast('Serviceware assets saved','ok');closeModal()">Save & Close</button>`;
@@ -3767,7 +3767,7 @@ function logRdTrial() {
     item.lastUpdated = date;
     totalCost += ing.qty * item.unitCost;
     wastageLog.unshift({
-      id: 'wst_' + Date.now() + '_' + idx,
+      id: 'wst_' + Date.now()+'_'+Math.random().toString(36).slice(2,6) + '_' + idx,
       date, type: 'rd_trial',
       itemId: item.id, itemName: item.name, unit: ing.unit,
       qty: ing.qty, prevStock: prev, newStock: item.stock,
@@ -4656,7 +4656,7 @@ function moSendOrder(){
   const date=new Date().toISOString();
 
   // Save order record
-  const rec={id:'mo_'+Date.now(),poNumber,date,supplierId:sid,supplierName:s?.name||'Manual Order',supplierIcon:s?.icon||'📋',supplierEmail:s?.email||'',supplierPhone:s?.phone||'',lines:lines.map(l=>({itemId:l.itemId,itemName:l.customName||(db.items[l.itemId]?.name||''),unit:l.unit,qty:l.qty,unitCost:l.cost,isNew:l.isNew})),total,notes,status:'sent',source:'manual'};
+  const rec={id:'mo_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),poNumber,date,supplierId:sid,supplierName:s?.name||'Manual Order',supplierIcon:s?.icon||'📋',supplierEmail:s?.email||'',supplierPhone:s?.phone||'',lines:lines.map(l=>({itemId:l.itemId,itemName:l.customName||(db.items[l.itemId]?.name||''),unit:l.unit,qty:l.qty,unitCost:l.cost,isNew:l.isNew})),total,notes,status:'sent',source:'manual'};
   manualOrders.unshift(rec);
   saveManualOrders();
 
@@ -4686,7 +4686,7 @@ function moSaveOrder(){
   const lines=moCollectLines();
   if(!lines.length){toast('Add at least one item','err');return;}
   const total=lines.reduce((t,l)=>t+l.qty*l.cost,0);
-  const rec={id:'mo_'+Date.now(),poNumber:'DRAFT',date:new Date().toISOString(),supplierId:sid,supplierName:s?.name||'Unknown',supplierIcon:s?.icon||'📋',supplierEmail:s?.email||'',supplierPhone:s?.phone||'',lines:lines.map(l=>({itemId:l.itemId,itemName:l.customName||(db.items[l.itemId]?.name||''),unit:l.unit,qty:l.qty,unitCost:l.cost,isNew:l.isNew})),total,notes:document.getElementById('mo_notes').value.trim(),status:'draft',source:'manual'};
+  const rec={id:'mo_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),poNumber:'DRAFT',date:new Date().toISOString(),supplierId:sid,supplierName:s?.name||'Unknown',supplierIcon:s?.icon||'📋',supplierEmail:s?.email||'',supplierPhone:s?.phone||'',lines:lines.map(l=>({itemId:l.itemId,itemName:l.customName||(db.items[l.itemId]?.name||''),unit:l.unit,qty:l.qty,unitCost:l.cost,isNew:l.isNew})),total,notes:document.getElementById('mo_notes').value.trim(),status:'draft',source:'manual'};
   manualOrders.unshift(rec);
   saveManualOrders();
   toast('Draft saved','ok');
@@ -5292,7 +5292,7 @@ function saveDelivery() {
   });
 
   db.deliveries.push({
-    id: 'dlv_'+Date.now(), supplier: s, date: dISO, docketNo: dn, notes, total,
+    id: 'dlv_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), supplier: s, date: dISO, docketNo: dn, notes, total,
     lines: valid.map(l => ({ itemId: l.itemId, name: db.items[l.itemId]?.name || l.name, qty: l.qty, unit: l.unit || db.items[l.itemId]?.unit, cost: l.cost })),
     scanned: !!window._scannedDocket
   });
@@ -5364,7 +5364,7 @@ function saveItem(itemId){
     Object.assign(db.items[itemId],data);
     sDB();closeModal();toast(`${name} updated`,'ok');rPage(cPage);
   } else {
-    const id='custom_'+Date.now();
+    const id='custom_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
     db.items[id]={id,...data};
     if(data.supplierId&&sup[data.supplierId]){if(!sup[data.supplierId].items.includes(id))sup[data.supplierId].items.push(id);sSup();}
     sDB();closeModal();
@@ -5454,7 +5454,7 @@ document.getElementById('modalBody').innerHTML=`<div class="fg"><div class="fiel
   }const footer=s?`<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveSupplier('${s.id}')">Save</button>`:`<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveSupplier(null)">Add Supplier</button>`;document.getElementById('modalFooter').innerHTML=footer;}
 function updTermsCustom(v){const el=document.getElementById('sup_terms_custom_wrap');if(el)el.style.display=v==='Custom'?'block':'none';}
 function updABNStatus(val){const el=document.getElementById('sup_abn_status');if(!el)return;if(!val.trim()){el.textContent='';return;}const ok=validateABN(val);el.textContent=ok?'✓ Valid ABN':'✗ Invalid ABN — check digits don\'t match';el.style.color=ok?'var(--green)':'var(--red)';}
-function saveSupplier(sid){const name=document.getElementById('sup_name').value.trim();if(!name){toast('Enter name','err');return;}const terms=document.getElementById('sup_terms')?.value||'Net 30';const data={name,category:document.getElementById('sup_cat').value,phone:document.getElementById('sup_phone').value.trim(),email:document.getElementById('sup_email').value.trim(),website:document.getElementById('sup_web').value.trim(),address:document.getElementById('sup_addr').value.trim(),icon:document.getElementById('sup_icon').value.trim()||'🏭',notes:document.getElementById('sup_notes').value.trim(),abn:document.getElementById('sup_abn')?.value.trim()||null,bsb:document.getElementById('sup_bsb')?.value.trim()||null,accountNumber:document.getElementById('sup_account')?.value.trim()||null,bpayBillerCode:document.getElementById('sup_bpay_biller')?.value.trim()||null,tpar:document.getElementById('sup_tpar')?.checked||false,autoOrderEnabled:document.getElementById('sup_auto_order')?.checked||false,autoOrderTime:document.getElementById('sup_auto_time')?.value||'',autoOrderDays:Array.from(document.querySelectorAll('.sup_auto_day:checked')).map(c=>parseInt(c.value)),paymentTerms:terms,paymentTermsDays:terms==='Custom'?parseInt(document.getElementById('sup_terms_custom_days')?.value||30):null,earlyPaymentDiscount:document.getElementById('sup_early_discount')?.value.trim()||null,creditLimit:parseFloat(document.getElementById('sup_credit_limit')?.value)||null};if(sid){Object.assign(sup[sid],data);}else{const id='sup_'+Date.now();sup[id]={id,items:[],...data};}sSup();closeModal();toast(`${name} ${sid?'updated':'added'}`,'ok');rPage(cPage);}
+function saveSupplier(sid){const name=document.getElementById('sup_name').value.trim();if(!name){toast('Enter name','err');return;}const terms=document.getElementById('sup_terms')?.value||'Net 30';const data={name,category:document.getElementById('sup_cat').value,phone:document.getElementById('sup_phone').value.trim(),email:document.getElementById('sup_email').value.trim(),website:document.getElementById('sup_web').value.trim(),address:document.getElementById('sup_addr').value.trim(),icon:document.getElementById('sup_icon').value.trim()||'🏭',notes:document.getElementById('sup_notes').value.trim(),abn:document.getElementById('sup_abn')?.value.trim()||null,bsb:document.getElementById('sup_bsb')?.value.trim()||null,accountNumber:document.getElementById('sup_account')?.value.trim()||null,bpayBillerCode:document.getElementById('sup_bpay_biller')?.value.trim()||null,tpar:document.getElementById('sup_tpar')?.checked||false,autoOrderEnabled:document.getElementById('sup_auto_order')?.checked||false,autoOrderTime:document.getElementById('sup_auto_time')?.value||'',autoOrderDays:Array.from(document.querySelectorAll('.sup_auto_day:checked')).map(c=>parseInt(c.value)),paymentTerms:terms,paymentTermsDays:terms==='Custom'?parseInt(document.getElementById('sup_terms_custom_days')?.value||30):null,earlyPaymentDiscount:document.getElementById('sup_early_discount')?.value.trim()||null,creditLimit:parseFloat(document.getElementById('sup_credit_limit')?.value)||null};if(sid){Object.assign(sup[sid],data);}else{const id='sup_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);sup[id]={id,items:[],...data};}sSup();closeModal();toast(`${name} ${sid?'updated':'added'}`,'ok');rPage(cPage);}
 function openFile(f){window.open(f,'_blank');toast(`Opening ${f}…`);}
 function requestNotifications(){if(typeof Notification==='undefined'){toast('Browser notifications aren\'t available in this environment','warn');return;}Notification.requestPermission().then(p=>{if(p==='granted'){settings.browserNotif=true;localStorage.setItem('oc_inv_settings',JSON.stringify(settings));document.getElementById('notifBanner').style.display='none';toast('Notifications enabled','ok');}else toast('Permission denied','err');});}
 function toggleBrowserNotif(el){settings.browserNotif=el.checked;if(el.checked&&typeof Notification!=='undefined'&&Notification.permission!=='granted')requestNotifications();}
@@ -5789,7 +5789,7 @@ function tlSaveUnit(unitId) {
     var u = units.find(function(x){ return x.id===unitId; });
     if (u) { u.name = name; u.type = type; }
   } else {
-    units.push({ id:'tu_'+Date.now(), name:name, type:type, active:true });
+    units.push({ id:'tu_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:name, type:type, active:true });
   }
   saveTempUnits(units);
   closeModal();
@@ -5817,7 +5817,7 @@ function tlLogCheck() {
   var pass = typeDef.check(temp);
   var now = new Date();
   var logs = getTempLogs();
-  logs.push({ id:'tl_'+Date.now(), unitId:unitId, date:fmtISO(now), time:now.toTimeString().slice(0,5), temp:temp, checkedBy:by, notes:notes, pass:pass });
+  logs.push({ id:'tl_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), unitId:unitId, date:fmtISO(now), time:now.toTimeString().slice(0,5), temp:temp, checkedBy:by, notes:notes, pass:pass });
   saveTempLogs(logs);
   document.getElementById('tl_temp').value = '';
   document.getElementById('tl_by').value = '';
@@ -8667,7 +8667,7 @@ function saveStaff2(staffId) {
     const s = staffList.find(x => x.id === staffId);
     if (s) Object.assign(s, data);
   } else {
-    staffList.push({ id:'stf_'+Date.now(), ...data, onboardingComplete: false });
+    staffList.push({ id:'stf_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), ...data, onboardingComplete: false });
   }
   saveStaff();
   closeModal();
@@ -9656,7 +9656,7 @@ function processOrders(orders, source) {
   sDB();
 
   // Save order record
-  const orderRecord = { id: 'pos_' + Date.now(), date, hour: new Date().getHours(), source, orders, matched, unmatched, totalDeductions };
+  const orderRecord = { id: 'pos_' + Date.now()+'_'+Math.random().toString(36).slice(2,6), date, hour: new Date().getHours(), source, orders, matched, unmatched, totalDeductions };
   posOrders.unshift(orderRecord);
   if (posOrders.length > 200) posOrders = posOrders.slice(0, 200);
   savePOSOrders();
@@ -9899,7 +9899,7 @@ function processDirectSale(){
   const notes=document.getElementById('direct_notes')?.value.trim()||'';
   const date=new Date().toISOString();
   const reorderTriggered=[];
-  const saleRecord={id:'ds_'+Date.now(),date,lines:[],total:0,notes};
+  const saleRecord={id:'ds_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),date,lines:[],total:0,notes};
 
   valid.forEach(l=>{
     const it=db.items[l.itemId];if(!it)return;
@@ -10079,7 +10079,7 @@ function stStart(){
       return ca.localeCompare(cb)||(a.name||'').localeCompare(b.name||'');
     });
   if(!items.length){toast('No items in inventory — add items first','err');return;}
-  _activeST={id:'st_'+Date.now(),name,date,countedBy:by,scope,mode,startedAt:new Date().toISOString(),completedAt:null,status:'draft',
+  _activeST={id:'st_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),name,date,countedBy:by,scope,mode,startedAt:new Date().toISOString(),completedAt:null,status:'draft',
     lines:items.map(i=>({itemId:i.id,itemName:i.name||'',unit:i.unit||'',category:i.category||'Uncategorised',expected:i.stock||0,counted:null,unitCost:i.unitCost||0,notes:'',varianceCause:''}))};
   saveDraft();stShowActive();toast('Stocktake started — '+items.length+' item'+(items.length!==1?'s':'')+' to count','ok');
 }
@@ -11209,7 +11209,7 @@ async function aimExecuteTool(toolName, input) {
         const prev = it.stock;
         it.stock = Math.max(0, Math.round((it.stock - input.quantity)*10000)/10000);
         it.lastUpdated = new Date().toISOString();
-        const entry = { id:'wst_'+Date.now(), date:new Date().toISOString(), type:'accidental',
+        const entry = { id:'wst_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), date:new Date().toISOString(), type:'accidental',
           itemId:it.id, itemName:it.name, unit:it.unit, qty:input.quantity,
           prevStock:prev, newStock:it.stock, reason:input.reason, notes:input.notes||'' };
         wastageLog.unshift(entry);
@@ -11245,7 +11245,7 @@ async function aimExecuteTool(toolName, input) {
         }
         if (!lines.length) return `ERROR: No matching items found. Skipped: ${skipped.join(', ')}`;
         const total = lines.reduce((s,l) => s+l.qty*l.cost, 0);
-        const dlvObj = { id:'dlv_'+Date.now(), supplier:input.supplier,
+        const dlvObj = { id:'dlv_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), supplier:input.supplier,
           date:new Date().toISOString(), docketNo:input.docket_number||'',
           notes:'Logged via Gavin', total, lines };
         db.deliveries.push(dlvObj);
@@ -11287,7 +11287,7 @@ async function aimExecuteTool(toolName, input) {
         localStorage.setItem('oc_last_po', String(lastPO));
         const poNumber = 'OC' + String(lastPO).padStart(5,'0');
         const total = lines.reduce((t,l) => t+l.qty*l.unitCost, 0);
-        const rec = { id:'sord_'+Date.now(), poNumber, date:new Date().toISOString(),
+        const rec = { id:'sord_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), poNumber, date:new Date().toISOString(),
           supplierId:s?.id||'', supplierName:supName, supplierIcon:s?.icon||'🏭',
           supplierEmail:s?.email||'', supplierPhone:s?.phone||'',
           lines, total, status:'sent', notes:input.notes||'' };
@@ -11332,7 +11332,7 @@ async function aimExecuteTool(toolName, input) {
             available_days ? available_days.includes(i) : true
           );
           const newStaff = {
-            id: 'stf_' + Date.now(),
+            id: 'stf_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
             name: name.trim(),
             role: resolvedRole,
             empType: resolvedEmpType,
@@ -11543,7 +11543,7 @@ async function aimExecuteTool(toolName, input) {
         });
 
         // Save POS order record (include hour for peak-time analysis)
-        const orderRecord = { id:'pos_'+Date.now(), date, hour: new Date().getHours(), source, orders, matched, unmatched, totalDeductions };
+        const orderRecord = { id:'pos_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), date, hour: new Date().getHours(), source, orders, matched, unmatched, totalDeductions };
         posOrders.unshift(orderRecord);
         if (posOrders.length > 200) posOrders = posOrders.slice(0, 200);
         savePOSOrders();
@@ -11651,7 +11651,7 @@ async function aimExecuteTool(toolName, input) {
           return `✓ Supplier "${existing.name}" updated.`;
         } else {
           // Add new
-          const newSid = 'sup_' + Date.now();
+          const newSid = 'sup_' + Date.now()+'_'+Math.random().toString(36).slice(2,6);
           sup[newSid] = {
             id: newSid,
             name: input.name.trim(),
@@ -11880,7 +11880,7 @@ async function aimExecuteTool(toolName, input) {
       case 'log_covers': {
         const dateStr = input.date || new Date().toISOString().split('T')[0];
         const entry = {
-          id: 'cvr_'+Date.now(),
+          id: 'cvr_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
           date: dateStr,
           hour: input.hour ?? null,
           count: input.count,
@@ -12133,7 +12133,7 @@ Note: Revenue is estimated from recorded sales × dish prices. This is not a sub
         const rawHours = calcShiftHours(input.start_time, input.end_time);
         const actualH  = Math.max(0, rawHours - breakMins/60);
         const entry = {
-          id: 'ah_' + Date.now(),
+          id: 'ah_' + Date.now()+'_'+Math.random().toString(36).slice(2,6),
           staffId: st.id,
           staffName: st.name,
           date: dateStr,
@@ -12200,7 +12200,7 @@ Note: Revenue is estimated from recorded sales × dish prices. This is not a sub
         }
 
         const entry = {
-          id: 'clk_' + Date.now(),
+          id: 'clk_' + Date.now()+'_'+Math.random().toString(36).slice(2,6),
           staffId: st.id, staffName: st.name,
           date: dateStr, clockIn: timeStr, clockInTs: now.toISOString(),
           clockOut: null, clockOutTs: null, breakMins: 0, totalHours: null,
@@ -12426,7 +12426,7 @@ Note: Revenue is estimated from recorded sales × dish prices. This is not a sub
           if (!input.name) return 'name required.';
           if (!input.date) return 'date (YYYY-MM-DD) required.';
           if (!input.attendees) return 'attendees required.';
-          var nev = { id:'evt_'+Date.now(), name:input.name, date:input.date, attendees:input.attendees, venue:input.venue||'', client:input.client||'', clientEmail:input.client_email||'', notes:input.notes||'', status:input.status||'planning', menu:[], createdAt:new Date().toISOString(), poLeadDays:14, marginPct:65, scheduledPOs:[] };
+          var nev = { id:'evt_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:input.name, date:input.date, attendees:input.attendees, venue:input.venue||'', client:input.client||'', clientEmail:input.client_email||'', notes:input.notes||'', status:input.status||'planning', menu:[], createdAt:new Date().toISOString(), poLeadDays:14, marginPct:65, scheduledPOs:[] };
           _events.unshift(nev);
           saveEvents();
           if (document.getElementById('evts-grid')) rEvents();
@@ -12683,7 +12683,7 @@ Note: Revenue is estimated from recorded sales × dish prices. This is not a sub
           var stev = _events.find(function(ev){return ev.id===input.event_id;});
           if (!stev) return 'Event not found.';
           if (!(stev.menu||[]).length) return 'Event has no menu to save.';
-          var tpl = { id:'tpl_'+Date.now(), name:input.template_name.trim(), menu: stev.menu.map(function(m){return {dish:m.dish,portionsPerHead:m.portionsPerHead||1,course:m.course||'main'};}), createdAt:new Date().toISOString() };
+          var tpl = { id:'tpl_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:input.template_name.trim(), menu: stev.menu.map(function(m){return {dish:m.dish,portionsPerHead:m.portionsPerHead||1,course:m.course||'main'};}), createdAt:new Date().toISOString() };
           _eventTemplates.unshift(tpl);
           saveEventTemplates();
           if (typeof evtsRenderTemplateOptions === 'function') evtsRenderTemplateOptions();
@@ -12701,7 +12701,7 @@ Note: Revenue is estimated from recorded sales × dish prices. This is not a sub
                         : _eventTemplates.find(function(t){return t.name.toLowerCase()===(input.template_name||'').toLowerCase();});
           if (!tplMatch) return 'Template not found. Use list_templates to see available names.';
           var tMenu = tplMatch.menu.filter(function(m){return BOM_DATA[m.dish];}).map(function(m){return {dish:m.dish,portionsPerHead:m.portionsPerHead||1,course:m.course||'main'};});
-          var cev = { id:'evt_'+Date.now(), name:input.name, date:input.date, attendees:input.attendees, venue:input.venue||'', client:input.client||'', clientEmail:input.client_email||'', notes:input.notes||'', status:input.status||'planning', menu:tMenu, createdAt:new Date().toISOString(), poLeadDays:14, marginPct:65, scheduledPOs:[] };
+          var cev = { id:'evt_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:input.name, date:input.date, attendees:input.attendees, venue:input.venue||'', client:input.client||'', clientEmail:input.client_email||'', notes:input.notes||'', status:input.status||'planning', menu:tMenu, createdAt:new Date().toISOString(), poLeadDays:14, marginPct:65, scheduledPOs:[] };
           _events.unshift(cev);
           saveEvents();
           if (document.getElementById('evts-grid')) rEvents();
@@ -13289,7 +13289,7 @@ Note: Revenue is estimated from recorded sales × dish prices. This is not a sub
           }
           if (days == null || days <= 0) days = 1;
           const entry = {
-            id: 'lv_' + Date.now().toString(36),
+            id: 'lv_' + Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6),
             staffName: input.staff_name,
             type: input.type,
             startDate: input.start_date,
@@ -14435,7 +14435,7 @@ async function gavSummariseAndSave() {
 
   // Build session entry
   const entry = {
-    id: 'conv_' + Date.now(),
+    id: 'conv_' + Date.now()+'_'+Math.random().toString(36).slice(2,6),
     date: _gavSessionStart,
     summary: summary || '(no summary)',
     actions: _gavSessionActions.slice(-20)
@@ -15514,7 +15514,7 @@ function posConfirmImport(salesJSON, bucketsJSON) {
           source:'POS Connector', dishName, qty:b.qty, bom:bom.length });
       });
     } else {
-      posOrders.unshift({ id:'pos_'+Date.now(), date:importDate, source:'POS Connector', dishName, qty, bom:bom.length });
+      posOrders.unshift({ id:'pos_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), date:importDate, source:'POS Connector', dishName, qty, bom:bom.length });
     }
   });
 
@@ -15770,7 +15770,7 @@ function rciConfirmImport() {
     const unit = document.getElementById('rci_unit_'+i)?.value || ing.unit || 'each';
     const cost = parseFloat(document.getElementById('rci_cost_'+i)?.value)  || 0;
     const stock= parseFloat(document.getElementById('rci_stock_'+i)?.value) || 0;
-    const id   = 'itm_' + Date.now() + '_' + i;
+    const id   = 'itm_' + Date.now()+'_'+Math.random().toString(36).slice(2,6) + '_' + i;
     db.items[id] = { id, name: ing.name, category: cat, unit, unitCost: cost, stock, onOrder: 0, parLevel: 0, reorderAt: 0, supplierId: '', lastUpdated: new Date().toISOString() };
     // Update matched status in dishes so BOM gets correct name
     Object.values(dishes).forEach(ings => {
@@ -16577,7 +16577,7 @@ function ppBootApp() {
               qty:-use, prevStock:prev, newStock:item.stock, type:'pos_sale', notes:`POS webhook: ${dish} ×${qty}` });
             deducted++; cNotify(item);
           });
-          posOrders.unshift({ id:'pos_'+Date.now(), date, source:'URL Webhook', dishName:dish, qty, bom:bom.length });
+          posOrders.unshift({ id:'pos_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), date, source:'URL Webhook', dishName:dish, qty, bom:bom.length });
         });
       }
 
@@ -17556,7 +17556,7 @@ function evtsSaveAsTemplate() {
   var name = prompt('Name this menu template (e.g. "Spring Cocktail", "Corporate Lunch Standard"):', ev.name + ' Menu');
   if (!name) return;
   _eventTemplates.unshift({
-    id: 'tpl_' + Date.now(),
+    id: 'tpl_' + Date.now()+'_'+Math.random().toString(36).slice(2,6),
     name: name.trim(),
     menu: (ev.menu||[]).map(function(m){ return { dish:m.dish, portionsPerHead:m.portionsPerHead||1, course:m.course||'main' }; }),
     createdAt: new Date().toISOString()
@@ -18959,7 +18959,7 @@ function evtsSaveEvent() {
       _events[idx].isConference = wantConference;
     }
   } else {
-    var newEv = Object.assign({ id:'evt_'+Date.now(), menu:[], createdAt:new Date().toISOString(), marginPct:65, scheduledPOs:[] }, data);
+    var newEv = Object.assign({ id:'evt_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), menu:[], createdAt:new Date().toISOString(), marginPct:65, scheduledPOs:[] }, data);
     newEv.isConference = wantConference;
     if (wantConference) {
       newEv.sittings = evtsBuildSeedSittings(confStartDate, confNumDays);
@@ -20181,7 +20181,7 @@ RULES: supplierName must NEVER be null. Extract every piece of contact/payment i
     const status = inv.total <= autoApprove && abnValid ? 'approved' : 'captured';
 
     const newInv = {
-      id:           'ppinv_' + Date.now(),
+      id:           'ppinv_' + Date.now()+'_'+Math.random().toString(36).slice(2,6),
       supplierName: inv.supplierName || '',
       abn:          inv.abn || null,
       abnValid,
@@ -20420,7 +20420,7 @@ function ppayOpenAddCard() {
   // Stub: simulate adding a test card
   if (!_ppPaySettings.savedCards) _ppPaySettings.savedCards = [];
   const testCard = {
-    id:        'pm_test_' + Date.now(),
+    id:        'pm_test_' + Date.now()+'_'+Math.random().toString(36).slice(2,6),
     brand:     'visa',
     last4:     '4242',
     expiry:    '12/29',
@@ -21257,7 +21257,7 @@ function ppClockIn(staffId, notes) {
   const existing = clockEntries.find(e => e.staffId === staffId && e.date === dateStr && !e.clockOut);
   if (existing) { toast(`${st.name} is already clocked in (since ${existing.clockIn})`, 'err'); return; }
 
-  clockEntries.push({ id: 'clk_'+Date.now(), staffId, staffName: st.name, date: dateStr, clockIn: timeStr, clockInTs: now.toISOString(), notes: notes||'' });
+  clockEntries.push({ id: 'clk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), staffId, staffName: st.name, date: dateStr, clockIn: timeStr, clockInTs: now.toISOString(), notes: notes||'' });
   saveClockEntries();
   toast(`⏱ ${st.name} clocked in at ${timeStr}`, 'ok');
   ppRefreshClockBoard();
@@ -22100,7 +22100,7 @@ function prImportOnboardingPayload(p) {
     rRoster();
     toast(`✓ ${staffData.name} updated from onboarding submission`, 'ok');
   } else {
-    staffData.id       = 'stf_'+Date.now();
+    staffData.id       = 'stf_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
     staffData.role     = 'Other';
     staffData.empType  = 'Casual';
     staffData.rate     = BASE_RATES['Other'] || 24.10;
@@ -23158,7 +23158,7 @@ function connectInbox(provider) {
     return;
   }
   arr.push({
-    id: 'conn_' + Date.now().toString(36),
+    id: 'conn_' + Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6),
     provider: provider,
     emailAddress: addr.toLowerCase(),
     status: 'active',
@@ -23219,7 +23219,7 @@ function simulateInvoiceFromInbox(connectionId) {
   var invoices = loadEmailInvoices();
   var now = Date.now();
   invoices.push({
-    id: 'ei_' + Date.now().toString(36),
+    id: 'ei_' + Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6),
     receivedAt: new Date(now).toISOString(),
     fromAddress: s.email,
     fromName: s.name,
@@ -24742,7 +24742,7 @@ function loySubmitMember() {
   const name = document.getElementById('lm-name')?.value.trim();
   if (!name) { toast('Name is required'); return; }
   const member = {
-    id:         'm_' + Date.now(),
+    id:         'm_' + Date.now()+'_'+Math.random().toString(36).slice(2,6),
     name,
     email:      document.getElementById('lm-email')?.value.trim()||'',
     phone:      document.getElementById('lm-phone')?.value.trim()||'',
@@ -25522,7 +25522,7 @@ function autoOrderCheck() {
 
     // Save order record
     const orderRecord = {
-      id: 'sord_' + Date.now(),
+      id: 'sord_' + Date.now()+'_'+Math.random().toString(36).slice(2,6),
       poNumber, auto: true,
       date: now.toISOString(),
       supplierId: supplier.id,
