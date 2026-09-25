@@ -155,9 +155,9 @@ label{font-size:11px;color:var(--sub);text-transform:uppercase;letter-spacing:.0
     <div class="nav-item" data-tab="siteviewer"><span class="nav-icon">◎</span>Site viewer</div>
     <div class="nav-item" data-tab="finance"><span class="nav-icon">$</span>Finance</div>
     <div class="nav-item" data-tab="payroll"><span class="nav-icon">▣</span>Payroll</div>
+    <div class="nav-item" onclick="openSettings()"><span class="nav-icon">⚙</span>Settings</div>
     <div class="sidebar-foot">
       <div class="foot-label"><span class="live-dot" id="live-dot"></span><span id="live-label">storage ready</span></div>
-      <span class="gear" onclick="openSettings()">⚙ organisation settings</span>
     </div>
   </div>
 
@@ -601,6 +601,7 @@ async function saveSettings(){
 // ── Nav ──────────────────────────────────────────────────────────────────
 document.querySelectorAll('.nav-item').forEach(el => {
   el.addEventListener('click', () => {
+    if (!el.dataset.tab) return; // e.g. the Settings item, which opens a modal instead of a tab
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     el.classList.add('active');
     document.querySelectorAll('.main section').forEach(s => s.classList.add('hidden'));
