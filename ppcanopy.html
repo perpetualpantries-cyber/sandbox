@@ -751,9 +751,15 @@ async function serverRegenerateOrgLinkCode(client){
 }
 function showOrgLinkCodeOnce(client, linkCode){
   const expires = linkCode.expires_at ? new Date(linkCode.expires_at).toLocaleString() : 'in 24 hours';
-  const msg = `PP Command linking code for ${client.name} — expires ${expires}, single-use:\n\n${linkCode.code}\n\nGive this to that client's PP Command console (Settings → Linking code). It claims the code itself and gets its own credential — nothing to lose if you close this before copying, just generate a new one from the client's profile.`;
-  try { navigator.clipboard?.writeText(linkCode.code); } catch(e){}
-  alert(msg + '\n\n(Code copied to clipboard.)');
+  let copied = false;
+  try { navigator.clipboard?.writeText(linkCode.code); copied = true; } catch(e){}
+  // A plain alert()'s text can't be selected/copied in most browsers — use prompt()
+  // instead, whose input field is selectable, and pre-fill it with the code so
+  // Ctrl/Cmd+A, Ctrl/Cmd+C works even if the clipboard write above silently failed.
+  prompt(
+    `Linking code for ${client.name} — expires ${expires}, single-use.${copied ? ' (Already copied to your clipboard — this is just a backup.)' : ' Select the text below and copy it (clipboard write failed).'}\n\nGive it to that client's PP Command console (Settings → Linking code). Nothing to lose if you close this without copying — just generate a new one from the client's profile.`,
+    linkCode.code
+  );
 }
 async function syncRoninAsksFromServer(){
   if (!SERVER.on()) return;
