@@ -684,12 +684,12 @@ const STORE = {
   backend: (typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function') ? 'artifact'
           : (function(){ try { localStorage.setItem('__pc_t','1'); localStorage.removeItem('__pc_t'); return 'local'; } catch(e){ return 'memory'; } })(),
   async get(key, shared){
-    if (this.backend === 'artifact') return STORE.get(key, shared);
+    if (this.backend === 'artifact') return window.storage.get(key, shared);
     const v = this.backend === 'local' ? localStorage.getItem('ppcanopy:' + key) : (_memStore[key] ?? null);
     return v == null ? null : { key, value: v };
   },
   async set(key, value, shared){
-    if (this.backend === 'artifact') return STORE.set(key, value, shared);
+    if (this.backend === 'artifact') return window.storage.set(key, value, shared);
     if (this.backend === 'local') localStorage.setItem('ppcanopy:' + key, value); else _memStore[key] = value;
     return { key, value };
   },
