@@ -223,6 +223,11 @@
         <div class="search-results" id="overview-search-results"></div>
       </div>
       <div class="grid-metrics" id="metrics"></div>
+      <div class="card" id="live-card" style="display:none;">
+        <h2>Live from linked clients</h2>
+        <p class="helptext" id="live-card-sub"></p>
+        <div id="live-table"></div>
+      </div>
       <div class="card">
         <h2>Clients under PPcanopy</h2>
         <p class="helptext">Jump straight into a client's PPcanopy drill-down view.</p>
@@ -333,7 +338,7 @@
       <div class="eyebrow">Menu &amp; sales</div>
       <h1>Products</h1>
       <div class="co-feed" style="max-width:640px;">
-        PP has access to a client's menu items — name, category, price — and, once connected to POS, their sales trends. It never has access to a client's ingredients, recipes, or inventory levels; that data stays entirely inside the client's own PP.
+        PP has access to a client's menu items — name, category, price — and their org-level weekly trend (revenue, GP, labour, covers) from linked venues' snapshots. Per-item sales trends need POS integration. It never has access to a client's ingredients, recipes, or inventory levels; that data stays entirely inside the client's own PP.
       </div>
       <div class="card">
         <label>Client</label>
@@ -341,6 +346,7 @@
       </div>
       <div class="card">
         <h2>Menu items</h2>
+        <div id="product-live"></div>
         <div class="row">
           <div><label>Item name</label><input id="prod-name" placeholder="e.g. Flat White"></div>
           <div><label>Category</label>
@@ -353,8 +359,8 @@
       </div>
       <div class="card">
         <h2>Sales trends</h2>
-        <label>Product</label>
-        <select id="trend-product"></select>
+        <div id="trend-product-wrap"><label>Product</label>
+        <select id="trend-product"></select></div>
         <div id="trend-chart" style="margin-top:12px;"></div>
       </div>
     </div>
@@ -678,12 +684,12 @@ const STORE = {
   backend: (typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function') ? 'artifact'
           : (function(){ try { localStorage.setItem('__pc_t','1'); localStorage.removeItem('__pc_t'); return 'local'; } catch(e){ return 'memory'; } })(),
   async get(key, shared){
-    if (this.backend === 'artifact') return STORE.get(key, shared);
+    if (this.backend === 'artifact') return window.storage.get(key, shared);
     const v = this.backend === 'local' ? localStorage.getItem('ppcanopy:' + key) : (_memStore[key] ?? null);
     return v == null ? null : { key, value: v };
   },
   async set(key, value, shared){
-    if (this.backend === 'artifact') return STORE.set(key, value, shared);
+    if (this.backend === 'artifact') return window.storage.set(key, value, shared);
     if (this.backend === 'local') localStorage.setItem('ppcanopy:' + key, value); else _memStore[key] = value;
     return { key, value };
   },
@@ -712,8 +718,8 @@ async function fetchWithTimeout(url, opts, ms){
   finally { clearTimeout(t); }
 }
 // ── PP backend client. Server mode is on when a server URL and a staff login token are set (Settings).
-// In server mode: creating a client creates the org (and shows its one-time key), products come from
-// linked sites' menu items, and Canopy→Ronin asks go through the operator-gated queue. Everything else
+// In server mode: creating a client creates the org (and shows its one-time key), products, the weekly trend
+// and the live overview come from linked sites' snapshots (see LIVE below), and Canopy→Ronin asks go through the operator-gated queue. Everything else
 // still lives locally for now (see PP_Backend_API_Spec §7.3 for the remaining migration).
 const SERVER = {
   url(){ return (getLocalSetting('server_url') || '').replace(/\/+$/, ''); },
@@ -766,6 +772,69 @@ async function serverSyncClients(){
     c.serverSitesLinked = s.sites_linked;
   });
 }
+// Live client data (server mode, linked clients only): org-level aggregates and
+// menu items that linked venues promote via their weekly snapshot. Held in memory
+// only — never saved into the local client record — so a stale copy can't be
+// mistaken for live data, and locally-typed pre-sale menu notes are never overwritten.
+const LIVE = { overview:{}, trend:{}, products:{} };
+const LIVE_TTL_MS = 5 * 60 * 1000;
+function isLiveClient(client){ return !!(client && client.serverOrgId && SERVER.on()); }
+async function fetchLive(client, kind, force){
+  if(!isLiveClient(client)) return null;
+  const hit = LIVE[kind][client.serverOrgId];
+  if(hit && !force && Date.now() - hit.at < LIVE_TTL_MS) return hit.data;
+  const path = { overview:'/overview', trend:'/sales-trend?weeks=12', products:'/products' }[kind];
+  try{
+    const r = await SERVER.req('GET', `/api/pp/clients/${client.serverOrgId}${path}`);
+    if(!r.ok) return { error: r.data.error || ('HTTP ' + r.status) };
+    LIVE[kind][client.serverOrgId] = { at: Date.now(), data: r.data };
+    return r.data;
+  }catch(e){ return { error: e.name==='AbortError' ? 'server timed out' : e.message }; }
+}
+function liveAgeLabel(iso){
+  if(!iso) return 'no snapshots yet';
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  return days<=0 ? 'last snapshot today' : `last snapshot ${days}d ago`;
+}
+function liveOverviewMetricsHtml(ov){
+  const pct = v => v==null ? '—' : v + '%';
+  return `
+    <div class="metric"><div class="num">${AUD(ov.revenue_week)}</div><div class="lbl">Revenue this week (${ov.reporting_sites}/${ov.site_count} venues reporting)</div></div>
+    <div class="metric"><div class="num">${pct(ov.avg_gp_pct)}</div><div class="lbl">GP (revenue-weighted)</div></div>
+    <div class="metric"><div class="num">${pct(ov.avg_labour_pct)}</div><div class="lbl">Labour (revenue-weighted)</div></div>
+    <div class="metric"><div class="num">${(ov.covers_week||0).toLocaleString('en-AU')}</div><div class="lbl">Covers this week</div></div>
+    <div class="metric"><div class="num" style="${ov.stock_out>0?'color:var(--rust);':''}">${ov.stock_out}</div><div class="lbl">Items out of stock · ${ov.stock_low} low</div></div>
+    <div class="metric"><div class="num" style="${ov.stale_sites>0?'color:var(--warn);':''}">${ov.stale_sites}</div><div class="lbl">Venues not reporting (&gt;8d) · ${liveAgeLabel(ov.last_snapshot_at)}</div></div>`;
+}
+// Weekly revenue as thin bars (one series, one axis); GP/labour go in the table below it, not a second axis.
+function weeklyTrendHtml(weeks){
+  if(!weeks || !weeks.length) return '<div class="trend-empty"><div class="big">No snapshots yet</div>This fills in as this client\'s linked venues send their weekly PP snapshot.</div>';
+  // The server only returns weeks that had snapshots — fill the gaps so the x-axis stays evenly spaced in time.
+  const byStart = new Map(weeks.map(w=>[w.week_start, w])), filled = [];
+  for(let t = Date.parse(weeks[0].week_start+'T00:00:00Z'), end = Date.parse(weeks[weeks.length-1].week_start+'T00:00:00Z'); t <= end; t += 7*86400000){
+    const k = new Date(t).toISOString().slice(0,10);
+    filled.push(byStart.get(k) || { week_start:k, reporting_sites:0, revenue:0, gp_pct:null, labour_pct:null, covers:null });
+  }
+  weeks = filled;
+  const W=760, H=200, padL=56, padR=12, padT=14, padB=28;
+  const max = Math.max(...weeks.map(w=>w.revenue), 1);
+  const slot = (W-padL-padR)/weeks.length, bw = Math.max(4, Math.min(36, slot*0.6));
+  const y = v => H-padB - (v/max)*(H-padT-padB);
+  const wk = d => new Date(d+'T00:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'});
+  const bars = weeks.map((w,i)=>{
+    const x = padL + i*slot + (slot-bw)/2, top = y(w.revenue), h = Math.max(0, H-padB-top), r = Math.min(4, h);
+    const d = h>0 ? `M${x},${H-padB} V${top+r} Q${x},${top} ${x+r},${top} H${x+bw-r} Q${x+bw},${top} ${x+bw},${top+r} V${H-padB} Z` : '';
+    const tip = `Week of ${wk(w.week_start)}: ${AUD(w.revenue)} · ${w.reporting_sites} venue${w.reporting_sites===1?'':'s'} reporting${w.gp_pct!=null?` · GP ${w.gp_pct}%`:''}${w.labour_pct!=null?` · labour ${w.labour_pct}%`:''}`;
+    return `<g><title>${escapeHtml(tip)}</title><rect x="${padL+i*slot}" y="${padT}" width="${slot}" height="${H-padT-padB}" fill="transparent"/>${d?`<path d="${d}" fill="var(--verdigris)"/>`:''}
+      ${(i===0||i===weeks.length-1||weeks.length<=6)?`<text x="${x+bw/2}" y="${H-10}" text-anchor="middle" font-size="11" fill="var(--graphite)" opacity=".7">${wk(w.week_start)}</text>`:''}</g>`;
+  }).join('');
+  const grid = [0, .5, 1].map(f=>`<line x1="${padL}" x2="${W-padR}" y1="${y(max*f)}" y2="${y(max*f)}" stroke="var(--line)" stroke-width="1"/><text x="${padL-6}" y="${y(max*f)+4}" text-anchor="end" font-size="11" fill="var(--graphite)" opacity=".7">${AUD(max*f)}</text>`).join('');
+  const table = `<table style="margin-top:10px;"><tr><th>Week of</th><th class="num">Revenue</th><th class="num">GP</th><th class="num">Labour</th><th class="num">Covers</th><th class="num">Venues reporting</th></tr>
+    ${weeks.slice().reverse().map(w=>`<tr><td>${wk(w.week_start)}</td><td class="num">${AUD(w.revenue)}</td><td class="num">${w.gp_pct!=null?w.gp_pct+'%':'—'}</td><td class="num">${w.labour_pct!=null?w.labour_pct+'%':'—'}</td><td class="num">${w.covers!=null?w.covers.toLocaleString('en-AU'):'—'}</td><td class="num">${w.reporting_sites}</td></tr>`).join('')}</table>`;
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Weekly revenue across linked venues" style="background:#FFFDF9;border:1px solid var(--line);border-radius:8px;">${grid}${bars}</svg>
+    <details style="margin-top:8px;"><summary class="helptext" style="cursor:pointer;">Week-by-week table</summary>${table}</details>`;
+}
+
 function showOrgLinkCodeOnce(client, linkCode){
   const expires = linkCode.expires_at ? new Date(linkCode.expires_at).toLocaleString() : 'in 24 hours';
   let copied = false;
@@ -1052,7 +1121,35 @@ function renderDashboard(){
     document.getElementById('metrics').innerHTML += `<div class="metric" style="grid-column:span 4"><div class="num">${pendingReqs}</div><div class="lbl">Quote request${pendingReqs===1?'':'s'} waiting for review — see Quote Requests tab</div></div>`;
   }
   renderClientDropdown();
+  renderDashboardLive();
 }
+// One row per linked client (org-level aggregates only), flagging stock-outs and
+// venues that have stopped reporting. Hidden entirely outside server mode.
+async function renderDashboardLive(force){
+  const card = document.getElementById('live-card');
+  const linked = clients.filter(isLiveClient);
+  if(!linked.length){ card.style.display = 'none'; return; }
+  card.style.display = '';
+  const results = await Promise.all(linked.map(c=>fetchLive(c, 'overview', force).then(ov=>({c, ov}))));
+  const ok = results.filter(r=>r.ov && !r.ov.error);
+  const tot = ok.reduce((a,{ov})=>({ rev:a.rev+ov.revenue_week, rep:a.rep+ov.reporting_sites, sites:a.sites+ov.site_count, stale:a.stale+ov.stale_sites, out:a.out+ov.stock_out }), {rev:0, rep:0, sites:0, stale:0, out:0});
+  document.getElementById('live-card-sub').innerHTML = `${AUD(tot.rev)} revenue this week across ${tot.rep}/${tot.sites} reporting venue${tot.sites===1?'':'s'}`
+    + (tot.stale ? ` · <span style="color:var(--warn);">${tot.stale} not reporting</span>` : '')
+    + (tot.out ? ` · <span style="color:var(--rust);">${tot.out} item${tot.out===1?'':'s'} out of stock</span>` : '')
+    + ` · <a href="#" id="live-refresh">refresh</a>`;
+  document.getElementById('live-refresh').addEventListener('click', e=>{ e.preventDefault(); renderDashboardLive(true); });
+  const pct = v => v==null ? '—' : v + '%';
+  document.getElementById('live-table').innerHTML = `<table>
+    <tr><th>Client</th><th class="num">Revenue (wk)</th><th class="num">GP</th><th class="num">Labour</th><th class="num">Venues reporting</th><th>Flags</th></tr>
+    ${results.map(({c, ov})=>{
+      if(!ov || ov.error) return `<tr><td>${escapeHtml(c.name)}</td><td colspan="5" class="helptext">Couldn't load: ${escapeHtml((ov&&ov.error)||'unknown error')}</td></tr>`;
+      const flags = [ov.stale_sites ? `${ov.stale_sites} not reporting` : '', ov.stock_out ? `${ov.stock_out} out of stock` : '', !ov.site_count ? 'no venues linked' : ''].filter(Boolean).join(' · ');
+      return `<tr data-live-client="${c.id}" style="cursor:pointer;"><td>${escapeHtml(c.name)}</td><td class="num">${AUD(ov.revenue_week)}</td><td class="num">${pct(ov.avg_gp_pct)}</td><td class="num">${pct(ov.avg_labour_pct)}</td><td class="num">${ov.reporting_sites}/${ov.site_count}</td><td>${escapeHtml(flags||'—')}</td></tr>`;
+    }).join('')}</table>`;
+}
+document.getElementById('live-table').addEventListener('click', e=>{
+  const tr = e.target.closest('tr[data-live-client]'); if(tr) openClientOps(tr.dataset.liveClient);
+});
 
 function renderClientDropdown(){
   const sel = document.getElementById('dashboard-client-select');
@@ -1135,6 +1232,15 @@ function computeEmployeeMetrics(employeeId){
   };
 }
 
+async function renderClientLive(client, force){
+  const box = document.getElementById('co-live'); if(!box) return;
+  const [ov, trend] = await Promise.all([fetchLive(client, 'overview', force), fetchLive(client, 'trend', force)]);
+  if(document.getElementById('co-live') !== box) return; // modal closed/reopened while loading
+  if(!ov || ov.error){ box.innerHTML = `<div class="helptext">Couldn't load live data: ${escapeHtml((ov&&ov.error)||'unknown error')}</div>`; return; }
+  if(!ov.site_count){ box.innerHTML = `<div class="helptext">${client.serverClaimed ? 'PP Command is linked, but no venues have linked to it yet.' : 'Waiting for this client\'s PP Command to claim its linking code.'}</div>`; return; }
+  box.innerHTML = `<div class="co-metrics">${liveOverviewMetricsHtml(ov)}</div>` + (trend && !trend.error ? weeklyTrendHtml(trend.weeks) : '');
+}
+
 function openClientOps(clientId){
   const client = clients.find(c=>c.id===clientId); if(!client) return;
   const overall = computeOverallMetrics();
@@ -1157,6 +1263,8 @@ function openClientOps(clientId){
       <div class="metric"><div class="num">${clientQuotes.length}</div><div class="lbl">Quotes on file</div></div>
       <div class="metric"><div class="num">${AUD(clientBooked)}</div><div class="lbl">Booked (won, first-year)</div></div>
     </div>
+    ${isLiveClient(client) ? `<div class="section-sub">Live performance <button class="btn secondary" id="co-live-refresh" style="padding:2px 8px;font-size:11px;margin-left:6px;">↻</button></div>
+    <div id="co-live"><div class="helptext">Loading live data from linked venues…</div></div>` : ''}
     <div class="section-sub">Billing cycle</div>
     <div class="row">
       <div><label><input type="checkbox" id="co-bill-active" style="width:auto;display:inline-block;margin-right:6px;" ${b.active?'checked':''}>On an active billing cycle</label></div>
@@ -1188,6 +1296,10 @@ function openClientOps(clientId){
     <div class="btnbar"><button class="btn" id="co-open-quote">Open in Quote Builder</button></div>
   `;
   renderRoninLog(client.id);
+  if(isLiveClient(client)){
+    renderClientLive(client);
+    document.getElementById('co-live-refresh').addEventListener('click', ()=>renderClientLive(client, true));
+  }
   document.getElementById('co-close').addEventListener('click', closeClientOps);
   document.getElementById('co-ronin-ask').addEventListener('click', async ()=>{
     const input = document.getElementById('co-ronin-msg');
@@ -2244,14 +2356,34 @@ function currentProdClient(){
 function renderProductList(){
   const wrap = document.getElementById('product-list');
   const client = currentProdClient();
+  renderLiveProducts(client);
   if(!client){ wrap.innerHTML = '<div class="empty-hint">Add a client first.</div>'; return; }
-  if(client.products.length===0){ wrap.innerHTML = '<div class="empty-hint">No menu items yet for this client.</div>'; return; }
+  if(client.products.length===0){ wrap.innerHTML = `<div class="empty-hint">${isLiveClient(client) ? 'No locally-noted menu items (the live menu above comes straight from their venues).' : 'No menu items yet for this client.'}</div>`; return; }
   wrap.innerHTML = client.products.map(p=>`
     <div class="product-row" data-id="${p.id}">
       <div><span class="pname">${escapeHtml(p.name)}</span><span class="pmeta">${escapeHtml(p.category)}${p.price?(' · '+AUD(p.price)):''}</span></div>
       <button class="btn danger" data-action="remove-product">Remove</button>
     </div>
   `).join('');
+}
+// Linked clients: the live menu their venues promote, grouped by venue, read-only.
+// The manual list below stays for pre-sale notes / clients not yet linked.
+async function renderLiveProducts(client){
+  const box = document.getElementById('product-live');
+  if(!isLiveClient(client)){ box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="helptext">Loading live menu from linked venues…</div>';
+  const data = await fetchLive(client, 'products');
+  if(currentProdClient() !== client) return; // selection changed while loading
+  if(!data || data.error){ box.innerHTML = `<div class="helptext">Couldn't load the live menu: ${escapeHtml((data&&data.error)||'unknown error')}</div>`; return; }
+  if(!data.products.length){ box.innerHTML = `<div class="empty-hint">No live menu yet — ${client.serverSitesLinked ? 'linked venues haven\'t sent a snapshot with menu items' : 'no venues linked to this client yet'}.</div>`; return; }
+  const bySite = {};
+  data.products.forEach(p=>{ (bySite[p.site_name] = bySite[p.site_name] || []).push(p); });
+  box.innerHTML = `<div class="section-sub" style="margin-top:0;">Live from ${Object.keys(bySite).length} linked venue${Object.keys(bySite).length===1?'':'s'} · ${data.products.length} item${data.products.length===1?'':'s'}</div>
+    ${Object.entries(bySite).map(([site, items])=>`
+      <details open style="margin-bottom:8px;"><summary style="cursor:pointer;font-weight:600;">${escapeHtml(site)} <span class="meta">(${items.length})</span></summary>
+        ${items.map(p=>`<div class="product-row"><div><span class="pname">${escapeHtml(p.name)}</span><span class="pmeta">${escapeHtml(p.category||'Uncategorised')}${p.price?(' · $'+p.price.toFixed(2)):''}</span></div></div>`).join('')}
+      </details>`).join('')}
+    <div class="section-sub">Local notes</div>`;
 }
 document.getElementById('prod-client').addEventListener('change', ()=>{ renderProductList(); renderTrendProductOptions(); });
 document.getElementById('add-product-btn').addEventListener('click', async ()=>{
@@ -2284,9 +2416,19 @@ document.getElementById('trend-product').addEventListener('change', renderSalesT
 
 // Sales records schema (populated once POS integration exists):
 // { id, clientId, productId, date: 'YYYY-MM-DD', unitsSold, revenue }
-function renderSalesTrendChart(){
+async function renderSalesTrendChart(){
   const box = document.getElementById('trend-chart');
   const client = currentProdClient();
+  // Linked clients: real weekly org-level trend. Per-item sales need a POS roll-up that doesn't exist yet.
+  document.getElementById('trend-product-wrap').style.display = isLiveClient(client) ? 'none' : '';
+  if(isLiveClient(client)){
+    box.innerHTML = '<div class="helptext">Loading weekly trend…</div>';
+    const data = await fetchLive(client, 'trend');
+    if(currentProdClient() !== client) return;
+    if(!data || data.error){ box.innerHTML = `<div class="helptext">Couldn't load the trend: ${escapeHtml((data&&data.error)||'unknown error')}</div>`; return; }
+    box.innerHTML = `<div class="helptext" style="margin-bottom:8px;">Weekly revenue across all of ${escapeHtml(client.name)}'s linked venues, last 12 weeks. Per-item sales will appear once POS integration exists.</div>` + weeklyTrendHtml(data.weeks);
+    return;
+  }
   const productId = document.getElementById('trend-product').value;
   if(!client || !productId){
     box.innerHTML = '<div class="trend-empty"><div class="big">No product selected</div>Add a menu item above to see its sales trend here.</div>';
@@ -2454,7 +2596,8 @@ const AGENT_TOOLS = [
   { name:'add_product', description:"Add a menu item to a client's catalogue.", input_schema:{type:'object', properties:{
       clientName:{type:'string'}, name:{type:'string'}, category:{type:'string', enum:PRODUCT_CATEGORIES}, price:{type:'number'}
     }, required:['clientName','name','category']}},
-  { name:'get_sales_trend', description:"Get sales-trend data (units sold, revenue over time) for one of a client's menu items. Currently returns no data until POS integration is connected — the structure is scaffolded and ready.", input_schema:{type:'object', properties:{ clientName:{type:'string'}, productName:{type:'string'} }, required:['clientName','productName']}},
+  { name:'get_sales_trend', description:"Get sales-trend data. For a client linked via the PP server this returns their real weekly org-level trend (revenue, revenue-weighted GP% and labour%, covers, venues reporting) for the last N weeks; productName is ignored there because per-item sales need a POS roll-up that doesn't exist yet. For unlinked clients it looks up local per-item records for productName (usually empty).", input_schema:{type:'object', properties:{ clientName:{type:'string'}, productName:{type:'string'}, weeks:{type:'number', description:'1-52, default 12 (linked clients only)'} }, required:['clientName']}},
+  { name:'get_client_performance', description:"Get a linked client's live org-level performance from their venues' latest weekly snapshots: revenue this week, revenue-weighted GP% and labour%, covers, items out of stock/low, open orders, menu item count, how many venues are reporting, and how many have stopped reporting (>8 days). Aggregates only — never per-venue detail. Omit clientName to get every linked client.", input_schema:{type:'object', properties:{ clientName:{type:'string'} }}},
   { name:'get_cost_of_sale_summary', description:"Get internal cost-of-sale metrics across won quotes (hours spent, cost, average cost per won account, cost as % of first-year revenue won). Internal only — never shown to clients.", input_schema:{type:'object', properties:{}} },
   { name:'get_billing_summary', description:"List clients by billing-cycle status: overdue, due within 7 days, current, and not yet on an active billing cycle.", input_schema:{type:'object', properties:{}} },
   { name:'update_billing', description:"Set a client's billing-cycle fields directly (active flag, cycle, next invoice date, notes). For actually advancing the cycle after a payment comes in, use record_payment instead.", input_schema:{type:'object', properties:{
@@ -2525,7 +2668,7 @@ const TOOL_MIN_ROLE = {
   update_billing:'Owner', record_payment:'Owner', get_cost_of_sale_summary:'Owner',
   add_client:'Sales Manager', add_venue:'Sales Manager', edit_client:'Sales Manager', create_quote:'Sales Manager', update_quote_stage:'Sales Manager',
   download_quote_pdf:'Sales Manager', send_quote_email:'Sales Manager', convert_pending_request:'Sales Manager', list_pending_requests:'Sales Manager',
-  list_clients:'Sales Manager', get_overview_metrics:'Sales Manager', list_products:'Sales Manager', add_product:'Sales Manager', get_sales_trend:'Sales Manager',
+  list_clients:'Sales Manager', get_overview_metrics:'Sales Manager', list_products:'Sales Manager', add_product:'Sales Manager', get_sales_trend:'Sales Manager', get_client_performance:'Sales Manager',
   get_billing_summary:'Sales Manager', add_meeting:'Sales Manager', list_meetings:'Sales Manager', get_employee_metrics:'Sales Manager',
   ask_ronin:'Sales Manager', get_ronin_gavin_activity:'Sales Manager', update_ronin_ask_status:'Sales Manager',
   propose_sales_discount:'Sales Manager', propose_escalation:'Sales Manager', apply_discount:'Owner',
@@ -2759,7 +2902,8 @@ async function executeTool(name, input){
       if(!client) return {error:'No client found matching that name.'};
       if (SERVER.on() && client.serverOrgId) {
         const r = await SERVER.req('GET', '/api/pp/clients/' + client.serverOrgId + '/products');
-        if (r.ok) { client.products = r.data.products.map(p => ({ id: uid(), name: p.name, category: p.category, price: p.price, site: p.site_name })); await saveClients(); return { client: client.name, source: 'live from linked PP sites', products: r.data.products }; }
+        // Live menu is returned as-is, never copied over client.products (those are local pre-sale notes).
+        if (r.ok) return { client: client.name, source: 'live from linked PP sites', products: r.data.products, local_notes: client.products.map(p=>({name:p.name, category:p.category, price:p.price})) };
         return { error: 'Server error: ' + (r.data.error || r.status) };
       }
       return { client:client.name, source: 'local (no server link)', products: client.products.map(p=>({name:p.name, category:p.category, price:p.price})) };
@@ -2777,11 +2921,27 @@ async function executeTool(name, input){
     if(name==='get_sales_trend'){
       const client = findClientByName(input.clientName);
       if(!client) return {error:'No client found matching that name.'};
+      if(isLiveClient(client)){
+        const weeks = Math.min(52, Math.max(1, Math.round(Number(input.weeks)||12)));
+        const r = await SERVER.req('GET', `/api/pp/clients/${client.serverOrgId}/sales-trend?weeks=${weeks}`);
+        if(!r.ok) return { error: 'Server error: ' + (r.data.error || r.status) };
+        return { client: client.name, source: 'live weekly org-level trend from linked venues', weeks: r.data.weeks, note: r.data.note || 'Per-item sales are not available until POS integration exists.' };
+      }
+      if(!input.productName) return {error:'This client is not linked to the PP server — name a menu item to look up local sales records.'};
       const product = client.products.find(p=>p.name.toLowerCase()===String(input.productName).toLowerCase()) || client.products.find(p=>p.name.toLowerCase().includes(String(input.productName).toLowerCase()));
       if(!product) return {error:'No menu item found matching that name for this client.'};
       const records = salesRecords.filter(r=>r.clientId===client.id && r.productId===product.id);
       if(records.length===0) return { product:product.name, note:'No sales data yet — this populates automatically once PP\'s POS integration is connected for this client.' };
       return { product:product.name, records };
+    }
+    if(name==='get_client_performance'){
+      const targets = input.clientName ? [findClientByName(input.clientName)] : clients.filter(isLiveClient);
+      if(input.clientName && !targets[0]) return {error:'No client found matching that name.'};
+      if(input.clientName && !isLiveClient(targets[0])) return { client: targets[0].name, error: SERVER.on() ? 'This client has no PP server org yet — create one from their profile so their PP Command can link.' : 'Not signed in to the PP server (Settings) — live data is only available in server mode.' };
+      if(!targets.length) return { note: 'No clients are linked to the PP server yet.' };
+      const out = [];
+      for(const c of targets){ const ov = await fetchLive(c, 'overview', true); out.push({ client: c.name, ...(ov && !ov.error ? ov : { error: (ov&&ov.error)||'unknown error' }) }); }
+      return { clients: out };
     }
     if(name==='get_cost_of_sale_summary'){
       const won = quotes.filter(q=>q.status==='won');
@@ -3085,7 +3245,7 @@ async function callAgentAPI(){
   const overall = computeOverallMetrics();
   const system = `You are Canopy, the operations agent for Perpetual Pantries' PPcanopy system. You help the founder run client accounts, pricing, and quotes via the tools provided.
 
-Scope boundary: you have access to PPcanopy-level records — client accounts, their venues (by name/count), pricing configuration, saved quotes, quote requests scraped from email, and each client's billing-cycle status (active/inactive, cycle, next invoice date) — plus, one layer down, each client's menu items (name, category, price) and product sales trends once POS integration is connected. You also manage PP's own internal operations: its team, internal schedule, and internal ordering/purchasing — these are entirely separate from any client's staff, rosters, or supplier ordering. You can queue a question for a client's own Ronin (ask_ronin) and see a summary of what's been queued (get_ronin_gavin_activity) — but there's no live Ronin↔Gavin channel yet, so these only queue/list Josh's own outbound asks, never actual client conversations or operational data. Note the asymmetry once that channel exists: a client's own internal Gavin↔Ronin messaging (within their own venues) is unchecked/automatic, but anything Canopy asks a client's Ronin needs that client's operator to approve first. You do NOT have access to a client's ingredients, recipes, or inventory levels — that stays entirely inside the client's own PP instance and is never exposed here. You can assign an account owner to a client (add_client/edit_client ownerName) and a quote's assigned employee (create_quote ownerName, defaulting to the client's own owner), log and list client meetings against a client and/or employee, move a quote through the sales pipeline (update_quote_stage/list_pipeline_stages), and read one employee's KPI snapshot (get_employee_metrics) — clients owned, win rate, revenue won, incentive earned, meeting count, budget progress. You deliberately have NO tool to set anyone's budget, incentive rate, permission role, or password — those are Owner-gated actions in the UI itself (Employee profile → Access role / Budget & incentive / Password), and exposing them to a chat agent that can't verify who's asking would undo that gate. If someone asks you to change a budget, incentive rate, role, or password, tell them to do it from the employee's profile in the Team tab instead. You can also post to and read from the Internal Comms noticeboard (post_internal_comms/list_internal_comms) — posts are always attributed to whoever is actually signed in and talking to you, never to someone else.
+Scope boundary: you have access to PPcanopy-level records — client accounts, their venues (by name/count), pricing configuration, saved quotes, quote requests scraped from email, and each client's billing-cycle status (active/inactive, cycle, next invoice date) — plus, one layer down, each client's menu items (name, category, price) and, for clients linked via the PP server, their live org-level performance (get_client_performance) and weekly trend (get_sales_trend) — aggregates across their venues only, never per-venue detail. Per-item sales trends are not available until POS integration exists. You also manage PP's own internal operations: its team, internal schedule, and internal ordering/purchasing — these are entirely separate from any client's staff, rosters, or supplier ordering. You can queue a question for a client's own Ronin (ask_ronin) and see a summary of what's been queued (get_ronin_gavin_activity) — but there's no live Ronin↔Gavin channel yet, so these only queue/list Josh's own outbound asks, never actual client conversations or operational data. Note the asymmetry once that channel exists: a client's own internal Gavin↔Ronin messaging (within their own venues) is unchecked/automatic, but anything Canopy asks a client's Ronin needs that client's operator to approve first. You do NOT have access to a client's ingredients, recipes, or inventory levels — that stays entirely inside the client's own PP instance and is never exposed here. You can assign an account owner to a client (add_client/edit_client ownerName) and a quote's assigned employee (create_quote ownerName, defaulting to the client's own owner), log and list client meetings against a client and/or employee, move a quote through the sales pipeline (update_quote_stage/list_pipeline_stages), and read one employee's KPI snapshot (get_employee_metrics) — clients owned, win rate, revenue won, incentive earned, meeting count, budget progress. You deliberately have NO tool to set anyone's budget, incentive rate, permission role, or password — those are Owner-gated actions in the UI itself (Employee profile → Access role / Budget & incentive / Password), and exposing them to a chat agent that can't verify who's asking would undo that gate. If someone asks you to change a budget, incentive rate, role, or password, tell them to do it from the employee's profile in the Team tab instead. You can also post to and read from the Internal Comms noticeboard (post_internal_comms/list_internal_comms) — posts are always attributed to whoever is actually signed in and talking to you, never to someone else.
 
 Current snapshot: ${overall.clientCount} clients, ${overall.totalVenues} total venues, ${overall.wonCount} won quotes, ${AUD(overall.mrr)} MRR from won quotes.
 
