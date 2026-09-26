@@ -1579,7 +1579,7 @@ function renderClients(){
           <div class="meta">${escapeHtml(c.sector)} · ${c.serverOrgId ? (c.serverSitesLinked ?? c.venues.length) : c.venues.length} venue${(c.serverOrgId ? (c.serverSitesLinked ?? c.venues.length) : c.venues.length)===1?'':'s'} ${c.contactEmail?('· '+escapeHtml(c.contactEmail)):''}${c.ownerId ? (' · owner: '+escapeHtml((teamMembers.find(m=>m.id===c.ownerId)||{}).name||'—')) : ' · unassigned'}</div>
         </div>
         <div style="display:flex;gap:6px;">
-          ${SERVER.on() && c.serverOrgId ? `<button class="btn secondary" data-action="regen-link-code">Get linking code</button>` : ''}
+          ${SERVER.on() && c.serverOrgId && !c.serverClaimed ? `<button class="btn secondary" data-action="regen-link-code">Get linking code</button>` : ''}
           <button class="btn secondary" data-action="edit-client">Edit</button>
           <button class="btn danger" data-action="remove-client">Remove</button>
         </div>
