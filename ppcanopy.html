@@ -761,7 +761,7 @@ async function serverRegenerateOrgLinkCode(client){
 // existing local state alone if the server call fails.
 async function serverSyncClients(){
   if (!SERVER.on()) return;
-  const r = await SERVER.req('GET', '/api/pp/clients');
+  let r; try { r = await SERVER.req('GET', '/api/pp/clients'); } catch(e) { return; } // server unreachable — keep local state
   if (!r.ok) return;
   const byId = new Map(r.data.clients.map(c => [c.id, c]));
   clients.forEach(c => {
@@ -849,7 +849,7 @@ function showOrgLinkCodeOnce(client, linkCode){
 }
 async function syncRoninAsksFromServer(){
   if (!SERVER.on()) return;
-  const r = await SERVER.req('GET', '/api/pp/ronin-asks');
+  let r; try { r = await SERVER.req('GET', '/api/pp/ronin-asks'); } catch(e) { return; } // server unreachable — keep local state
   if (!r.ok) return;
   const byServerId = new Map(roninAsks.filter(a => a.serverId).map(a => [a.serverId, a]));
   for (const a of r.data.asks) {
