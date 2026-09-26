@@ -1,0 +1,6 @@
+{
+  "redirects": [
+    { "source": "/pp-backend", "destination": "/", "permanent": false },
+    { "source": "/pp-backend/:path*", "destination": "/", "permanent": false }
+  ]
+}
