@@ -33,6 +33,15 @@ Both tiers work the same way: an 8-char, single-use, 24h-expiry code minted by t
 
 The three HTML files in this repo (`../Perpetual_Pantries_v1.html`, `../pp-command-ronin.html`, `../ppcanopy.html`) are already wired; each falls back to standalone/local behaviour when no server is configured.
 
+## Deploying
+
+The Vercel project `pp-backend-staging` (served at `pp-backend-staging.vercel.app`, the server the apps point at) is connected to this repo with **Root Directory = `pp-backend`**:
+
+- Merging to `main` deploys to production automatically; other branches get a preview deployment.
+- Environment variables (`DATABASE_URL`, `JWT_SECRET`, `BACKUP_KEY`, and `CRON_SECRET` / `RESEND_*` for scheduled POs) live in the Vercel project, never in this repo.
+- Migrations are **not** run on deploy. After adding a file to `migrations/`, run `npm run migrate` against the production database before (or right after) merging.
+- The repo-root `.vercelignore` keeps this folder out of the static `pp-apps` deploy.
+
 ## Endpoints
 
 | Auth | Route | Purpose |
