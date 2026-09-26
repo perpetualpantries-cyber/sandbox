@@ -139,6 +139,22 @@
   .vtag{background:var(--paper-dim);border-radius:4px;padding:3px 8px;font-size:12px;display:flex;align-items:center;gap:6px;}
   .vtag button{all:unset;cursor:pointer;color:var(--rust);font-size:13px;line-height:1;}
   .add-venue-row{display:flex;gap:6px;margin-top:8px;}
+  .site-card{border:1px solid var(--line);border-left:3px solid var(--verdigris);border-radius:6px;padding:8px 12px 12px;margin-bottom:8px;background:#FFFDF9;}
+  .site-card.incomplete{border-left-color:var(--amber);}
+  .site-head{display:flex;align-items:center;gap:10px;font-size:12px;}
+  .site-head .site-num{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--verdigris-dark);}
+  .site-head .site-status{flex:1;color:#8b8a7d;}
+  .site-card.incomplete .site-status{color:#8a5a1c;}
+  .site-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0 12px;}
+  .site-grid .span2{grid-column:span 2;}
+  .site-grid .span3{grid-column:1 / -1;}
+  .custom-line{display:grid;grid-template-columns:3fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:6px;}
+  @media (max-width:640px){
+    .site-grid{grid-template-columns:1fr;}
+    .site-grid .span2,.site-grid .span3{grid-column:auto;}
+    .custom-line{grid-template-columns:1fr 1fr;}
+    .custom-line > :first-child{grid-column:1 / -1;}
+  }
   .add-venue-row input{flex:1;}
 
   .client-list-item{border:1px solid var(--line);border-radius:7px;padding:12px 14px;margin-bottom:10px;}
@@ -467,6 +483,17 @@
         </div>
         <label>Notes for this quote (optional)</label>
         <textarea id="q-notes" placeholder="Anything specific to call out to the client..."></textarea>
+
+        <div class="section-sub">Sites</div>
+        <p class="helptext" style="margin-bottom:8px;">Every site this quote covers, with its PP tier. Changes save to the client, so the site list is the same in Clients &amp; Venues, on the PDF, and for deployment. The size band follows the number of sites (you can still override it above).</p>
+        <div id="q-sites-summary"></div>
+        <div id="q-sites"></div>
+        <div class="btnbar"><button class="btn secondary" id="q-add-site">+ Add site</button></div>
+
+        <div class="section-sub">Custom line items</div>
+        <p class="helptext" style="margin-bottom:8px;">Extra charges or credits for this quote only, e.g. hardware, travel, a one-off credit (use a negative amount). Monthly amounts are billed yearly ×12 on a yearly term.</p>
+        <div id="q-custom"></div>
+        <div class="btnbar"><button class="btn secondary" id="q-add-custom">+ Add line item</button></div>
 
         <div class="section-sub">Breakdown</div>
         <table id="q-breakdown"></table>
@@ -1585,7 +1612,7 @@ function renderClients(){
         </div>
       </div>
       <div class="venue-tags">
-        ${c.venues.map(v=>`<span class="vtag">${escapeHtml(v.name)}
+        ${c.venues.map(v=>`<span class="vtag" title="${escapeAttr([v.address, [v.contactName, v.contactPhone, v.contactEmail].filter(Boolean).join(' · ')].filter(Boolean).join(' — ') || 'No address or contact yet (add them in Quote Builder → Sites)')}">${escapeHtml(v.name || '(unnamed site)')}
           <select data-action="set-venue-tier" data-vid="${v.id}" style="border:none;background:transparent;font-size:11px;font-family:inherit;margin:0 2px;">
             ${pricing.ppTiers.map(t=>`<option value="${escapeAttr(t.label)}" ${t.label===(v.tier||pricing.ppTiers[0].label)?'selected':''}>${escapeHtml(t.label)}</option>`).join('')}
           </select>
@@ -1781,8 +1808,130 @@ function renderQuoteBuilder(){
     if(client.ownerId) document.getElementById('q-owner').value = client.ownerId;
   }
   pendingPrefill = null;
+  renderQuoteSites();
+  renderCustomLines();
   computeQuote();
 }
+
+/* Sites on a quote. They are the client's own venues (one list everywhere), with
+   address and site-contact details so every site is accounted for at deployment. */
+const SITE_TEXT_FIELDS = ['name','address','contactName','contactPhone','contactEmail'];
+function currentQuoteClient(){ return clients.find(c=>c.id===document.getElementById('q-client').value); }
+function siteMissing(v){
+  const has = k => !!String(v[k]||'').trim();
+  const miss = [];
+  if(!has('name')) miss.push('name');
+  if(!has('address')) miss.push('address');
+  if(!has('contactName')) miss.push('contact name');
+  if(!has('contactPhone') && !has('contactEmail')) miss.push('phone or email');
+  return miss;
+}
+function siteStatusHtml(v){
+  const miss = siteMissing(v);
+  return miss.length ? `Missing: ${escapeHtml(miss.join(', '))}` : '✓ Details complete';
+}
+function renderQuoteSitesSummary(){
+  const box = document.getElementById('q-sites-summary');
+  const client = currentQuoteClient();
+  if(!client || !client.venues.length){ box.innerHTML = ''; return; }
+  const incomplete = client.venues.filter(v=>siteMissing(v).length).length;
+  const monthly = client.venues.reduce((s,v)=>s+tierRate(v.tier),0);
+  box.innerHTML = `<p class="helptext" style="margin:0 0 8px;">${client.venues.length} site${client.venues.length===1?'':'s'} · PP licensing ${AUD(monthly)}/mo before discounts · `
+    + (incomplete ? `<span style="color:#8a5a1c;">${incomplete} missing details</span>` : '<span style="color:var(--verdigris-dark);">all sites have full details</span>') + '</p>';
+}
+function renderQuoteSites(){
+  const box = document.getElementById('q-sites');
+  const client = currentQuoteClient();
+  document.getElementById('q-add-site').style.display = client ? '' : 'none';
+  if(!client){ box.innerHTML = ''; renderQuoteSitesSummary(); return; }
+  const tiers = pricing.ppTiers;
+  box.innerHTML = client.venues.length ? client.venues.map((v,i)=>`
+    <div class="site-card${siteMissing(v).length?' incomplete':''}" data-vid="${v.id}">
+      <div class="site-head"><span class="site-num">Site ${i+1}</span><span class="site-status">${siteStatusHtml(v)}</span><button class="btn danger" data-action="remove-site">Remove</button></div>
+      <div class="site-grid">
+        <div class="span2"><label>Site name</label><input data-f="name" value="${escapeAttr(v.name||'')}" placeholder="e.g. Burwood Campus Café"></div>
+        <div><label>PP tier</label><select data-f="tier">${tiers.map(t=>`<option value="${escapeAttr(t.label)}" ${t.label===(v.tier||tiers[0].label)?'selected':''}>${escapeHtml(t.label)} — ${AUD(t.monthly)}/mo</option>`).join('')}</select></div>
+        <div class="span3"><label>Address</label><input data-f="address" value="${escapeAttr(v.address||'')}" placeholder="Street, suburb, state, postcode" autocomplete="off"></div>
+        <div><label>Site contact</label><input data-f="contactName" value="${escapeAttr(v.contactName||'')}" placeholder="Name"></div>
+        <div><label>Phone</label><input data-f="contactPhone" type="tel" value="${escapeAttr(v.contactPhone||'')}" placeholder="04xx xxx xxx"></div>
+        <div><label>Email</label><input data-f="contactEmail" type="email" value="${escapeAttr(v.contactEmail||'')}" placeholder="manager@site.com.au"></div>
+      </div>
+    </div>`).join('') : '<div class="empty-hint">No sites on this client yet. Add each site the quote covers.</div>';
+  renderQuoteSitesSummary();
+}
+let siteSaveTimer = null;
+function saveClientsSoon(){ clearTimeout(siteSaveTimer); siteSaveTimer = setTimeout(()=>saveClients(), 400); }
+function rematchBandForSites(client){
+  const band = matchBand(Math.max(client.venues.length,1));
+  if(band) document.getElementById('q-band').value = band.id;
+}
+document.getElementById('q-sites').addEventListener('input', e=>{
+  const f = e.target.dataset.f; if(!SITE_TEXT_FIELDS.includes(f)) return;
+  const client = currentQuoteClient(); const card = e.target.closest('.site-card');
+  const v = client && client.venues.find(x=>x.id===card.dataset.vid); if(!v) return;
+  v[f] = e.target.value;
+  // Update this card's status in place: a full re-render would steal focus mid-typing.
+  card.classList.toggle('incomplete', siteMissing(v).length>0);
+  card.querySelector('.site-status').innerHTML = siteStatusHtml(v);
+  renderQuoteSitesSummary();
+  saveClientsSoon();
+});
+document.getElementById('q-sites').addEventListener('change', async e=>{
+  if(e.target.dataset.f!=='tier') return;
+  const client = currentQuoteClient();
+  const v = client && client.venues.find(x=>x.id===e.target.closest('.site-card').dataset.vid); if(!v) return;
+  v.tier = e.target.value;
+  await saveClients();
+  renderQuoteSitesSummary(); computeQuote();
+});
+document.getElementById('q-sites').addEventListener('click', async e=>{
+  if(e.target.dataset.action!=='remove-site') return;
+  const client = currentQuoteClient();
+  const v = client && client.venues.find(x=>x.id===e.target.closest('.site-card').dataset.vid); if(!v) return;
+  const hasDetails = ['address','contactName','contactPhone','contactEmail'].some(k=>String(v[k]||'').trim());
+  if(hasDetails && !confirm(`Remove ${v.name||'this site'} and its details from ${client.name}?`)) return;
+  client.venues = client.venues.filter(x=>x.id!==v.id);
+  await saveClients();
+  rematchBandForSites(client); renderQuoteSites(); computeQuote();
+});
+document.getElementById('q-add-site').addEventListener('click', async ()=>{
+  const client = currentQuoteClient(); if(!client) return;
+  client.venues.push({ id:uid(), name:'', tier: pricing.ppTiers[0] ? pricing.ppTiers[0].label : 'T1', address:'', contactName:'', contactPhone:'', contactEmail:'' });
+  await saveClients();
+  rematchBandForSites(client); renderQuoteSites(); computeQuote();
+  const inputs = document.querySelectorAll('#q-sites .site-card:last-child [data-f="name"]');
+  if(inputs.length) inputs[0].focus();
+});
+
+/* Custom line items: per quote, not saved to the client. */
+let quoteCustomLines = [];
+function renderCustomLines(){
+  const box = document.getElementById('q-custom');
+  box.innerHTML = quoteCustomLines.map(c=>`
+    <div class="custom-line" data-cid="${c.id}">
+      <div><label>Description</label><input data-c="label" value="${escapeAttr(c.label||'')}" placeholder="e.g. POS tablet & stand"></div>
+      <div><label>One-off ($)</label><input data-c="oneOff" type="number" step="1" value="${c.oneOff ?? ''}" placeholder="0"></div>
+      <div><label>Monthly ($)</label><input data-c="monthly" type="number" step="1" value="${c.monthly ?? ''}" placeholder="0"></div>
+      <button class="btn danger" data-action="remove-custom" style="margin-bottom:4px;">Remove</button>
+    </div>`).join('');
+}
+document.getElementById('q-custom').addEventListener('input', e=>{
+  const k = e.target.dataset.c; if(!k) return;
+  const c = quoteCustomLines.find(x=>x.id===e.target.closest('.custom-line').dataset.cid); if(!c) return;
+  c[k] = k==='label' ? e.target.value : (e.target.value==='' ? '' : Number(e.target.value));
+  computeQuote();
+});
+document.getElementById('q-custom').addEventListener('click', e=>{
+  if(e.target.dataset.action!=='remove-custom') return;
+  quoteCustomLines = quoteCustomLines.filter(x=>x.id!==e.target.closest('.custom-line').dataset.cid);
+  renderCustomLines(); computeQuote();
+});
+document.getElementById('q-add-custom').addEventListener('click', ()=>{
+  quoteCustomLines.push({ id:uid(), label:'', oneOff:'', monthly:'' });
+  renderCustomLines();
+  const inputs = document.querySelectorAll('#q-custom .custom-line:last-child [data-c="label"]');
+  if(inputs.length) inputs[0].focus();
+});
 (function(){ const notes = document.getElementById('q-notes'); if(notes && !document.getElementById('q-discount')){ const wrap = document.createElement('div'); wrap.innerHTML = '<label>Discount off list (%) — anything above '+DISCOUNT_AUTO_APPROVE_PCT+'% must go through an escalation</label><input type="number" id="q-discount" min="0" max="100" step="0.5" value="0">'; notes.parentNode.insertBefore(wrap, notes.parentNode.firstChild); document.getElementById('q-discount').addEventListener('input', ()=>{ const v = Number(document.getElementById('q-discount').value)||0; if(v > DISCOUNT_AUTO_APPROVE_PCT && currentRole()!=='Owner'){ document.getElementById('q-discount').value = DISCOUNT_AUTO_APPROVE_PCT; alert('Discounts above '+DISCOUNT_AUTO_APPROVE_PCT+'% need an escalation (ask Canopy) or the Owner.'); } computeQuote(); }); } })();
 ['q-client','q-band','q-term','q-pppay','q-pppayroll'].forEach(id=>{
   document.getElementById(id).addEventListener('change', ()=>{
@@ -1792,6 +1941,8 @@ function renderQuoteBuilder(){
         const band = matchBand(client.venues.length); if(band) document.getElementById('q-band').value = band.id;
         if(client.ownerId) document.getElementById('q-owner').value = client.ownerId;
       }
+      quoteCustomLines = []; renderCustomLines();
+      renderQuoteSites();
     }
     computeQuote();
   });
@@ -1824,7 +1975,7 @@ function addGst(q){
   return q;
 }
 
-function buildQuoteFor(client, band, term, includePPpay, includePPpayroll, notes, discountPct){
+function buildQuoteFor(client, band, term, includePPpay, includePPpayroll, notes, discountPct, customLines){
   if(!client || !band) return null;
   const venueCount = Math.max(client.venues.length,1);
   const venueMultiplier = pricing.addons.perVenue ? venueCount : 1;
@@ -1847,11 +1998,22 @@ function buildQuoteFor(client, band, term, includePPpay, includePPpayroll, notes
     if(hasCommand) items.push({label:`Licensing — PP Command (monthly, ${band.label} band)`, recurring: ppcLicMonthly});
   } else {
     const yearlyLic = licMonthlyTotal*12*(1-discount);
-    items.push({label:`Licensing — PP${hasCommand?' + PP Command':''} (yearly, ${pricing.licensing.yearlyDiscountPct}% off licensing; add-ons below at standard rate)`, recurring: yearlyLic, recurringLabel:'per year'});
+    items.push({label:`Licensing — PP${hasCommand?' + PP Command':''} (yearly, ${pricing.licensing.yearlyDiscountPct}% off licensing; add-ons below at standard rate)`, recurring: yearlyLic, recurringLabel:'per year', yearlyLicence:true});
   }
 
   if(includePPpay) items.push({label:`PPpay (monthly${pricing.addons.perVenue?' × '+venueMultiplier+' venues':''})`, recurring: pricing.addons.pppayMonthly*venueMultiplier});
   if(includePPpayroll) items.push({label:`PPpayroll (monthly${pricing.addons.perVenue?' × '+venueMultiplier+' venues':''})`, recurring: pricing.addons.pppayrollMonthly*venueMultiplier});
+
+  // Custom lines: one-off and/or monthly; on a yearly term the monthly part is billed ×12.
+  const custom = (customLines||[]).map(c=>({ label:(c.label||'').trim() || 'Custom item', oneOff:Number(c.oneOff)||0, monthly:Number(c.monthly)||0 }))
+    .filter(c=>c.oneOff || c.monthly);
+  custom.forEach(c=>{
+    const item = { label:c.label, custom:true };
+    if(c.oneOff) item.oneOff = c.oneOff;
+    if(c.monthly){ if(term==='monthly') item.recurring = c.monthly; else { item.recurring = c.monthly*12; item.recurringLabel = 'per year'; } }
+    items.push(item);
+  });
+  const customMonthly = custom.reduce((s,c)=>s+c.monthly,0);
 
   const oneOffTotal = items.reduce((s,i)=>s+(i.oneOff||0),0);
   let recurringMonthlyEquivalent, recurringBilled, billedLabel;
@@ -1860,9 +2022,9 @@ function buildQuoteFor(client, band, term, includePPpay, includePPpayroll, notes
     recurringBilled = recurringMonthlyEquivalent;
     billedLabel = 'per month';
   } else {
-    const yearlyLicItem = items.find(i=>i.recurringLabel==='per year');
+    const yearlyLicItem = items.find(i=>i.yearlyLicence);
     const addonMonthly = (includePPpay?pricing.addons.pppayMonthly*venueMultiplier:0) + (includePPpayroll?pricing.addons.pppayrollMonthly*venueMultiplier:0);
-    recurringBilled = (yearlyLicItem?yearlyLicItem.recurring:0) + addonMonthly*12;
+    recurringBilled = (yearlyLicItem?yearlyLicItem.recurring:0) + (addonMonthly + customMonthly)*12;
     recurringMonthlyEquivalent = recurringBilled/12;
     billedLabel = 'per year';
   }
@@ -1872,6 +2034,10 @@ function buildQuoteFor(client, band, term, includePPpay, includePPpayroll, notes
     clientId: client.id, clientName: client.name, clientEmail: client.contactEmail,
     bandId: band.id, bandLabel: band.label, term, includePPpay, includePPpayroll, notes: notes||'',
     venueCount, discountPct: 0,
+    // Snapshot of the sites as quoted, so the PDF/history keep them even if the client's list changes later.
+    sites: client.venues.map(v=>({ name:v.name||'', tier:v.tier||(pricing.ppTiers[0]?pricing.ppTiers[0].label:'T1'), monthly:tierRate(v.tier),
+      address:v.address||'', contactName:v.contactName||'', contactPhone:v.contactPhone||'', contactEmail:v.contactEmail||'' })),
+    customLines: custom,
     items,
     totals: { oneOffTotal, recurringBilled, billedLabel, recurringMonthlyEquivalent, firstYearTotal }
   };
@@ -1900,7 +2066,7 @@ function buildQuote(){
   const includePPpayroll = document.getElementById('q-pppayroll').checked;
   const notes = document.getElementById('q-notes').value.trim();
   const disc = Number((document.getElementById('q-discount')||{}).value)||0;
-  return buildQuoteFor(client, band, term, includePPpay, includePPpayroll, notes, disc);
+  return buildQuoteFor(client, band, term, includePPpay, includePPpayroll, notes, disc, quoteCustomLines);
 }
 
 function computeQuote(){
@@ -1972,6 +2138,16 @@ function quotePlainText(q){
   lines.push(`Quote for ${q.clientName}`);
   lines.push(`Size band: ${q.bandLabel}   Term: ${q.term}`);
   lines.push('');
+  if(q.sites && q.sites.length){
+    lines.push(`Sites covered (${q.sites.length}):`);
+    q.sites.forEach((st,i)=>{
+      lines.push(`${i+1}. ${st.name||'(unnamed site)'} — PP ${st.tier} (${AUD(st.monthly)}/mo)`);
+      if(st.address) lines.push(`   ${st.address}`);
+      const contact = [st.contactName, st.contactPhone, st.contactEmail].filter(Boolean).join(' · ');
+      if(contact) lines.push(`   Contact: ${contact}`);
+    });
+    lines.push('');
+  }
   q.items.forEach(i=>{
     const parts = [i.label];
     if(i.oneOff!==undefined) parts.push(`One-off: ${AUD(i.oneOff)}`);
@@ -2003,6 +2179,25 @@ function downloadQuotePdf(q){
   doc.text(`Client: ${q.clientName}`, 15, y); y+=6;
   doc.text(`Date: ${new Date().toLocaleDateString('en-AU')}`, 15, y); y+=6;
   doc.text(`Size band: ${q.bandLabel}    Term: ${q.term}`, 15, y); y+=10;
+
+  if(q.sites && q.sites.length){
+    doc.setFont('helvetica','bold');
+    doc.text(`Sites covered (${q.sites.length})`, 15, y); doc.text('PP tier', 165, y);
+    y+=3; doc.line(15,y,195,y); y+=6;
+    q.sites.forEach((st,i)=>{
+      const detail = [st.address, [st.contactName, st.contactPhone, st.contactEmail].filter(Boolean).join(' · ')].filter(Boolean);
+      const detailLines = detail.length ? doc.splitTextToSize(detail.join('\n'), 140) : [];
+      if(y + 6 + detailLines.length*5 > 275){ doc.addPage(); y=20; }
+      doc.setFont('helvetica','bold'); doc.setFontSize(11);
+      doc.text(`${i+1}. ${st.name||'(unnamed site)'}`, 15, y);
+      doc.setFont('helvetica','normal');
+      doc.text(`${st.tier} — ${AUD(st.monthly)}/mo`, 165, y); y+=5;
+      if(detailLines.length){ doc.setFontSize(9); doc.text(detailLines, 20, y); y += detailLines.length*4.5; doc.setFontSize(11); }
+      y+=3;
+    });
+    y+=5;
+    if(y>250){ doc.addPage(); y=20; }
+  }
 
   doc.setFont('helvetica','bold');
   doc.text('Line item (ex GST)', 15, y); doc.text('One-off', 130, y); doc.text('Recurring', 165, y);
@@ -2546,7 +2741,11 @@ const AGENT_TOOLS = [
       contactEmail:{type:'string'}, notes:{type:'string'}, ownerName:{type:'string', description:"Name of the team member who owns this account. Must match an existing team member — use list_team to check."},
       venueNames:{type:'array', items:{type:'string'}, description:'names of venues to create under this client'}
     }, required:['name','sector']}},
-  { name:'add_venue', description:'Add a venue to an existing client.', input_schema:{type:'object', properties:{ clientName:{type:'string'}, venueName:{type:'string'} }, required:['clientName','venueName']}},
+  { name:'add_venue', description:"Add a site (venue) to an existing client, optionally with its PP tier, address and site contact. Every site on a quote should end up with a name, address, contact name and a phone or email.", input_schema:{type:'object', properties:{ clientName:{type:'string'}, venueName:{type:'string'},
+      tier:{type:'string', description:'PP tier label, e.g. T1-T4 (use list_pp_tiers); defaults to the first tier'}, address:{type:'string'}, contactName:{type:'string'}, contactPhone:{type:'string'}, contactEmail:{type:'string'} }, required:['clientName','venueName']}},
+  { name:'update_venue', description:"Update a client's site (venue), matched by its current name: rename it, or set its PP tier, address, or site contact name/phone/email. Only include fields to change.", input_schema:{type:'object', properties:{ clientName:{type:'string'}, venueName:{type:'string'},
+      newName:{type:'string'}, tier:{type:'string'}, address:{type:'string'}, contactName:{type:'string'}, contactPhone:{type:'string'}, contactEmail:{type:'string'} }, required:['clientName','venueName']}},
+  { name:'list_venues', description:"List a client's sites with PP tier, monthly rate, address, site contact, and which details are still missing.", input_schema:{type:'object', properties:{ clientName:{type:'string'} }, required:['clientName']}},
   { name:'edit_client', description:'Update fields on an existing client. Only include fields you want changed.', input_schema:{type:'object', properties:{
       clientName:{type:'string'}, newName:{type:'string'}, sector:{type:'string', enum:SECTORS}, contactEmail:{type:'string'}, notes:{type:'string'}, ownerName:{type:'string', description:"Reassign the account owner — must match an existing team member."}
     }, required:['clientName']}},
@@ -2652,6 +2851,17 @@ function findClientByName(name){
   const n = name.trim().toLowerCase();
   return clients.find(c=>c.name.toLowerCase()===n) || clients.find(c=>c.name.toLowerCase().includes(n));
 }
+// Accepts 'T2', 't2', 'Tier 2' or '2' and returns the tier's own label, or null.
+function findTierLabel(input){
+  const raw = String(input||'').trim().toLowerCase(); if(!raw) return null;
+  const exact = pricing.ppTiers.find(t=>t.label.toLowerCase()===raw); if(exact) return exact.label;
+  const num = (raw.match(/^(?:t|tier)?\s*(\d+)$/)||[])[1];
+  const byNum = num && pricing.ppTiers.find(t=>t.label.toLowerCase()==='t'+num);
+  return byNum ? byNum.label : null;
+}
+function refreshQuoteSitesIfShowing(client){
+  if(document.getElementById('panel-quote').classList.contains('active') && currentQuoteClient()===client){ renderQuoteSites(); computeQuote(); }
+}
 function findTeamMemberByName(name){
   if(!name) return null;
   const n = name.trim().toLowerCase();
@@ -2666,7 +2876,7 @@ const TOOL_MIN_ROLE = {
   remove_client:'Owner', remove_team_member:'Owner', add_team_member:'Owner', update_team_member:'Owner',
   add_order:'Owner', update_order_status:'Owner', generate_po:'Owner', send_po_email:'Owner', add_supplier:'Owner', list_suppliers:'Owner', list_orders:'Owner',
   update_billing:'Owner', record_payment:'Owner', get_cost_of_sale_summary:'Owner',
-  add_client:'Sales Manager', add_venue:'Sales Manager', edit_client:'Sales Manager', create_quote:'Sales Manager', update_quote_stage:'Sales Manager',
+  add_client:'Sales Manager', add_venue:'Sales Manager', update_venue:'Sales Manager', list_venues:'Sales Manager', edit_client:'Sales Manager', create_quote:'Sales Manager', update_quote_stage:'Sales Manager',
   download_quote_pdf:'Sales Manager', send_quote_email:'Sales Manager', convert_pending_request:'Sales Manager', list_pending_requests:'Sales Manager',
   list_clients:'Sales Manager', get_overview_metrics:'Sales Manager', list_products:'Sales Manager', add_product:'Sales Manager', get_sales_trend:'Sales Manager', get_client_performance:'Sales Manager',
   get_billing_summary:'Sales Manager', add_meeting:'Sales Manager', list_meetings:'Sales Manager', get_employee_metrics:'Sales Manager',
@@ -2698,7 +2908,7 @@ async function executeTool(name, input){
     if(name==='list_clients'){
       const q = (input.query||'').toLowerCase();
       const list = clients.filter(c=>!q || [c.name,c.sector,c.contactEmail,...c.venues.map(v=>v.name)].join(' ').toLowerCase().includes(q));
-      return { clients: list.map(c=>({name:c.name, sector:c.sector, venues:c.venues.map(v=>v.name), contactEmail:c.contactEmail, notes:c.notes})) };
+      return { clients: list.map(c=>({name:c.name, sector:c.sector, venues:c.venues.map(v=>({name:v.name, tier:v.tier, address:v.address||''})), contactEmail:c.contactEmail, notes:c.notes})) };
     }
     if(name==='add_client'){
       if(findClientByName(input.name)) return {error:'A client with that name already exists.'};
@@ -2721,9 +2931,25 @@ async function executeTool(name, input){
     if(name==='add_venue'){
       const client = findClientByName(input.clientName);
       if(!client) return {error:'No client found matching that name.'};
-      client.venues.push({id:uid(), name:input.venueName, tier: pricing.ppTiers[0] ? pricing.ppTiers[0].label : 'T1'});
-      await saveClients(); renderClients(); renderDashboard();
-      return { success:true, client:client.name, venueCount:client.venues.length };
+      let tier = pricing.ppTiers[0] ? pricing.ppTiers[0].label : 'T1';
+      if(input.tier){ const t = findTierLabel(input.tier); if(!t) return {error:'Unknown tier. Existing tiers: '+pricing.ppTiers.map(t=>t.label).join(', ')}; tier = t; }
+      const venue = { id:uid(), name:input.venueName, tier, address:input.address||'', contactName:input.contactName||'', contactPhone:input.contactPhone||'', contactEmail:input.contactEmail||'' };
+      client.venues.push(venue);
+      await saveClients(); renderClients(); renderDashboard(); refreshQuoteSitesIfShowing(client);
+      return { success:true, client:client.name, venueCount:client.venues.length, missing:siteMissing(venue) };
+    }
+    if(name==='update_venue' || name==='list_venues'){
+      const client = findClientByName(input.clientName);
+      if(!client) return {error:'No client found matching that name.'};
+      if(name==='list_venues') return { client:client.name, sites: client.venues.map(v=>({ name:v.name, tier:v.tier, monthly:tierRate(v.tier), address:v.address||'', contactName:v.contactName||'', contactPhone:v.contactPhone||'', contactEmail:v.contactEmail||'', missing:siteMissing(v) })) };
+      const n = String(input.venueName).toLowerCase();
+      const venue = client.venues.find(v=>(v.name||'').toLowerCase()===n) || client.venues.find(v=>n && (v.name||'').toLowerCase().includes(n));
+      if(!venue) return {error:'No site found matching that name for this client.'};
+      if(input.tier!==undefined){ const t = findTierLabel(input.tier); if(!t) return {error:'Unknown tier. Existing tiers: '+pricing.ppTiers.map(t=>t.label).join(', ')}; venue.tier = t; }
+      if(input.newName) venue.name = input.newName;
+      ['address','contactName','contactPhone','contactEmail'].forEach(k=>{ if(input[k]!==undefined) venue[k] = input[k]; });
+      await saveClients(); renderClients(); renderDashboard(); refreshQuoteSitesIfShowing(client);
+      return { success:true, client:client.name, site:{ name:venue.name, tier:venue.tier, address:venue.address||'', contactName:venue.contactName||'', contactPhone:venue.contactPhone||'', contactEmail:venue.contactEmail||'' }, missing:siteMissing(venue) };
     }
     if(name==='edit_client'){
       const client = findClientByName(input.clientName);
@@ -2778,11 +3004,12 @@ async function executeTool(name, input){
     if(name==='set_venue_tier'){
       const client = findClientByName(input.clientName);
       if(!client) return {error:'No client found matching that name.'};
-      const venue = client.venues.find(v=>v.name.toLowerCase().includes(String(input.venueName).toLowerCase()));
+      const venue = client.venues.find(v=>(v.name||'').toLowerCase().includes(String(input.venueName).toLowerCase()));
       if(!venue) return {error:'No venue found matching that name for this client.'};
-      if(!pricing.ppTiers.some(t=>t.label.toLowerCase()===String(input.tier).toLowerCase())) return {error:'Unknown tier. Existing tiers: '+pricing.ppTiers.map(t=>t.label).join(', ')};
-      venue.tier = input.tier;
-      await saveClients(); renderClients(); renderDashboard();
+      const tierLabel = findTierLabel(input.tier);
+      if(!tierLabel) return {error:'Unknown tier. Existing tiers: '+pricing.ppTiers.map(t=>t.label).join(', ')};
+      venue.tier = tierLabel; // stored as the tier's own label, so tierRate() prices it (not e.g. 't2')
+      await saveClients(); renderClients(); renderDashboard(); refreshQuoteSitesIfShowing(client);
       return { success:true, client:client.name, venue:venue.name, tier:venue.tier };
     }
     if(name==='create_quote'){
