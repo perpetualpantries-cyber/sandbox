@@ -148,6 +148,9 @@
   .site-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0 12px;}
   .site-grid .span2{grid-column:span 2;}
   .site-grid .span3{grid-column:1 / -1;}
+  #q-breakdown tr.line-hidden td{color:#a9a79a;}
+  #q-breakdown tr.line-hidden td:nth-child(n+2){text-decoration:line-through;}
+  #q-breakdown tr.line-hidden td .meta{text-decoration:none;display:inline-block;}
   .custom-line{display:grid;grid-template-columns:3fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:6px;}
   @media (max-width:640px){
     .site-grid{grid-template-columns:1fr;}
@@ -1905,6 +1908,12 @@ document.getElementById('q-add-site').addEventListener('click', async ()=>{
 
 /* Custom line items: per quote, not saved to the client. */
 let quoteCustomLines = [];
+let quoteHiddenLines = new Set(); // keys from HIDEABLE_LINES left off this quote; reset when the client changes
+document.getElementById('q-breakdown').addEventListener('change', e=>{
+  const key = e.target.dataset.lineKey; if(!key) return;
+  if(e.target.checked) quoteHiddenLines.delete(key); else quoteHiddenLines.add(key);
+  computeQuote();
+});
 function renderCustomLines(){
   const box = document.getElementById('q-custom');
   box.innerHTML = quoteCustomLines.map(c=>`
@@ -1941,7 +1950,7 @@ document.getElementById('q-add-custom').addEventListener('click', ()=>{
         const band = matchBand(client.venues.length); if(band) document.getElementById('q-band').value = band.id;
         if(client.ownerId) document.getElementById('q-owner').value = client.ownerId;
       }
-      quoteCustomLines = []; renderCustomLines();
+      quoteCustomLines = []; renderCustomLines(); quoteHiddenLines = new Set();
       renderQuoteSites();
     }
     computeQuote();
@@ -1975,32 +1984,39 @@ function addGst(q){
   return q;
 }
 
-function buildQuoteFor(client, band, term, includePPpay, includePPpayroll, notes, discountPct, customLines){
+// Standard lines that can be hidden (left off the quote entirely) per quote, by key.
+const HIDEABLE_LINES = {
+  'pp-initial':'Initial purchase — PP', 'ppc-initial':'Initial purchase — PP Command',
+  'pp-onboarding':'Onboarding — PP', 'ppc-onboarding':'Onboarding — PP Command',
+  'pp-licence':'Licensing — PP', 'ppc-licence':'Licensing — PP Command',
+};
+function buildQuoteFor(client, band, term, includePPpay, includePPpayroll, notes, discountPct, customLines, hiddenKeys){
   if(!client || !band) return null;
   const venueCount = Math.max(client.venues.length,1);
   const venueMultiplier = pricing.addons.perVenue ? venueCount : 1;
   const ppLicMonthly = ppMonthlyForClient(client);
   const ppcLicMonthly = band.ppCommandMonthly||0;
-  const licMonthlyTotal = ppLicMonthly + ppcLicMonthly;
   const discount = pricing.licensing.yearlyDiscountPct/100;
 
   const items = [];
   // A band with no PP Command charges (single site) gets no PP Command initial purchase or onboarding either.
   const hasCommand = (band.ppCommandMonthly||0) > 0 || (band.ppCommandInitial||0) > 0;
-  items.push({label:'Initial purchase — PP', oneOff: band.ppInitial});
-  if(hasCommand) items.push({label:'Initial purchase — PP Command', oneOff: band.ppCommandInitial});
-  items.push({label:'Onboarding — PP', oneOff: pricing.onboarding.ppFee});
-  if(hasCommand) items.push({label:'Onboarding — PP Command', oneOff: pricing.onboarding.ppCommandFee});
+  items.push({key:'pp-initial', label:'Initial purchase — PP', oneOff: band.ppInitial});
+  if(hasCommand) items.push({key:'ppc-initial', label:'Initial purchase — PP Command', oneOff: band.ppCommandInitial});
+  items.push({key:'pp-onboarding', label:'Onboarding — PP', oneOff: pricing.onboarding.ppFee});
+  if(hasCommand) items.push({key:'ppc-onboarding', label:'Onboarding — PP Command', oneOff: pricing.onboarding.ppCommandFee});
 
+  const tierBreakdown = client.venues.length ? client.venues.map(v=>v.tier||pricing.ppTiers[0].label).join(', ') : (pricing.ppTiers[0]?pricing.ppTiers[0].label:'T1');
   if(term==='monthly'){
-    const tierBreakdown = client.venues.length ? client.venues.map(v=>v.tier||pricing.ppTiers[0].label).join(', ') : (pricing.ppTiers[0]?pricing.ppTiers[0].label:'T1');
-    items.push({label:`Licensing — PP (monthly, ${venueCount} venue${venueCount===1?'':'s'} — tiers: ${tierBreakdown})`, recurring: ppLicMonthly});
-    if(hasCommand) items.push({label:`Licensing — PP Command (monthly, ${band.label} band)`, recurring: ppcLicMonthly});
+    items.push({key:'pp-licence', label:`Licensing — PP (monthly, ${venueCount} venue${venueCount===1?'':'s'} — tiers: ${tierBreakdown})`, recurring: ppLicMonthly});
+    if(hasCommand) items.push({key:'ppc-licence', label:`Licensing — PP Command (monthly, ${band.label} band)`, recurring: ppcLicMonthly});
   } else {
-    const yearlyLic = licMonthlyTotal*12*(1-discount);
-    items.push({label:`Licensing — PP${hasCommand?' + PP Command':''} (yearly, ${pricing.licensing.yearlyDiscountPct}% off licensing; add-ons below at standard rate)`, recurring: yearlyLic, recurringLabel:'per year', yearlyLicence:true});
+    const off = `${pricing.licensing.yearlyDiscountPct}% off`;
+    items.push({key:'pp-licence', label:`Licensing — PP (yearly, ${off}; ${venueCount} venue${venueCount===1?'':'s'} — tiers: ${tierBreakdown})`, recurring: ppLicMonthly*12*(1-discount), recurringLabel:'per year'});
+    if(hasCommand) items.push({key:'ppc-licence', label:`Licensing — PP Command (yearly, ${off}; ${band.label} band)`, recurring: ppcLicMonthly*12*(1-discount), recurringLabel:'per year'});
   }
 
+  // Add-ons stay monthly-priced; on a yearly term they are billed ×12 at the standard rate.
   if(includePPpay) items.push({label:`PPpay (monthly${pricing.addons.perVenue?' × '+venueMultiplier+' venues':''})`, recurring: pricing.addons.pppayMonthly*venueMultiplier});
   if(includePPpayroll) items.push({label:`PPpayroll (monthly${pricing.addons.perVenue?' × '+venueMultiplier+' venues':''})`, recurring: pricing.addons.pppayrollMonthly*venueMultiplier});
 
@@ -2013,18 +2029,21 @@ function buildQuoteFor(client, band, term, includePPpay, includePPpayroll, notes
     if(c.monthly){ if(term==='monthly') item.recurring = c.monthly; else { item.recurring = c.monthly*12; item.recurringLabel = 'per year'; } }
     items.push(item);
   });
-  const customMonthly = custom.reduce((s,c)=>s+c.monthly,0);
 
-  const oneOffTotal = items.reduce((s,i)=>s+(i.oneOff||0),0);
+  // Hidden lines are left off the quote entirely: not charged, not in totals, GST, PDF or email.
+  const hidden = new Set(hiddenKeys||[]);
+  const hiddenItems = items.filter(i=>i.key && hidden.has(i.key));
+  const shown = items.filter(i=>!(i.key && hidden.has(i.key)));
+
+  const oneOffTotal = shown.reduce((s,i)=>s+(i.oneOff||0),0);
   let recurringMonthlyEquivalent, recurringBilled, billedLabel;
   if(term==='monthly'){
-    recurringMonthlyEquivalent = items.reduce((s,i)=>s+(i.recurring||0),0);
+    recurringMonthlyEquivalent = shown.reduce((s,i)=>s+(i.recurring||0),0);
     recurringBilled = recurringMonthlyEquivalent;
     billedLabel = 'per month';
   } else {
-    const yearlyLicItem = items.find(i=>i.yearlyLicence);
-    const addonMonthly = (includePPpay?pricing.addons.pppayMonthly*venueMultiplier:0) + (includePPpayroll?pricing.addons.pppayrollMonthly*venueMultiplier:0);
-    recurringBilled = (yearlyLicItem?yearlyLicItem.recurring:0) + (addonMonthly + customMonthly)*12;
+    // Yearly-priced lines count as-is; monthly-priced lines (add-ons) are billed ×12.
+    recurringBilled = shown.reduce((s,i)=>s+(i.recurring ? (i.recurringLabel==='per year' ? i.recurring : i.recurring*12) : 0),0);
     recurringMonthlyEquivalent = recurringBilled/12;
     billedLabel = 'per year';
   }
@@ -2038,7 +2057,9 @@ function buildQuoteFor(client, band, term, includePPpay, includePPpayroll, notes
     sites: client.venues.map(v=>({ name:v.name||'', tier:v.tier||(pricing.ppTiers[0]?pricing.ppTiers[0].label:'T1'), monthly:tierRate(v.tier),
       address:v.address||'', contactName:v.contactName||'', contactPhone:v.contactPhone||'', contactEmail:v.contactEmail||'' })),
     customLines: custom,
-    items,
+    items: shown,
+    hiddenLines: hiddenItems.map(i=>i.key),
+    hiddenItems,
     totals: { oneOffTotal, recurringBilled, billedLabel, recurringMonthlyEquivalent, firstYearTotal }
   };
   addGst(q);
@@ -2066,7 +2087,7 @@ function buildQuote(){
   const includePPpayroll = document.getElementById('q-pppayroll').checked;
   const notes = document.getElementById('q-notes').value.trim();
   const disc = Number((document.getElementById('q-discount')||{}).value)||0;
-  return buildQuoteFor(client, band, term, includePPpay, includePPpayroll, notes, disc, quoteCustomLines);
+  return buildQuoteFor(client, band, term, includePPpay, includePPpayroll, notes, disc, quoteCustomLines, [...quoteHiddenLines]);
 }
 
 function computeQuote(){
@@ -2077,11 +2098,16 @@ function computeQuote(){
     table.innerHTML=''; totalsBox.innerHTML = '<div class="empty-hint">Add a client first.</div>';
     return;
   }
+  // Standard lines (keyed) in their fixed order, hidden ones included so they can be ticked back on; then add-ons and custom lines.
+  const keyOrder = Object.keys(HIDEABLE_LINES);
+  const keyed = [...q.items.filter(i=>i.key), ...q.hiddenItems.map(i=>({...i, hidden:true}))].sort((a,b)=>keyOrder.indexOf(a.key)-keyOrder.indexOf(b.key));
+  const rows = [...keyed, ...q.items.filter(i=>!i.key)];
   table.innerHTML = `
-    <tr><th>Line item (all figures ex GST)</th><th class="num">One-off</th><th class="num">Recurring</th></tr>
-    ${q.items.map(i=>`
-      <tr>
-        <td>${escapeHtml(i.label)}</td>
+    <tr><th style="width:1%;white-space:nowrap;" title="Untick to leave a line off this quote">Include</th><th>Line item (all figures ex GST)</th><th class="num">One-off</th><th class="num">Recurring</th></tr>
+    ${rows.map(i=>`
+      <tr${i.hidden?' class="line-hidden"':''}>
+        <td style="text-align:center;">${i.key ? `<input type="checkbox" data-line-key="${i.key}" ${i.hidden?'':'checked'} style="width:auto;" aria-label="Include ${escapeAttr(HIDEABLE_LINES[i.key])} on this quote">` : ''}</td>
+        <td>${escapeHtml(i.label)}${i.hidden?' <span class="meta">(hidden, not charged)</span>':''}</td>
         <td class="num">${i.oneOff!==undefined ? AUD(i.oneOff) : '—'}</td>
         <td class="num">${i.recurring!==undefined ? AUD(i.recurring)+' '+(i.recurringLabel||'/mo') : '—'}</td>
       </tr>
@@ -2091,6 +2117,7 @@ function computeQuote(){
     <div class="totals-row"><span class="lbl2">One-off (initial purchase + onboarding)</span><span>${AUD(q.totals.oneOffTotal)}</span></div>
     <div class="totals-row"><span class="lbl2">Recurring, billed ${q.totals.billedLabel}</span><span>${AUD(q.totals.recurringBilled)}</span></div>
     ${q.term==='yearly' ? `<div class="totals-row"><span class="lbl2">Recurring, monthly equivalent</span><span>${AUD(q.totals.recurringMonthlyEquivalent)}</span></div>` : ''}
+    ${q.hiddenItems.length ? `<div class="totals-row"><span class="lbl2">Lines hidden from this quote</span><span>${q.hiddenItems.length}</span></div>` : ''}
     ${q.discountPct ? `<div class="totals-row"><span class="lbl2">Discount applied</span><span>${q.discountPct}% off list (list first-year ${AUD(q.listTotals.firstYearTotal)})</span></div>` : ''}
     <div class="totals-row big"><span>First-year total (ex GST)</span><span>${AUD(q.totals.firstYearTotal)}</span></div>
     <div class="totals-row"><span class="lbl2">GST (${q.totals.gstPct}%)</span><span>${AUD(q.totals.gstFirstYear)}</span></div>
@@ -2764,7 +2791,8 @@ const AGENT_TOOLS = [
       clientName:{type:'string'}, venueName:{type:'string'}, tier:{type:'string', description:'must match an existing tier label — use list_pp_tiers to check'}
     }, required:['clientName','venueName','tier']}},
   { name:'create_quote', description:"Build and save a quote for a client, auto-matching their size band from their venue count. Defaults the quote's assigned owner to the client's own account owner unless ownerName is given. Returns the computed totals.", input_schema:{type:'object', properties:{
-      clientName:{type:'string'}, term:{type:'string', enum:['monthly','yearly']}, includePPpay:{type:'boolean'}, includePPpayroll:{type:'boolean'}, notes:{type:'string'}, ownerName:{type:'string', description:"Who this quote is assigned to — must match an existing team member. Defaults to the client's account owner if omitted."}
+      clientName:{type:'string'}, term:{type:'string', enum:['monthly','yearly']}, includePPpay:{type:'boolean'}, includePPpayroll:{type:'boolean'}, notes:{type:'string'},
+      hideLines:{type:'array', items:{type:'string', enum:Object.keys(HIDEABLE_LINES)}, description:"Standard lines to leave off this quote entirely (not charged): pp-initial, ppc-initial, pp-onboarding, ppc-onboarding, pp-licence, ppc-licence"}, ownerName:{type:'string', description:"Who this quote is assigned to — must match an existing team member. Defaults to the client's account owner if omitted."}
     }, required:['clientName']}},
   { name:'update_quote_stage', description:"Move a client's most recent quote to a different stage in the sales pipeline (e.g. 'discovery call', 'negotiating', 'won', 'lost'). Use list_pipeline_stages to see the valid stage names for this org.", input_schema:{type:'object', properties:{
       clientName:{type:'string'}, stage:{type:'string'}
@@ -3017,7 +3045,7 @@ async function executeTool(name, input){
       if(!client) return {error:'No client found matching that name.'};
       const band = matchBand(client.venues.length);
       const term = input.term==='yearly' ? 'yearly' : 'monthly';
-      const q = buildQuoteFor(client, band, term, !!input.includePPpay, !!input.includePPpayroll, input.notes||'');
+      const q = buildQuoteFor(client, band, term, !!input.includePPpay, !!input.includePPpayroll, input.notes||'', 0, [], (input.hideLines||[]).filter(k=>HIDEABLE_LINES[k]));
       let ownerId = client.ownerId || null;
       if(input.ownerName){
         const owner = findTeamMemberByName(input.ownerName);
@@ -3027,7 +3055,7 @@ async function executeTool(name, input){
       const record = {...q, id:uid(), date:new Date().toISOString(), status:'draft', ownerId};
       quotes.unshift(record);
       await saveQuotes(); renderHistory(); renderDashboard();
-      return { success:true, client:client.name, term, bandLabel:band.label, owner:(teamMembers.find(m=>m.id===ownerId)||{}).name||null, totals:q.totals };
+      return { success:true, client:client.name, term, bandLabel:band.label, owner:(teamMembers.find(m=>m.id===ownerId)||{}).name||null, hiddenLines:q.hiddenLines, totals:q.totals };
     }
     if(name==='update_quote_stage'){
       const client = findClientByName(input.clientName);
