@@ -182,6 +182,7 @@
   .request-card .rc-from{font-family:var(--mono);font-size:11px;color:#6b6a5f;margin-top:2px;}
   .request-card .rc-snippet{font-size:12px;color:#6b6a5f;font-style:italic;margin-bottom:10px;line-height:1.5;}
   .rc-fields{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+  @media (max-width:640px){ .rc-fields{grid-template-columns:1fr;} .rc-fields > *{grid-column:auto !important;} }
   .rc-fields label{margin:0 0 3px;}
   .rc-modules{display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;}
   .rc-modules label{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink);margin:0;font-weight:400;}
@@ -340,9 +341,17 @@
           </div>
         </div>
         <div class="row">
-          <div><label>Contact email</label><input id="c-email" placeholder="ops@client.com.au"></div>
+          <div><label>ABN</label><input id="c-abn" placeholder="11 digits" inputmode="numeric"></div>
           <div><label>Account owner</label><select id="c-owner"><option value="">Unassigned</option></select></div>
         </div>
+        <div class="row">
+          <div><label>Contact name</label><input id="c-contact" placeholder="e.g. Sam Lee"></div>
+          <div><label>Contact email</label><input id="c-email" placeholder="ops@client.com.au"></div>
+          <div><label>Phone</label><input id="c-phone" type="tel" placeholder="04xx xxx xxx"></div>
+        </div>
+        <label>Business address</label>
+        <input id="c-address" placeholder="Street, suburb, state, postcode">
+        <p class="helptext">Add the client's sites (with tiers, addresses and site contacts) under the client below, or in Quote Builder → Sites.</p>
         <label>Notes</label>
         <input id="c-notes" placeholder="optional">
         <div class="btnbar"><button class="btn" id="add-client-btn">Add client</button></div>
@@ -1296,6 +1305,7 @@ function openClientOps(clientId){
     ${isLiveClient(client) ? `<div class="section-sub">Live performance <button class="btn secondary" id="co-live-refresh" style="padding:2px 8px;font-size:11px;margin-left:6px;">↻</button></div>
     <div id="co-live"><div class="helptext">Loading live data from linked venues…</div></div>` : ''}
     <div class="section-sub">Billing cycle</div>
+    ${b.active && b.amount!=null ? `<p style="font-size:13px;margin:0 0 6px;">Billing ${b.cycle}: <strong>${escapeHtml(billingSummaryText(b))}</strong>${b.startDate?` · started ${new Date(b.startDate+'T00:00:00').toLocaleDateString('en-AU')}`:''}${b.discountPct?` · ${b.discountPct}% discount`:''}${(()=>{ const q = quotes.find(x=>x.id===b.quoteId); return q ? ` · from the quote of ${new Date(q.date).toLocaleDateString('en-AU')}` : ''; })()}</p>` : (b.active ? '' : '<p class="helptext" style="margin:0 0 6px;">Billing starts automatically when one of this client\'s quotes is marked <strong>won</strong> in Quote History.</p>')}
     <div class="row">
       <div><label><input type="checkbox" id="co-bill-active" style="width:auto;display:inline-block;margin-right:6px;" ${b.active?'checked':''}>On an active billing cycle</label></div>
       <div><label>Cycle</label><select id="co-bill-cycle"><option value="monthly" ${b.cycle==='monthly'?'selected':''}>Monthly</option><option value="yearly" ${b.cycle==='yearly'?'selected':''}>Yearly</option></select></div>
@@ -1308,9 +1318,15 @@ function openClientOps(clientId){
       <button class="btn" id="co-bill-record">Record payment — advance cycle</button>
     </div>
     <div class="section-sub">Details</div>
-    <p style="font-size:13px;margin:4px 0 14px;">${escapeHtml(client.sector)} ${client.contactEmail?('· '+escapeHtml(client.contactEmail)):''}</p>
+    <table style="margin:4px 0 6px;font-size:13px;">
+      ${[['Sector', client.sector], ['ABN', client.abn ? client.abn + (abnValid(client.abn)?'':' (fails ABN check)') : ''], ['Contact', client.contactName], ['Email', client.contactEmail], ['Phone', client.contactPhone], ['Address', client.address]]
+        .map(([k,v])=>`<tr><td style="width:90px;color:#8b8a7d;">${k}</td><td>${v ? escapeHtml(v) : '<span style="color:#8a5a1c;">not collected</span>'}</td></tr>`).join('')}
+    </table>
+    ${clientMissing(client).length ? `<p class="helptext" style="color:#8a5a1c;margin-bottom:14px;">Still to collect: ${escapeHtml(clientMissing(client).join(', '))}. Edit the client in Clients &amp; Venues.</p>` : '<p class="helptext" style="margin-bottom:14px;">✓ All client details collected.</p>'}
     <div class="section-sub">Venues</div>
-    <div class="venue-tags" style="margin-bottom:14px;">${client.venues.length ? client.venues.map(v=>`<span class="vtag">${escapeHtml(v.name)}</span>`).join('') : '<span class="helptext">No venues on file.</span>'}</div>
+    ${client.venues.length ? `<table style="margin-bottom:14px;font-size:12.5px;"><tr><th>Site</th><th>Tier</th><th>Address</th><th>Contact</th></tr>
+      ${client.venues.map(v=>`<tr><td>${escapeHtml(v.name||'(unnamed site)')}</td><td>${escapeHtml(v.tier||'')}</td><td>${escapeHtml(v.address||'—')}</td><td>${escapeHtml([v.contactName, v.contactPhone, v.contactEmail].filter(Boolean).join(' · ')||'—')}</td></tr>`).join('')}</table>`
+      : '<p class="helptext" style="margin-bottom:14px;">No sites on file.</p>'}
     <div class="section-sub">Ronin / Gavin</div>
     <p class="helptext">Gavin↔Ronin messaging within this client's own venues is unchecked/automatic. Anything Josh (via Canopy) asks this client's Ronin is different — it queues via shared storage for that client's own Ronin console, and needs their operator to approve before Ronin acts on or answers it. Whether it's actually reaching a live Ronin console depends on their setup — hit Refresh to check for a status update or reply.</p>
     <div class="row">
@@ -1353,6 +1369,7 @@ function openClientOps(clientId){
   });
   document.getElementById('co-bill-save').addEventListener('click', async ()=>{
     client.billing = {
+      ...client.billing,
       active: document.getElementById('co-bill-active').checked,
       cycle: document.getElementById('co-bill-cycle').value,
       nextInvoiceDate: document.getElementById('co-bill-date').value,
@@ -1366,9 +1383,10 @@ function openClientOps(clientId){
     const base = new Date();
     if(cycle==='yearly') base.setFullYear(base.getFullYear()+1); else base.setMonth(base.getMonth()+1);
     client.billing = {
+      ...client.billing,
       active: true,
       cycle,
-      nextInvoiceDate: base.toISOString().slice(0,10),
+      nextInvoiceDate: localIsoDate(base),
       notes: document.getElementById('co-bill-notes').value.trim()
     };
     await saveClients(); renderClients(); renderDashboard();
@@ -1551,19 +1569,25 @@ document.getElementById('employeeops-backdrop').addEventListener('click', e=>{
 document.getElementById('add-client-btn').addEventListener('click', async ()=>{
   const name = document.getElementById('c-name').value.trim();
   if(!name) return;
+  const abnRaw = document.getElementById('c-abn').value.trim();
+  if(abnRaw && !abnValid(abnRaw) && !confirm(`"${abnRaw}" doesn't pass the ABN check-digit test. Save it anyway?`)) return;
   clients.push({
     id: uid(), name,
     sector: document.getElementById('c-sector').value,
+    abn: abnValid(abnRaw) ? formatAbn(abnRaw) : abnRaw,
+    contactName: document.getElementById('c-contact').value.trim(),
+    contactPhone: document.getElementById('c-phone').value.trim(),
+    address: document.getElementById('c-address').value.trim(),
     contactEmail: document.getElementById('c-email').value.trim(),
     ownerId: document.getElementById('c-owner').value || null,
     notes: document.getElementById('c-notes').value.trim(),
     venues: [],
     products: [],
-    billing: { active:false, cycle:'monthly', nextInvoiceDate:'', notes:'' }
+    billing: defaultBilling()
   });
   if (SERVER.on()) { try { const c = clients[clients.length-1]; const linkCode = await serverCreateOrg(c); showOrgLinkCodeOnce(c, linkCode); } catch(e){ alert('Client saved locally, but the server org could not be created: ' + e.message); } }
   await saveClients();
-  document.getElementById('c-name').value=''; document.getElementById('c-email').value=''; document.getElementById('c-notes').value='';
+  ['c-name','c-email','c-notes','c-abn','c-contact','c-phone','c-address'].forEach(id=>document.getElementById(id).value='');
   renderClients();
 });
 
@@ -1584,7 +1608,15 @@ function renderClients(){
           </div>
         </div>
         <div class="row">
-          <div><label>Contact email</label><input data-f="contactEmail" value="${escapeAttr(c.contactEmail)}"></div>
+          <div><label>ABN</label><input data-f="abn" value="${escapeAttr(c.abn||'')}" inputmode="numeric"></div>
+          <div><label>Contact name</label><input data-f="contactName" value="${escapeAttr(c.contactName||'')}"></div>
+          <div><label>Phone</label><input data-f="contactPhone" type="tel" value="${escapeAttr(c.contactPhone||'')}"></div>
+        </div>
+        <div class="row">
+          <div style="flex:2;"><label>Business address</label><input data-f="address" value="${escapeAttr(c.address||'')}"></div>
+        </div>
+        <div class="row">
+          <div><label>Contact email</label><input data-f="contactEmail" value="${escapeAttr(c.contactEmail||'')}"></div>
           <div><label>Account owner</label>
             <select data-f="ownerId">
               <option value="">Unassigned</option>
@@ -1606,7 +1638,7 @@ function renderClients(){
       <div class="head">
         <div>
           <div class="title">${escapeHtml(c.name)} <span class="pill ${computeBillingStatus(c).cls}">${computeBillingStatus(c).label}</span>${c.serverOrgId ? ` <span class="pill ${c.serverClaimed?'won':'draft'}">${c.serverClaimed?'🔗 Linked':'⏳ Not linked yet'}</span>` : ''}</div>
-          <div class="meta">${escapeHtml(c.sector)} · ${c.serverOrgId ? (c.serverSitesLinked ?? c.venues.length) : c.venues.length} venue${(c.serverOrgId ? (c.serverSitesLinked ?? c.venues.length) : c.venues.length)===1?'':'s'} ${c.contactEmail?('· '+escapeHtml(c.contactEmail)):''}${c.ownerId ? (' · owner: '+escapeHtml((teamMembers.find(m=>m.id===c.ownerId)||{}).name||'—')) : ' · unassigned'}</div>
+          <div class="meta">${(()=>{ const miss = clientMissing(c); return miss.length ? `<span class="pill draft" title="Still to collect: ${escapeAttr(miss.join(', '))}">Missing: ${escapeHtml(miss.join(', '))}</span> ` : '<span class="pill won">Details complete</span> '; })()}${c.abn?('ABN '+escapeHtml(c.abn)+' · '):''}${escapeHtml(c.sector)} · ${c.serverOrgId ? (c.serverSitesLinked ?? c.venues.length) : c.venues.length} venue${(c.serverOrgId ? (c.serverSitesLinked ?? c.venues.length) : c.venues.length)===1?'':'s'} ${c.contactEmail?('· '+escapeHtml(c.contactEmail)):''}${c.ownerId ? (' · owner: '+escapeHtml((teamMembers.find(m=>m.id===c.ownerId)||{}).name||'—')) : ' · unassigned'}</div>
         </div>
         <div style="display:flex;gap:6px;">
           ${SERVER.on() && c.serverOrgId && !c.serverClaimed ? `<button class="btn secondary" data-action="regen-link-code">Get linking code</button>` : ''}
@@ -1652,6 +1684,10 @@ document.getElementById('client-list').addEventListener('click', async e=>{
   if(action==='save-edit'){
     client.name = item.querySelector('[data-f="name"]').value.trim() || client.name;
     client.sector = item.querySelector('[data-f="sector"]').value;
+    const abnRaw = item.querySelector('[data-f="abn"]').value.trim();
+    if(abnRaw && !abnValid(abnRaw) && !confirm(`"${abnRaw}" doesn't pass the ABN check-digit test. Save it anyway?`)) return;
+    client.abn = abnValid(abnRaw) ? formatAbn(abnRaw) : abnRaw;
+    ['contactName','contactPhone','address'].forEach(k=>{ client[k] = item.querySelector(`[data-f="${k}"]`).value.trim(); });
     client.contactEmail = item.querySelector('[data-f="contactEmail"]').value.trim();
     client.ownerId = item.querySelector('[data-f="ownerId"]').value || null;
     client.notes = item.querySelector('[data-f="notes"]').value.trim();
@@ -2405,6 +2441,31 @@ async function createGmailDraft(q){
 /* ---------- QUOTE REQUESTS ---------- */
 const SECTORS = ['Aged care','Childcare','Education','Cafés','Restaurants','Hotels','Sporting venues'];
 
+/* Client details collected from the quote-request stage onward. */
+// ABN check digit (ATO algorithm): subtract 1 from the first digit, weight, sum, divisible by 89.
+function abnDigits(abn){ return String(abn||'').replace(/\D/g,''); }
+function abnValid(abn){
+  const d = abnDigits(abn); if(d.length!==11) return false;
+  const w = [10,1,3,5,7,9,11,13,15,17,19];
+  return d.split('').reduce((sum,ch,i)=>sum + (Number(ch) - (i===0?1:0))*w[i], 0) % 89 === 0;
+}
+function formatAbn(abn){ const d = abnDigits(abn); return d.length===11 ? `${d.slice(0,2)} ${d.slice(2,5)} ${d.slice(5,8)} ${d.slice(8)}` : String(abn||'').trim(); }
+// What a client record still needs before it's fully collated (billing and deployment rely on these).
+function clientMissing(c){
+  const has = v => !!String(v||'').trim();
+  const miss = [];
+  if(!has(c.contactName)) miss.push('contact name');
+  if(!has(c.contactPhone)) miss.push('phone');
+  if(!has(c.contactEmail)) miss.push('email');
+  if(!has(c.address)) miss.push('address');
+  if(!has(c.abn)) miss.push('ABN'); else if(!abnValid(c.abn)) miss.push('valid ABN');
+  if(!c.venues || !c.venues.length) miss.push('sites');
+  else if(c.venues.some(v=>!has(v.name))) miss.push('site names');
+  return miss;
+}
+function newVenue(name){ return { id:uid(), name:name||'', tier: pricing.ppTiers[0] ? pricing.ppTiers[0].label : 'T1', address:'', contactName:'', contactPhone:'', contactEmail:'' }; }
+function defaultBilling(){ return { active:false, cycle:'monthly', nextInvoiceDate:'', notes:'' }; }
+
 document.getElementById('fetch-requests-btn').addEventListener('click', fetchQuoteRequests);
 
 async function fetchQuoteRequests(){
@@ -2423,6 +2484,11 @@ Respond with ONLY a raw JSON array (no markdown fences, no commentary) of object
   "guessedClientName": "best guess at the organisation/company name, falling back to fromName if unclear",
   "guessedSector": "one of exactly: Aged care, Childcare, Education, Cafés, Restaurants, Hotels, Sporting venues, Unknown",
   "guessedVenueCount": integer number of sites/venues/locations mentioned, or null if not mentioned,
+  "siteNames": array of the individual site/venue names mentioned (empty array if none named),
+  "contactName": "the person's name, from the signature or greeting, or empty string",
+  "contactPhone": "phone number from the email or signature, or empty string",
+  "abn": "11-digit Australian Business Number if mentioned, or empty string",
+  "address": "business or head-office postal address if mentioned, or empty string",
   "requestedModules": array with any of "PP", "PP Command", "PPpay", "PPpayroll" that seem relevant from the email content — default to ["PP"] if nothing specific is mentioned,
   "termPreference": "monthly", "yearly", or "unspecified",
   "notes": "one short sentence with anything else relevant"
@@ -2462,7 +2528,12 @@ If no matching emails are found, respond with exactly: []`;
         snippet: f.snippet||'',
         guessedClientName: f.guessedClientName || f.fromName || f.fromEmail || 'Unknown',
         guessedSector: SECTORS.includes(f.guessedSector) ? f.guessedSector : 'Aged care',
-        guessedVenueCount: Number.isFinite(f.guessedVenueCount) ? f.guessedVenueCount : 1,
+        guessedVenueCount: Number.isFinite(f.guessedVenueCount) ? f.guessedVenueCount : (Array.isArray(f.siteNames) && f.siteNames.length ? f.siteNames.length : 1),
+        siteNames: Array.isArray(f.siteNames) ? f.siteNames.map(String).filter(Boolean) : [],
+        contactName: f.contactName || f.fromName || '',
+        contactPhone: f.contactPhone || '',
+        abn: f.abn || '',
+        address: f.address || '',
         requestedModules: Array.isArray(f.requestedModules) ? f.requestedModules : ['PP'],
         termPreference: ['monthly','yearly'].includes(f.termPreference) ? f.termPreference : 'monthly',
         notes: f.notes||'',
@@ -2499,8 +2570,13 @@ function renderRequests(){
         <div><label>Sector</label>
           <select data-f="sector">${SECTORS.map(s=>`<option ${s===r.guessedSector?'selected':''}>${s}</option>`).join('')}</select>
         </div>
-        <div><label>Venue count</label><input type="number" data-f="venueCount" value="${r.guessedVenueCount}" min="1"></div>
+        <div><label>ABN</label><input data-f="abn" value="${escapeAttr(r.abn||'')}" placeholder="11 digits" inputmode="numeric"></div>
+        <div><label>Contact name</label><input data-f="contactName" value="${escapeAttr(r.contactName ?? r.fromName ?? '')}"></div>
         <div><label>Contact email</label><input data-f="contactEmail" value="${escapeAttr(r.fromEmail)}"></div>
+        <div><label>Phone</label><input data-f="contactPhone" type="tel" value="${escapeAttr(r.contactPhone||'')}"></div>
+        <div style="grid-column:1 / -1;"><label>Business address</label><input data-f="address" value="${escapeAttr(r.address||'')}" placeholder="Street, suburb, state, postcode"></div>
+        <div style="grid-column:span 2;"><label>Site names (one per line)</label><textarea data-f="siteNames" rows="3" placeholder="e.g. Burwood Campus Café&#10;Waterfront Kiosk">${escapeHtml((r.siteNames||[]).join('\n'))}</textarea></div>
+        <div><label>Site count</label><input type="number" data-f="venueCount" value="${Math.max(r.guessedVenueCount||1, (r.siteNames||[]).length)}" min="1"><p class="helptext">Unnamed extra sites are added as blanks to fill in later.</p></div>
         <div><label>Term preference</label>
           <select data-f="term"><option value="monthly" ${r.termPreference==='monthly'?'selected':''}>Monthly</option><option value="yearly" ${r.termPreference==='yearly'?'selected':''}>Yearly</option></select>
         </div>
@@ -2510,10 +2586,32 @@ function renderRequests(){
         <label><input type="checkbox" data-f="mod-pppayroll" ${r.requestedModules.includes('PPpayroll')?'checked':''}> PPpayroll</label>
       </div>
       ${r.notes ? `<p class="helptext">Note: ${escapeHtml(r.notes)}</p>` : ''}
+      <p class="helptext" data-role="req-check"></p>
       <div class="btnbar"><button class="btn" data-action="convert">Create client &amp; open quote</button></div>
     </div>
   `).join('');
+  wrap.querySelectorAll('.request-card').forEach(updateRequestCheck);
 }
+// Collect the card's fields into the shape convertRequestToClient takes.
+function readRequestCard(card){
+  const val = f => (card.querySelector(`[data-f="${f}"]`)||{}).value || '';
+  const siteNames = val('siteNames').split('\n').map(x=>x.trim()).filter(Boolean);
+  return { clientName: val('clientName').trim(), sector: val('sector'), abn: val('abn').trim(), contactName: val('contactName').trim(),
+    contactEmail: val('contactEmail').trim(), contactPhone: val('contactPhone').trim(), address: val('address').trim(),
+    siteNames, venueCount: Math.max(1, Number(val('venueCount'))||1, siteNames.length) };
+}
+// Live "what's still missing" line under each request, using the same rules as client records.
+function updateRequestCheck(card){
+  const d = readRequestCard(card);
+  const probe = { ...d, venues: Array.from({length:d.venueCount}, (_,i)=>({ name: d.siteNames[i]||'' })) };
+  const miss = clientMissing(probe);
+  const el = card.querySelector('[data-role="req-check"]');
+  el.textContent = miss.length ? `Still to collect: ${miss.join(', ')}. You can create the client now and finish these later.` : '✓ All client details collected.';
+  el.style.color = miss.length ? '#8a5a1c' : 'var(--verdigris-dark)';
+}
+document.getElementById('requests-list').addEventListener('input', e=>{
+  const card = e.target.closest('.request-card'); if(card) updateRequestCheck(card);
+});
 
 document.getElementById('requests-list').addEventListener('click', async e=>{
   const card = e.target.closest('.request-card'); if(!card) return;
@@ -2525,36 +2623,40 @@ document.getElementById('requests-list').addEventListener('click', async e=>{
     return;
   }
   if(e.target.dataset.action==='convert'){
-    const val = f => card.querySelector(`[data-f="${f}"]`).value;
     const checked = f => card.querySelector(`[data-f="${f}"]`).checked;
-    const clientName = val('clientName').trim() || req.guessedClientName;
-    const sector = val('sector');
-    const venueCount = Math.max(1, Number(val('venueCount'))||1);
-    const contactEmail = val('contactEmail').trim();
-    const term = val('term');
+    const details = readRequestCard(card);
+    const term = card.querySelector('[data-f="term"]').value;
     const includePPpay = checked('mod-pppay');
     const includePPpayroll = checked('mod-pppayroll');
-    const client = await convertRequestToClient(req, {clientName, sector, venueCount, contactEmail});
+    const client = await convertRequestToClient(req, details);
     pendingPrefill = { clientId: client.id, term, includePPpay, includePPpayroll };
     document.querySelector('nav button[data-tab="quote"]').click();
   }
 });
 async function convertRequestToClient(req, overrides){
-  const clientName = overrides.clientName || req.guessedClientName;
-  const sector = overrides.sector || req.guessedSector;
-  const venueCount = Math.max(1, Number(overrides.venueCount)||req.guessedVenueCount||1);
-  const contactEmail = (overrides.contactEmail!==undefined ? overrides.contactEmail : req.fromEmail || '').trim();
-  let client = contactEmail ? clients.find(c=>c.contactEmail && c.contactEmail.toLowerCase()===contactEmail.toLowerCase()) : null;
-  if(!client){
-    client = {
-      id: uid(), name: clientName, sector, contactEmail,
+  const pick = (k, fallback) => { const v = overrides[k]; return (v!==undefined && String(v).trim()!=='') ? String(v).trim() : (fallback||''); };
+  const clientName = pick('clientName', req.guessedClientName);
+  const sector = SECTORS.includes(overrides.sector) ? overrides.sector : req.guessedSector;
+  const siteNames = (overrides.siteNames || req.siteNames || []).map(x=>String(x).trim()).filter(Boolean);
+  const venueCount = Math.max(1, Number(overrides.venueCount)||req.guessedVenueCount||1, siteNames.length);
+  const details = {
+    abn: pick('abn', req.abn), contactName: pick('contactName', req.contactName || req.fromName),
+    contactEmail: pick('contactEmail', req.fromEmail), contactPhone: pick('contactPhone', req.contactPhone), address: pick('address', req.address),
+  };
+  if(details.abn && abnValid(details.abn)) details.abn = formatAbn(details.abn);
+  const venues = Array.from({length: venueCount}, (_,i)=>newVenue(siteNames[i]||''));
+  let client = details.contactEmail ? clients.find(c=>c.contactEmail && c.contactEmail.toLowerCase()===details.contactEmail.toLowerCase()) : null;
+  if(client){
+    // Existing client (same email): fill in anything it's missing, never overwrite what's already there.
+    Object.entries(details).forEach(([k,v])=>{ if(v && !String(client[k]||'').trim()) client[k] = v; });
+    if(!client.venues.length) client.venues = venues;
+  } else {
+    client = { id: uid(), name: clientName, sector, ...details,
       notes: `Created from quote request: "${req.subject}"`,
-      venues: Array.from({length: venueCount}, (_,i)=>({id: uid(), name:`Venue ${i+1}`})),
-      products: []
-    };
+      venues, products: [], billing: defaultBilling() };
     clients.push(client);
-    await saveClients();
   }
+  await saveClients();
   req.status = 'converted';
   await saveRequests();
   renderRequests();
@@ -2729,13 +2831,58 @@ function renderCostOfSaleSummary(){
     <div class="totals-row"><span class="lbl2">Cost of sale as % of first-year revenue won</span><span>${costAsPctRevenue}%</span></div>
   `;
 }
+/* Billing starts when a quote is accepted (moved to "won"): cycle, amounts and the
+   yearly discount all come from that quote. First invoice is due on the acceptance date. */
+function localIsoDate(d){ d = d || new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function billingFromQuote(q, client){
+  const t = q.totals, today = localIsoDate();
+  return { active:true, cycle: q.term==='yearly' ? 'yearly' : 'monthly', startDate: today, nextInvoiceDate: today,
+    amount: Math.round(t.recurringBilled), amountIncGst: Math.round(t.recurringBilled + (t.gstOnRecurring||0)),
+    oneOff: Math.round(t.oneOffTotal), oneOffIncGst: Math.round(t.oneOffTotal + (t.gstOnOneOff||0)),
+    discountPct: q.discountPct||0, quoteId: q.id, notes: (client.billing && client.billing.notes) || '' };
+}
+function billingSummaryText(b){
+  const per = b.cycle==='yearly' ? 'year' : 'month';
+  return `${AUD(b.amount)} per ${per} ex GST (${AUD(b.amountIncGst)} inc GST)` + (b.oneOff ? `, plus one-off ${AUD(b.oneOff)} ex GST (${AUD(b.oneOffIncGst)} inc GST)` : '');
+}
+// interactive=true asks the user first (UI); false starts billing straight away (Canopy, which reports back).
+async function onQuoteAccepted(q, interactive){
+  const client = clients.find(c=>c.id===q.clientId);
+  if(!client) return { started:false, reason:'client no longer exists' };
+  const next = billingFromQuote(q, client);
+  const miss = clientMissing(client);
+  const replacing = client.billing && client.billing.active && client.billing.quoteId && client.billing.quoteId!==q.id;
+  if(interactive){
+    const msg = `Quote accepted: start billing ${client.name}?\n\n`
+      + `${next.cycle==='yearly'?'Yearly':'Monthly'} billing: ${billingSummaryText(next)}.\nFirst invoice due today (${new Date().toLocaleDateString('en-AU')}).`
+      + (replacing ? `\n\nThis replaces billing already running from another quote.` : '')
+      + (miss.length ? `\n\nStill missing from the client record: ${miss.join(', ')}.` : '')
+      + `\n\nOK = mark won and start billing. Cancel = leave the quote as it was.`;
+    if(!confirm(msg)) return { started:false, cancelled:true };
+  }
+  client.billing = next;
+  await saveClients(); renderClients(); renderDashboard();
+  return { started:true, billing: next, missing: miss, replacedOtherQuote: !!replacing };
+}
 document.getElementById('history-list').addEventListener('change', async e=>{
   if(e.target.dataset.role==='status-select'){
     const tr = e.target.closest('tr[data-id]');
     const q = quotes.find(q=>q.id===tr.dataset.id);
-    q.status = e.target.value;
+    const prev = q.status, next = e.target.value;
+    if(next==='won' && prev!=='won'){
+      const r = await onQuoteAccepted(q, true);
+      if(r.cancelled){ e.target.value = prev; return; }
+    } else if(prev==='won' && next!=='won'){
+      const client = clients.find(c=>c.id===q.clientId);
+      if(client && client.billing && client.billing.active && client.billing.quoteId===q.id
+         && confirm(`This quote started ${client.name}'s billing. Stop billing too?`)){
+        client.billing.active = false;
+        await saveClients(); renderClients();
+      }
+    }
+    q.status = next;
     await saveQuotes();
-    renderDashboard();
+    renderHistory(); renderDashboard();
   }
 });
 document.getElementById('history-list').addEventListener('click', e=>{
@@ -2765,7 +2912,7 @@ const AGENT_TOOLS = [
   { name:'list_clients', description:'List clients, optionally filtered by a text query matched against name, sector, email, or venue names.', input_schema:{type:'object', properties:{ query:{type:'string', description:'optional search text'} }} },
   { name:'add_client', description:'Create a new client account.', input_schema:{type:'object', properties:{
       name:{type:'string'}, sector:{type:'string', enum:SECTORS},
-      contactEmail:{type:'string'}, notes:{type:'string'}, ownerName:{type:'string', description:"Name of the team member who owns this account. Must match an existing team member — use list_team to check."},
+      contactEmail:{type:'string'}, abn:{type:'string', description:'11-digit ABN'}, contactName:{type:'string'}, contactPhone:{type:'string'}, address:{type:'string', description:'business / head-office address'}, notes:{type:'string'}, ownerName:{type:'string', description:"Name of the team member who owns this account. Must match an existing team member — use list_team to check."},
       venueNames:{type:'array', items:{type:'string'}, description:'names of venues to create under this client'}
     }, required:['name','sector']}},
   { name:'add_venue', description:"Add a site (venue) to an existing client, optionally with its PP tier, address and site contact. Every site on a quote should end up with a name, address, contact name and a phone or email.", input_schema:{type:'object', properties:{ clientName:{type:'string'}, venueName:{type:'string'},
@@ -2774,7 +2921,7 @@ const AGENT_TOOLS = [
       newName:{type:'string'}, tier:{type:'string'}, address:{type:'string'}, contactName:{type:'string'}, contactPhone:{type:'string'}, contactEmail:{type:'string'} }, required:['clientName','venueName']}},
   { name:'list_venues', description:"List a client's sites with PP tier, monthly rate, address, site contact, and which details are still missing.", input_schema:{type:'object', properties:{ clientName:{type:'string'} }, required:['clientName']}},
   { name:'edit_client', description:'Update fields on an existing client. Only include fields you want changed.', input_schema:{type:'object', properties:{
-      clientName:{type:'string'}, newName:{type:'string'}, sector:{type:'string', enum:SECTORS}, contactEmail:{type:'string'}, notes:{type:'string'}, ownerName:{type:'string', description:"Reassign the account owner — must match an existing team member."}
+      clientName:{type:'string'}, newName:{type:'string'}, sector:{type:'string', enum:SECTORS}, contactEmail:{type:'string'}, abn:{type:'string', description:'11-digit ABN'}, contactName:{type:'string'}, contactPhone:{type:'string'}, address:{type:'string', description:'business / head-office address'}, notes:{type:'string'}, ownerName:{type:'string', description:"Reassign the account owner — must match an existing team member."}
     }, required:['clientName']}},
   { name:'remove_client', description:'Delete a client and all their venues.', input_schema:{type:'object', properties:{ clientName:{type:'string'} }, required:['clientName']}},
   { name:'update_pricing', description:'Set a top-level pricing rate: licensing.yearlyDiscountPct, onboarding.ppFee, onboarding.ppCommandFee, addons.pppayMonthly, addons.pppayrollMonthly. PP is priced per venue by tier, not here — use update_pp_tier for that. PP Command initial purchase and monthly licensing are also NOT here — they live per size band, use update_size_band.', input_schema:{type:'object', properties:{
@@ -2794,7 +2941,7 @@ const AGENT_TOOLS = [
       clientName:{type:'string'}, term:{type:'string', enum:['monthly','yearly']}, includePPpay:{type:'boolean'}, includePPpayroll:{type:'boolean'}, notes:{type:'string'},
       hideLines:{type:'array', items:{type:'string', enum:Object.keys(HIDEABLE_LINES)}, description:"Standard lines to leave off this quote entirely (not charged): pp-initial, ppc-initial, pp-onboarding, ppc-onboarding, pp-licence, ppc-licence"}, ownerName:{type:'string', description:"Who this quote is assigned to — must match an existing team member. Defaults to the client's account owner if omitted."}
     }, required:['clientName']}},
-  { name:'update_quote_stage', description:"Move a client's most recent quote to a different stage in the sales pipeline (e.g. 'discovery call', 'negotiating', 'won', 'lost'). Use list_pipeline_stages to see the valid stage names for this org.", input_schema:{type:'object', properties:{
+  { name:'update_quote_stage', description:"Move a client's most recent quote to a different stage in the sales pipeline (e.g. 'discovery call', 'negotiating', 'won', 'lost'). Moving it to 'won' means the client accepted: this starts their billing from that quote (cycle, amounts and yearly discount from the quote; first invoice due today) — only do it when the user confirms the client has accepted. Use list_pipeline_stages to see the valid stage names for this org.", input_schema:{type:'object', properties:{
       clientName:{type:'string'}, stage:{type:'string'}
     }, required:['clientName','stage']}},
   { name:'list_pipeline_stages', description:'List the ordered sales-quote pipeline stages configured for this org.', input_schema:{type:'object', properties:{}} },
@@ -2817,7 +2964,8 @@ const AGENT_TOOLS = [
   { name:'send_quote_email', description:"Create a Gmail draft for a client's most recently saved quote (requires the client to have a contact email on file).", input_schema:{type:'object', properties:{ clientName:{type:'string'} }, required:['clientName']}},
   { name:'list_pending_requests', description:'List quote-request emails scraped from the inbox that are still pending review.', input_schema:{type:'object', properties:{}} },
   { name:'convert_pending_request', description:'Convert a pending quote request into a client, matched by text found in its subject or sender email.', input_schema:{type:'object', properties:{
-      matchText:{type:'string'}, clientName:{type:'string'}, sector:{type:'string', enum:SECTORS}, venueCount:{type:'number'}, contactEmail:{type:'string'}
+      matchText:{type:'string'}, clientName:{type:'string'}, sector:{type:'string', enum:SECTORS}, venueCount:{type:'number'}, contactEmail:{type:'string'},
+      abn:{type:'string'}, contactName:{type:'string'}, contactPhone:{type:'string'}, address:{type:'string'}, siteNames:{type:'array', items:{type:'string'}}
     }, required:['matchText']}},
   { name:'list_products', description:"List a client's menu items (name, category, price). Never returns ingredients or inventory — PPcanopy has no access to those.", input_schema:{type:'object', properties:{ clientName:{type:'string'} }, required:['clientName']}},
   { name:'add_product', description:"Add a menu item to a client's catalogue.", input_schema:{type:'object', properties:{
@@ -2947,14 +3095,15 @@ async function executeTool(name, input){
         if(!owner) return {error:'No team member found matching that owner name.'};
         ownerId = owner.id;
       }
+      if(input.abn && !abnValid(input.abn)) return {error:`"${input.abn}" fails the ABN check-digit test — confirm the ABN with the client.`};
       const client = { id:uid(), name:input.name, sector, contactEmail:input.contactEmail||'', notes:input.notes||'', ownerId,
-        venues: (input.venueNames||[]).map(vn=>({id:uid(), name:vn, tier: pricing.ppTiers[0] ? pricing.ppTiers[0].label : 'T1'})), products: [],
-        billing: { active:false, cycle:'monthly', nextInvoiceDate:'', notes:'' } };
+        abn: input.abn ? formatAbn(input.abn) : '', contactName:input.contactName||'', contactPhone:input.contactPhone||'', address:input.address||'',
+        venues: (input.venueNames||[]).map(vn=>newVenue(vn)), products: [], billing: defaultBilling() };
       clients.push(client);
       let orgKeyNote = null;
       if (SERVER.on()) { try { const linkCode = await serverCreateOrg(client); showOrgLinkCodeOnce(client, linkCode); orgKeyNote = 'Org created on the PP server; a one-time linking code was shown to the user on screen (never to you) for them to give to that client\'s PP Command console.'; } catch(e){ orgKeyNote = 'Saved locally, but server org creation failed: ' + e.message; } }
       await saveClients(); renderClients(); renderDashboard();
-      return { success:true, client:{name:client.name, sector:client.sector, venues:client.venues.length, owner: input.ownerName?findTeamMemberByName(input.ownerName).name:null}, server: orgKeyNote };
+      return { success:true, client:{name:client.name, sector:client.sector, venues:client.venues.length, owner: input.ownerName?findTeamMemberByName(input.ownerName).name:null}, stillToCollect: clientMissing(client), server: orgKeyNote };
     }
     if(name==='add_venue'){
       const client = findClientByName(input.clientName);
@@ -2985,6 +3134,8 @@ async function executeTool(name, input){
       if(input.newName) client.name = input.newName;
       if(input.sector && SECTORS.includes(input.sector)) client.sector = input.sector;
       if(input.contactEmail!==undefined) client.contactEmail = input.contactEmail;
+      if(input.abn!==undefined){ if(input.abn && !abnValid(input.abn)) return {error:`"${input.abn}" fails the ABN check-digit test — confirm the ABN with the client.`}; client.abn = input.abn ? formatAbn(input.abn) : ''; }
+      ['contactName','contactPhone','address'].forEach(k=>{ if(input[k]!==undefined) client[k] = input[k]; });
       if(input.notes!==undefined) client.notes = input.notes;
       if(input.ownerName){
         const owner = findTeamMemberByName(input.ownerName);
@@ -2992,7 +3143,7 @@ async function executeTool(name, input){
         client.ownerId = owner.id;
       }
       await saveClients(); renderClients(); renderDashboard();
-      return { success:true, client:{name:client.name, sector:client.sector, contactEmail:client.contactEmail, owner:(teamMembers.find(m=>m.id===client.ownerId)||{}).name||null} };
+      return { success:true, client:{name:client.name, sector:client.sector, abn:client.abn||'', contactName:client.contactName||'', contactEmail:client.contactEmail, contactPhone:client.contactPhone||'', address:client.address||'', owner:(teamMembers.find(m=>m.id===client.ownerId)||{}).name||null}, stillToCollect: clientMissing(client) };
     }
     if(name==='remove_client'){
       const client = findClientByName(input.clientName);
@@ -3063,9 +3214,15 @@ async function executeTool(name, input){
       const q = quotes.filter(q=>q.clientId===client.id).sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
       if(!q) return {error:'No saved quote for this client yet.'};
       if(!pipelineStages.includes(input.stage)) return {error:'Unknown stage. Valid stages: '+pipelineStages.join(', ')};
+      const wasWon = q.status==='won';
       q.status = input.stage;
       await saveQuotes(); renderHistory(); renderDashboard();
-      return { success:true, client:client.name, stage:q.status };
+      if(input.stage==='won' && !wasWon){
+        const r = await onQuoteAccepted(q, false);
+        return { success:true, client:client.name, stage:q.status, billingStarted:r.started, billing: r.billing ? billingSummaryText(r.billing) + `, ${r.billing.cycle}, first invoice due ${r.billing.nextInvoiceDate}` : null,
+          replacedOtherQuoteBilling: r.replacedOtherQuote||false, clientDetailsMissing: r.missing||[] };
+      }
+      return { success:true, client:client.name, stage:q.status, note: wasWon && input.stage!=='won' ? 'Billing started by this quote is still active; use update_billing to stop it if needed.' : undefined };
     }
     if(name==='list_pipeline_stages'){
       return { stages: pipelineStages };
@@ -3149,8 +3306,9 @@ async function executeTool(name, input){
       const m = String(input.matchText||'').toLowerCase();
       const req = requests.find(r=>r.status==='pending' && (r.subject.toLowerCase().includes(m) || (r.fromEmail||'').toLowerCase().includes(m)));
       if(!req) return {error:'No pending request matches that text.'};
-      const client = await convertRequestToClient(req, { clientName:input.clientName, sector:input.sector, venueCount:input.venueCount, contactEmail:input.contactEmail });
-      return { success:true, client:{name:client.name, sector:client.sector, venues:client.venues.length} };
+      const client = await convertRequestToClient(req, { clientName:input.clientName, sector:input.sector, venueCount:input.venueCount, contactEmail:input.contactEmail,
+        abn:input.abn, contactName:input.contactName, contactPhone:input.contactPhone, address:input.address, siteNames:input.siteNames });
+      return { success:true, client:{name:client.name, sector:client.sector, venues:client.venues.length}, stillToCollect: clientMissing(client) };
     }
     if(name==='list_products'){
       const client = findClientByName(input.clientName);
@@ -3236,7 +3394,7 @@ async function executeTool(name, input){
       const cycle = (input.cycle && ['monthly','yearly'].includes(input.cycle)) ? input.cycle : (client.billing.cycle||'monthly');
       const base = new Date();
       if(cycle==='yearly') base.setFullYear(base.getFullYear()+1); else base.setMonth(base.getMonth()+1);
-      client.billing = { active:true, cycle, nextInvoiceDate: base.toISOString().slice(0,10), notes: client.billing.notes||'' };
+      client.billing = { ...client.billing, active:true, cycle, nextInvoiceDate: localIsoDate(base) };
       await saveClients(); renderClients(); renderDashboard();
       return { success:true, client:client.name, billing:client.billing, status:computeBillingStatus(client) };
     }
