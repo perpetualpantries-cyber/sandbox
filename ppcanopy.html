@@ -749,6 +749,23 @@ async function serverRegenerateOrgLinkCode(client){
   if (!r.ok) throw new Error(r.data.error || ('HTTP ' + r.status));
   return r.data;
 }
+// Pulls real link status from the server (has PP Command actually claimed this
+// org?) and real linked-site count — local `venues` is a manually-typed sales
+// list and was never connected to what's actually linked. Best-effort: leaves
+// existing local state alone if the server call fails.
+async function serverSyncClients(){
+  if (!SERVER.on()) return;
+  const r = await SERVER.req('GET', '/api/pp/clients');
+  if (!r.ok) return;
+  const byId = new Map(r.data.clients.map(c => [c.id, c]));
+  clients.forEach(c => {
+    if (!c.serverOrgId) return;
+    const s = byId.get(c.serverOrgId);
+    if (!s) return;
+    c.serverClaimed = s.claimed;
+    c.serverSitesLinked = s.sites_linked;
+  });
+}
 function showOrgLinkCodeOnce(client, linkCode){
   const expires = linkCode.expires_at ? new Date(linkCode.expires_at).toLocaleString() : 'in 24 hours';
   let copied = false;
@@ -914,6 +931,7 @@ document.getElementById('nav').addEventListener('click', e=>{
   document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
   setLocalSetting('active_tab', btn.dataset.tab);   // reopened on the next load (see boot)
   if(btn.dataset.tab==='dashboard') renderDashboard();
+  if(btn.dataset.tab==='clients'){ renderClients(); serverSyncClients().then(renderClients); }
   if(btn.dataset.tab==='quote') renderQuoteBuilder();
   if(btn.dataset.tab==='history') renderHistory();
   if(btn.dataset.tab==='requests') renderRequests();
@@ -1445,8 +1463,8 @@ function renderClients(){
     <div class="client-list-item" data-id="${c.id}">
       <div class="head">
         <div>
-          <div class="title">${escapeHtml(c.name)} <span class="pill ${computeBillingStatus(c).cls}">${computeBillingStatus(c).label}</span></div>
-          <div class="meta">${escapeHtml(c.sector)} · ${c.venues.length} venue${c.venues.length===1?'':'s'} ${c.contactEmail?('· '+escapeHtml(c.contactEmail)):''}${c.ownerId ? (' · owner: '+escapeHtml((teamMembers.find(m=>m.id===c.ownerId)||{}).name||'—')) : ' · unassigned'}</div>
+          <div class="title">${escapeHtml(c.name)} <span class="pill ${computeBillingStatus(c).cls}">${computeBillingStatus(c).label}</span>${c.serverOrgId ? ` <span class="pill ${c.serverClaimed?'won':'draft'}">${c.serverClaimed?'🔗 Linked':'⏳ Not linked yet'}</span>` : ''}</div>
+          <div class="meta">${escapeHtml(c.sector)} · ${c.serverOrgId ? (c.serverSitesLinked ?? c.venues.length) : c.venues.length} venue${(c.serverOrgId ? (c.serverSitesLinked ?? c.venues.length) : c.venues.length)===1?'':'s'} ${c.contactEmail?('· '+escapeHtml(c.contactEmail)):''}${c.ownerId ? (' · owner: '+escapeHtml((teamMembers.find(m=>m.id===c.ownerId)||{}).name||'—')) : ' · unassigned'}</div>
         </div>
         <div style="display:flex;gap:6px;">
           ${SERVER.on() && c.serverOrgId ? `<button class="btn secondary" data-action="regen-link-code">Get linking code</button>` : ''}
