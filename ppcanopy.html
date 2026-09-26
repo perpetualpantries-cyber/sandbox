@@ -225,6 +225,7 @@
       <button data-tab="escalations"><span class="tri"></span>Escalations</button>
       <button data-tab="quote"><span class="tri"></span>Quote Builder</button>
       <button data-tab="history"><span class="tri"></span>Quote History</button>
+      <button data-tab="invoices"><span class="tri"></span>Invoices</button>
       <button data-tab="team"><span class="tri"></span>Team</button>
       <button data-tab="schedule"><span class="tri"></span>Schedule</button>
       <button data-tab="ordering"><span class="tri"></span>Ordering</button>
@@ -539,6 +540,56 @@
       <div class="card">
         <h2>Cost of sale — internal</h2>
         <div id="cost-of-sale-summary"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-invoices">
+      <div class="eyebrow">Billing</div>
+      <h1>Invoices</h1>
+      <div id="inv-settings-warning"></div>
+      <div class="card">
+        <h2>Ready to invoice</h2>
+        <p class="helptext">Clients on an active billing cycle (billing starts when a quote is marked won). Creating an invoice bills the next period and moves that client's next invoice date on by one cycle. The first invoice after a quote is accepted also includes the quote's one-off charges.</p>
+        <div id="inv-due"></div>
+      </div>
+      <div class="card">
+        <h2>Invoices</h2>
+        <div class="row" style="max-width:320px;"><div><label>Show</label>
+          <select id="inv-filter"><option value="open">Unpaid &amp; overdue</option><option value="all">All</option><option value="paid">Paid</option><option value="void">Void</option></select>
+        </div></div>
+        <div id="inv-list" style="margin-top:10px;"></div>
+        <div id="inv-status"></div>
+      </div>
+      <div class="card" id="inv-settings-card">
+        <h2>Business details for invoices</h2>
+        <p class="helptext" style="margin-bottom:6px;">Printed on every tax invoice. Fill these in whenever you're ready: invoices can be created before then, and you'll be warned before downloading or emailing one with details missing.</p>
+        <div class="row">
+          <div><label>Legal business name</label><input id="is-legalName" placeholder="e.g. Perpetual Pantries Pty Ltd"></div>
+          <div><label>Trading name (optional)</label><input id="is-tradingName" placeholder="Perpetual Pantries"></div>
+        </div>
+        <div class="row">
+          <div><label>ABN</label><input id="is-abn" placeholder="11 digits" inputmode="numeric"></div>
+          <div><label>GST</label><label style="font-size:13px;color:var(--ink);font-weight:400;margin-top:8px;"><input type="checkbox" id="is-gstRegistered" style="width:auto;display:inline-block;margin-right:6px;">Registered for GST (invoices show GST and are titled "Tax invoice")</label></div>
+        </div>
+        <label>Business address</label><input id="is-address" placeholder="Street, suburb, state, postcode">
+        <div class="row">
+          <div><label>Accounts email</label><input id="is-email" type="email" placeholder="accounts@…"></div>
+          <div><label>Phone</label><input id="is-phone" type="tel"></div>
+        </div>
+        <div class="section-sub">Payment details</div>
+        <div class="row">
+          <div><label>Account name</label><input id="is-bankAccountName"></div>
+          <div><label>BSB</label><input id="is-bsb" placeholder="000-000" inputmode="numeric"></div>
+          <div><label>Account number</label><input id="is-accountNumber" inputmode="numeric"></div>
+        </div>
+        <div class="row">
+          <div><label>Payment terms (days)</label><input id="is-paymentTermsDays" type="number" min="0" step="1"></div>
+          <div><label>Invoice number prefix</label><input id="is-prefix" placeholder="INV-"></div>
+          <div><label>Next invoice number</label><input id="is-nextNumber" type="number" min="1" step="1"></div>
+        </div>
+        <label>Note at the bottom of invoices (optional)</label><input id="is-footer" placeholder="e.g. Thank you for your business.">
+        <div class="btnbar"><button class="btn" id="is-save">Save business details</button></div>
+        <div id="is-status"></div>
       </div>
     </div>
 
@@ -928,8 +979,8 @@ const PERMISSION_DESCRIPTIONS = {
   'IT Staff': "Access to Team (own profile, hours), Schedule, Ordering, and Internal Comms. No access to clients, quotes, pricing, or billing."
 };
 const TAB_PERMISSIONS = {
-  'Owner': ['dashboard','clients','products','requests','pricing','quote','history','team','schedule','ordering','meetings','hours','comms','escalations'],
-  'Sales Manager': ['dashboard','clients','products','requests','quote','history','team','schedule','meetings','hours','comms','escalations'],
+  'Owner': ['dashboard','clients','products','requests','pricing','quote','history','invoices','team','schedule','ordering','meetings','hours','comms','escalations'],
+  'Sales Manager': ['dashboard','clients','products','requests','quote','history','invoices','team','schedule','meetings','hours','comms','escalations'],
   'IT Staff': ['team','schedule','ordering','hours','comms']
 };
 // NOTE: this uses shared storage under a fixed key so a matching Ronin
@@ -940,6 +991,8 @@ const TAB_PERMISSIONS = {
 const RONIN_ASKS_KEY = 'canopy_ronin_asks';
 let pendingPrefill = null;
 let escalations = [];
+let invoices = [];          // {id, number, clientId, client:{…snapshot}, issueDate, dueDate, periodStart, periodEnd, cycle, lines:[{label, amount}], subtotal, gstPct, gst, total, status, paidDate, quoteId}
+let invoiceSettings = null; // PP's own business details for tax invoices — see defaultInvoiceSettings()
 
 const PRODUCT_CATEGORIES = ['Food','Beverage','Retail','Other'];
 const AUD = n => new Intl.NumberFormat('en-AU',{style:'currency',currency:'AUD',maximumFractionDigits:0}).format(n||0);
@@ -1003,6 +1056,8 @@ async function loadAll(){
   try{ const r = await STORE.get('ownerPasswordHash'); ownerPasswordHash = r ? JSON.parse(r.value) : ''; }catch(e){ ownerPasswordHash = ''; }
   try{ const r = await STORE.get('pipelineStages'); if(r) pipelineStages = JSON.parse(r.value); }catch(e){}
   try{ const r = await STORE.get('escalations'); escalations = r ? JSON.parse(r.value) : []; }catch(e){ escalations = []; }
+  try{ const r = await STORE.get('invoices'); invoices = r ? JSON.parse(r.value) : []; }catch(e){ invoices = []; }
+  try{ const r = await STORE.get('invoiceSettings'); invoiceSettings = { ...defaultInvoiceSettings(), ...(r ? JSON.parse(r.value) : {}) }; }catch(e){ invoiceSettings = defaultInvoiceSettings(); }
 }
 async function saveClients(){ await STORE.set('clients', JSON.stringify(clients)); }
 async function savePricing(){ await STORE.set('pricing', JSON.stringify(pricing)); }
@@ -1029,6 +1084,8 @@ async function hashPassword(pw){
 }
 async function savePipelineStages(){ await STORE.set('pipelineStages', JSON.stringify(pipelineStages)); }
 async function saveEscalations(){ await STORE.set('escalations', JSON.stringify(escalations)); }
+async function saveInvoices(){ await STORE.set('invoices', JSON.stringify(invoices)); }
+async function saveInvoiceSettings(){ await STORE.set('invoiceSettings', JSON.stringify(invoiceSettings)); }
 
 /* ---------- NAV ---------- */
 document.getElementById('nav').addEventListener('click', e=>{
@@ -1042,6 +1099,7 @@ document.getElementById('nav').addEventListener('click', e=>{
   if(btn.dataset.tab==='clients'){ renderClients(); serverSyncClients().then(renderClients); }
   if(btn.dataset.tab==='quote') renderQuoteBuilder();
   if(btn.dataset.tab==='history') renderHistory();
+  if(btn.dataset.tab==='invoices') renderInvoices();
   if(btn.dataset.tab==='requests') renderRequests();
   if(btn.dataset.tab==='products') renderProducts();
   if(btn.dataset.tab==='team') renderTeam();
@@ -1152,10 +1210,14 @@ function renderDashboard(){
     <div class="metric"><div class="num">${wonQuotes.length}</div><div class="lbl">Won quotes</div></div>
     <div class="metric"><div class="num">${AUD(mrr)}</div><div class="lbl">Est. monthly recurring (won)</div></div>
     <div class="metric"><div class="num" style="${bill.overdue>0?'color:var(--rust);':''}">${bill.overdue}</div><div class="lbl">Overdue on payment</div></div>
-    <div class="metric"><div class="num" style="${bill.dueSoon>0?'color:var(--warn);':''}">${bill.dueSoon}</div><div class="lbl">Due within 7 days</div></div>
+    <div class="metric"><div class="num" style="${bill.dueSoon>0?'color:var(--warn);':''}">${bill.dueSoon}</div><div class="lbl">Invoice due within 7 days</div></div>
     <div class="metric"><div class="num">${bill.current}</div><div class="lbl">Current on billing</div></div>
     <div class="metric"><div class="num">${bill.inactive}</div><div class="lbl">Not yet on billing cycle</div></div>
   `;
+  const owing = invoices.filter(i=>i.status==='unpaid');
+  if(owing.length){
+    document.getElementById('metrics').innerHTML += `<div class="metric" style="grid-column:span 4"><div class="num">${AUD2(owing.reduce((sm,i)=>sm+i.total,0))}</div><div class="lbl">Outstanding across ${owing.length} unpaid invoice${owing.length===1?'':'s'} — see Invoices</div></div>`;
+  }
   if(pendingReqs>0){
     document.getElementById('metrics').innerHTML += `<div class="metric" style="grid-column:span 4"><div class="num">${pendingReqs}</div><div class="lbl">Quote request${pendingReqs===1?'':'s'} waiting for review — see Quote Requests tab</div></div>`;
   }
@@ -1211,15 +1273,18 @@ function computeOverallMetrics(){
   return { clientCount: clients.length, totalVenues, wonCount: wonQuotes.length, mrr };
 }
 
+// Overdue = an issued invoice past its due date and unpaid. Otherwise the status reflects when the next invoice is due to be raised.
 function computeBillingStatus(client){
   const b = client.billing || {};
-  if(!b.active || !b.nextInvoiceDate) return {label:'Not active', cls:'bill-inactive', diffDays:null};
   const today = new Date(); today.setHours(0,0,0,0);
-  const due = new Date(b.nextInvoiceDate+'T00:00:00');
-  const diffDays = Math.round((due-today)/86400000);
-  if(diffDays<0) return {label:`Overdue ${Math.abs(diffDays)}d`, cls:'bill-overdue', diffDays};
-  if(diffDays<=7) return {label:diffDays===0?'Due today':`Due in ${diffDays}d`, cls:'bill-duesoon', diffDays};
-  return {label:`Current — next ${due.toLocaleDateString('en-AU')}`, cls:'bill-current', diffDays};
+  const days = iso => Math.round((new Date(iso+'T00:00:00')-today)/86400000);
+  const overdue = (typeof invoices!=='undefined' ? invoices : []).filter(i=>i.clientId===client.id && i.status==='unpaid' && days(i.dueDate)<0);
+  if(overdue.length){ const worst = Math.max(...overdue.map(i=>-days(i.dueDate))); return {label:`Payment overdue ${worst}d`, cls:'bill-overdue', diffDays:-worst}; }
+  if(!b.active || !b.nextInvoiceDate) return {label:'Not active', cls:'bill-inactive', diffDays:null};
+  const diffDays = days(b.nextInvoiceDate);
+  if(diffDays<=0) return {label:'Invoice due', cls:'bill-duesoon', diffDays};
+  if(diffDays<=7) return {label:`Invoice in ${diffDays}d`, cls:'bill-duesoon', diffDays};
+  return {label:`Current — next ${new Date(b.nextInvoiceDate+'T00:00:00').toLocaleDateString('en-AU')}`, cls:'bill-current', diffDays};
 }
 function pipelineProgressBadge(status){
   if(status==='lost') return '<span class="pill lost" style="margin-left:6px;">Lost</span>';
@@ -1315,8 +1380,11 @@ function openClientOps(clientId){
     <input id="co-bill-notes" value="${escapeAttr(b.notes||'')}" placeholder="e.g. pays by EFT, invoiced to accounts@...">
     <div class="btnbar">
       <button class="btn secondary" id="co-bill-save">Save billing</button>
-      <button class="btn" id="co-bill-record">Record payment — advance cycle</button>
+      ${b.active ? '<button class="btn secondary" id="co-inv-create">Create invoice</button>' : ''}
+      <button class="btn" id="co-bill-record">${unpaidInvoicesFor(client.id).length ? 'Record payment — oldest unpaid invoice' : 'Record payment — advance cycle'}</button>
     </div>
+    ${(()=>{ const mine = invoices.filter(i=>i.clientId===client.id); return mine.length ? `<table style="margin:10px 0 4px;font-size:12.5px;"><tr><th>Invoice</th><th>Issued</th><th>Due</th><th class="num">Total</th><th>Status</th></tr>
+      ${mine.map(i=>{ const st = invoiceStatus(i); return `<tr><td>${escapeHtml(i.number)}</td><td>${fmtDate(i.issueDate)}</td><td>${fmtDate(i.dueDate)}</td><td class="num">${AUD2(i.total)}</td><td><span class="pill ${INV_STATUS_PILL[st]}">${st}</span></td></tr>`; }).join('')}</table>` : ''; })()}
     <div class="section-sub">Details</div>
     <table style="margin:4px 0 6px;font-size:13px;">
       ${[['Sector', client.sector], ['ABN', client.abn ? client.abn + (abnValid(client.abn)?'':' (fails ABN check)') : ''], ['Contact', client.contactName], ['Email', client.contactEmail], ['Phone', client.contactPhone], ['Address', client.address]]
@@ -1378,7 +1446,17 @@ function openClientOps(clientId){
     await saveClients(); renderClients(); renderDashboard();
     openClientOps(client.id);
   });
+  const coInv = document.getElementById('co-inv-create');
+  if(coInv) coInv.addEventListener('click', async ()=>{
+    const d = nextInvoiceDraft(client);
+    if(!confirm(`Create an invoice for ${client.name}?\n\nPeriod ${fmtDate(d.periodStart)} – ${fmtDate(d.periodEnd)}${d.includesOneOff?', including the one-off charges':''}.\nTotal ${AUD2(d.total)}${d.gstPct?' inc GST':''}.\n\nDownload or email it from the Invoices tab.`)) return;
+    await createInvoiceFor(client); renderClients(); renderDashboard(); openClientOps(client.id);
+  });
   document.getElementById('co-bill-record').addEventListener('click', async ()=>{
+    const open = unpaidInvoicesFor(client.id);
+    if(open.length){   // with invoices, a payment settles the oldest unpaid one (the invoice already moved the cycle on)
+      await markInvoicePaid(open[0]); renderClients(); renderDashboard(); openClientOps(client.id); return;
+    }
     const cycle = document.getElementById('co-bill-cycle').value;
     const base = new Date();
     if(cycle==='yearly') base.setFullYear(base.getFullYear()+1); else base.setMonth(base.getMonth()+1);
@@ -2295,6 +2373,240 @@ function downloadQuotePdf(q){
   doc.save(`PP-Quote-${q.clientName.replace(/\s+/g,'-')}.pdf`);
 }
 
+/* ---------- INVOICES ---------- */
+// PP's own business details, printed on every invoice. Editable any time in Invoices → Business details.
+function defaultInvoiceSettings(){
+  return { legalName:'', tradingName:'Perpetual Pantries', abn:'', gstRegistered:true, address:'', email:'', phone:'',
+    bankAccountName:'', bsb:'', accountNumber:'', paymentTermsDays:14, prefix:'INV-', nextNumber:1, footer:'' };
+}
+function invoiceSettingsMissing(){
+  const st = invoiceSettings || defaultInvoiceSettings(), has = v => !!String(v||'').trim(), miss = [];
+  if(!has(st.legalName)) miss.push('legal business name');
+  if(!has(st.abn)) miss.push('ABN'); else if(!abnValid(st.abn)) miss.push('valid ABN');
+  if(!has(st.address)) miss.push('business address');
+  if(!has(st.email)) miss.push('accounts email');
+  if(!has(st.bankAccountName) || !has(st.bsb) || !has(st.accountNumber)) miss.push('bank details');
+  return miss;
+}
+const AUD2 = n => new Intl.NumberFormat('en-AU',{style:'currency',currency:'AUD',minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);
+function parseIsoDate(iso){ const [y,m,d] = String(iso).split('-').map(Number); return new Date(y, (m||1)-1, d||1); }
+function addDaysIso(iso, n){ const d = parseIsoDate(iso); d.setDate(d.getDate()+n); return localIsoDate(d); }
+// One billing cycle on, keeping the day of month where it exists (31 Jan + 1 month = 28/29 Feb, not 3 Mar).
+function addCycleIso(iso, cycle){
+  const d = parseIsoDate(iso), day = d.getDate();
+  const t = cycle==='yearly' ? new Date(d.getFullYear()+1, d.getMonth(), 1) : new Date(d.getFullYear(), d.getMonth()+1, 1);
+  t.setDate(Math.min(day, new Date(t.getFullYear(), t.getMonth()+1, 0).getDate()));
+  return localIsoDate(t);
+}
+const fmtDate = iso => iso ? parseIsoDate(iso).toLocaleDateString('en-AU') : '';
+function invoiceStatus(inv){
+  if(inv.status==='paid' || inv.status==='void') return inv.status;
+  return inv.dueDate < localIsoDate() ? 'overdue' : 'unpaid';
+}
+const INV_STATUS_PILL = { unpaid:'sent', overdue:'lost', paid:'won', void:'draft' };
+function unpaidInvoicesFor(clientId){ return invoices.filter(i=>i.clientId===clientId && (i.status==='unpaid')).sort((a,b)=>a.issueDate.localeCompare(b.issueDate)); }
+
+// Lines for the next invoice, itemised from the accepted quote when there is one.
+function nextInvoiceDraft(client){
+  const b = client.billing || {};
+  const cycle = b.cycle==='yearly' ? 'yearly' : 'monthly';
+  const periodStart = b.nextInvoiceDate || localIsoDate();
+  const periodEnd = addDaysIso(addCycleIso(periodStart, cycle), -1);
+  const period = `${fmtDate(periodStart)} – ${fmtDate(periodEnd)}`;
+  const q = b.quoteId ? quotes.find(x=>x.id===b.quoteId) : null;
+  const firstForBilling = !invoices.some(i=>i.clientId===client.id && i.status!=='void' && (i.quoteId||null)===(b.quoteId||null));
+  const lines = [];
+  if(q){
+    if(firstForBilling) q.items.filter(i=>i.oneOff).forEach(i=>lines.push({ label:i.label, amount:Math.round(i.oneOff*100)/100 }));
+    q.items.filter(i=>i.recurring).forEach(i=>{
+      const monthly = i.recurringLabel==='per year' ? i.recurring/12 : i.recurring;   // normalise, then bill for this cycle
+      lines.push({ label:`${i.label} — ${period}`, amount: Math.round((cycle==='yearly' ? monthly*12 : monthly)*100)/100 });
+    });
+  } else {
+    if(firstForBilling && b.oneOff) lines.push({ label:'Initial purchase & onboarding', amount:b.oneOff });
+    lines.push({ label:`Subscription (${cycle}) — ${period}`, amount: b.amount||0 });
+  }
+  const subtotal = Math.round(lines.reduce((sm,l)=>sm+l.amount,0)*100)/100;
+  const pct = invoiceSettings.gstRegistered ? gstPct() : 0;
+  const gst = Math.round(subtotal*pct)/100;
+  return { cycle, periodStart, periodEnd, lines, subtotal, gstPct:pct, gst, total: Math.round((subtotal+gst)*100)/100, quoteId: b.quoteId||null, includesOneOff: !!(firstForBilling && lines.length && (q ? q.items.some(i=>i.oneOff) : b.oneOff)) };
+}
+async function createInvoiceFor(client){
+  if(!client.billing || !client.billing.active) throw new Error(`${client.name} isn't on an active billing cycle — mark their accepted quote as won first.`);
+  const draft = nextInvoiceDraft(client);
+  const st = invoiceSettings;
+  const number = (st.prefix||'') + String(st.nextNumber||1).padStart(4,'0');
+  st.nextNumber = (Number(st.nextNumber)||1) + 1;   // numbers are never reused, even if an invoice is voided
+  const issueDate = localIsoDate();
+  const inv = { id:uid(), number, clientId:client.id,
+    client:{ name:client.name, abn:client.abn||'', address:client.address||'', contactName:client.contactName||'', contactEmail:client.contactEmail||'' },
+    issueDate, dueDate: addDaysIso(issueDate, Number(st.paymentTermsDays)||0), ...draft, status:'unpaid', createdAt:new Date().toISOString() };
+  invoices.unshift(inv);
+  client.billing.nextInvoiceDate = addCycleIso(draft.periodStart, draft.cycle);
+  await saveInvoiceSettings(); await saveInvoices(); await saveClients();
+  return inv;
+}
+async function markInvoicePaid(inv){
+  inv.status = 'paid'; inv.paidDate = localIsoDate();
+  await saveInvoices();
+}
+async function voidInvoice(inv){
+  inv.status = 'void'; inv.voidedDate = localIsoDate();
+  // If this was the client's latest invoice, let that period be invoiced again.
+  const client = clients.find(c=>c.id===inv.clientId);
+  if(client && client.billing && client.billing.nextInvoiceDate===addCycleIso(inv.periodStart, inv.cycle)){
+    client.billing.nextInvoiceDate = inv.periodStart; await saveClients();
+  }
+  await saveInvoices();
+}
+function confirmInvoiceSettingsOrWarn(){
+  const miss = invoiceSettingsMissing();
+  return !miss.length || confirm(`Your business details aren't complete yet (missing: ${miss.join(', ')}). The invoice will show "not set" in those places.\n\nContinue anyway? You can fill them in under Invoices → Business details.`);
+}
+function invoicePlainText(inv){
+  const st = invoiceSettings, L = [];
+  L.push(`${st.gstRegistered ? 'Tax invoice' : 'Invoice'} ${inv.number} — ${st.tradingName||st.legalName||'Perpetual Pantries'}`);
+  L.push(`Issued ${fmtDate(inv.issueDate)} · Due ${fmtDate(inv.dueDate)}`);
+  L.push(`Billed to: ${inv.client.name}${inv.client.abn?` (ABN ${inv.client.abn})`:''}`);
+  L.push('');
+  inv.lines.forEach(l=>L.push(`${l.label}: ${AUD2(l.amount)}`));
+  L.push('');
+  L.push(`Subtotal (ex GST): ${AUD2(inv.subtotal)}`);
+  if(inv.gstPct) L.push(`GST (${inv.gstPct}%): ${AUD2(inv.gst)}`);
+  L.push(`Total${inv.gstPct?' inc GST':''}: ${AUD2(inv.total)}`);
+  L.push('');
+  L.push(`Please pay by ${fmtDate(inv.dueDate)} to: ${st.bankAccountName||'(account name not set)'} · BSB ${st.bsb||'(not set)'} · Account ${st.accountNumber||'(not set)'} · Reference ${inv.number}`);
+  return L;
+}
+function downloadInvoicePdf(inv){
+  if(!pdfAvailable()) throw new Error('PDF library not loaded (jsPDF from cdnjs) — check the connection and reload.');
+  const st = invoiceSettings, notSet = '(not set)';
+  const { jsPDF } = window.jspdf; const doc = new jsPDF(); let y = 20;
+  doc.setFont('helvetica','bold'); doc.setFontSize(18);
+  doc.text(st.gstRegistered ? 'TAX INVOICE' : 'INVOICE', 15, y);
+  doc.setFontSize(10); doc.setFont('helvetica','normal');
+  [[`Invoice no.`, inv.number], ['Issue date', fmtDate(inv.issueDate)], ['Due date', fmtDate(inv.dueDate)]].forEach(([k,v],i)=>{ doc.text(k, 135, y-4+i*5); doc.setFont('helvetica','bold'); doc.text(v, 165, y-4+i*5); doc.setFont('helvetica','normal'); });
+  y += 14;
+  const block = (title, lines, x) => { let yy = y; doc.setFont('helvetica','bold'); doc.text(title, x, yy); yy+=5; doc.setFont('helvetica','normal'); lines.filter(Boolean).forEach(l=>{ doc.splitTextToSize(l, 85).forEach(t=>{ doc.text(t, x, yy); yy+=5; }); }); return yy; };
+  const yFrom = block('From', [st.legalName||`Legal name ${notSet}`, st.tradingName && st.tradingName!==st.legalName ? `Trading as ${st.tradingName}` : '', `ABN ${st.abn||notSet}`, st.address||`Address ${notSet}`, [st.email, st.phone].filter(Boolean).join(' · ')], 15);
+  const yTo = block('Bill to', [inv.client.name, inv.client.abn ? `ABN ${inv.client.abn}` : '', inv.client.address, inv.client.contactName ? `Attn: ${inv.client.contactName}` : '', inv.client.contactEmail], 110);
+  y = Math.max(yFrom, yTo) + 6;
+  doc.setFont('helvetica','bold'); doc.text('Description', 15, y); doc.text(`Amount${inv.gstPct?' (ex GST)':''}`, 195, y, {align:'right'});
+  y+=3; doc.line(15,y,195,y); y+=6; doc.setFont('helvetica','normal');
+  inv.lines.forEach(l=>{
+    const t = doc.splitTextToSize(l.label, 140);
+    if(y + t.length*5 > 265){ doc.addPage(); y = 20; }
+    doc.text(t, 15, y); doc.text(AUD2(l.amount), 195, y, {align:'right'}); y += t.length*5 + 2;
+  });
+  y+=2; doc.line(110,y,195,y); y+=7;
+  const tot = (k,v,bold)=>{ doc.setFont('helvetica', bold?'bold':'normal'); doc.text(k, 110, y); doc.text(v, 195, y, {align:'right'}); y+=6; };
+  tot(`Subtotal${inv.gstPct?' (ex GST)':''}`, AUD2(inv.subtotal));
+  if(inv.gstPct) tot(`GST (${inv.gstPct}%)`, AUD2(inv.gst));
+  doc.setFontSize(12); tot(`Total${inv.gstPct?' inc GST':''} (AUD)`, AUD2(inv.total), true); doc.setFontSize(10);
+  if(invoiceStatus(inv)==='paid'){ doc.setTextColor(63,108,92); doc.setFont('helvetica','bold'); doc.text(`PAID ${fmtDate(inv.paidDate)}`, 110, y); doc.setTextColor(0); y+=6; }
+  if(inv.status==='void'){ doc.setTextColor(166,71,45); doc.setFont('helvetica','bold'); doc.text('VOID', 110, y); doc.setTextColor(0); y+=6; }
+  y+=6; if(y>240){ doc.addPage(); y=20; }
+  doc.setFont('helvetica','bold'); doc.text('How to pay', 15, y); y+=5; doc.setFont('helvetica','normal');
+  [`Direct deposit to ${st.bankAccountName||`account name ${notSet}`}`, `BSB ${st.bsb||notSet}    Account ${st.accountNumber||notSet}`, `Reference: ${inv.number}`, `Please pay by ${fmtDate(inv.dueDate)}${st.paymentTermsDays?` (${st.paymentTermsDays} days)`:''}.`].forEach(l=>{ doc.text(l, 15, y); y+=5; });
+  if(st.footer){ y+=4; doc.setFontSize(9); doc.text(doc.splitTextToSize(st.footer, 180), 15, y); }
+  doc.save(`${inv.number}-${inv.client.name.replace(/\s+/g,'-')}.pdf`);
+}
+async function draftGmailForInvoice(inv){
+  if(!inv.client.contactEmail) return {ok:false, message:'This client has no contact email on file — add one under Clients & Venues.'};
+  const st = invoiceSettings;
+  const body = [ `Hi${inv.client.contactName?' '+inv.client.contactName.split(' ')[0]:''},`, ``,
+    `Please find invoice ${inv.number} for ${inv.client.name} below. A PDF copy has been downloaded on this device; please attach it to this draft before sending.`, ``,
+    ...invoicePlainText(inv), ``, `Thank you,`, st.tradingName || st.legalName || 'Perpetual Pantries' ].join('\n');
+  const prompt = `Create a Gmail draft (do not send it). To: ${inv.client.contactEmail}. Subject: ${st.gstRegistered?'Tax invoice':'Invoice'} ${inv.number} — ${st.tradingName||st.legalName||'Perpetual Pantries'}. Body:\n\n${body}`;
+  try{
+    const resp = await fetchWithTimeout(ANTHROPIC_URL, { method:'POST', headers: apiHeaders(true),
+      body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1000, messages:[{role:'user', content:prompt}], mcp_servers: gmailServers() }) });
+    const data = await resp.json();
+    if((data.content||[]).some(b=>b.type==='mcp_tool_use')) return {ok:true, message:'Draft created in Gmail — attach the downloaded PDF and check it before sending.'};
+    return {ok:false, message:`Gmail draft may not have been created. Response: ${((data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join(' ')||JSON.stringify(data)).slice(0,200)}`};
+  }catch(err){ return {ok:false, message:`Couldn't reach Gmail — ${String(err)}`}; }
+}
+
+function renderInvoiceSettingsForm(){
+  const st = invoiceSettings;
+  ['legalName','tradingName','abn','address','email','phone','bankAccountName','bsb','accountNumber','paymentTermsDays','prefix','nextNumber','footer']
+    .forEach(k=>{ document.getElementById('is-'+k).value = st[k] ?? ''; });
+  document.getElementById('is-gstRegistered').checked = !!st.gstRegistered;
+}
+function renderInvoices(){
+  document.getElementById('inv-status').innerHTML = '';   // messages belong to the action that set them (set after this render)
+  const miss = invoiceSettingsMissing();
+  document.getElementById('inv-settings-warning').innerHTML = miss.length
+    ? `<div class="status-msg info" style="margin-bottom:14px;">Business details still to fill in before sending invoices: ${escapeHtml(miss.join(', '))}. <a href="#" id="inv-goto-settings">Set them up</a></div>` : '';
+  const go = document.getElementById('inv-goto-settings');
+  if(go) go.addEventListener('click', e=>{ e.preventDefault(); document.getElementById('inv-settings-card').scrollIntoView({behavior:'smooth'}); });
+  const today = localIsoDate();
+  const active = clients.filter(c=>c.billing && c.billing.active).sort((a,b)=>(a.billing.nextInvoiceDate||'').localeCompare(b.billing.nextInvoiceDate||''));
+  document.getElementById('inv-due').innerHTML = active.length ? `<table>
+    <tr><th>Client</th><th>Cycle</th><th>Next period starts</th><th class="num">Next invoice (inc GST)</th><th></th></tr>
+    ${active.map(c=>{ const d = nextInvoiceDraft(c); const due = (c.billing.nextInvoiceDate||today) <= today;
+      return `<tr data-cid="${c.id}"><td>${escapeHtml(c.name)}${d.includesOneOff?' <span class="meta">(includes one-off charges)</span>':''}</td><td>${c.billing.cycle}</td>
+        <td>${fmtDate(c.billing.nextInvoiceDate)||'—'} ${due?'<span class="pill sent">due now</span>':''}</td><td class="num">${AUD2(d.total)}</td>
+        <td><button class="btn ${due?'':'secondary'}" data-action="create-invoice">Create invoice</button></td></tr>`; }).join('')}
+  </table>` : '<div class="empty-hint">No clients on an active billing cycle yet. Billing starts when a quote is marked won in Quote History.</div>';
+  const filter = document.getElementById('inv-filter').value;
+  const list = invoices.filter(i=>{ const s = invoiceStatus(i); return filter==='all' || (filter==='open' ? (s==='unpaid'||s==='overdue') : s===filter); });
+  const outstanding = invoices.filter(i=>['unpaid','overdue'].includes(invoiceStatus(i))).reduce((sm,i)=>sm+i.total,0);
+  document.getElementById('inv-list').innerHTML = (outstanding ? `<p class="helptext" style="margin-bottom:8px;">Outstanding: <strong>${AUD2(outstanding)}</strong> across ${invoices.filter(i=>['unpaid','overdue'].includes(invoiceStatus(i))).length} invoice(s).</p>` : '')
+    + (list.length ? `<table>
+    <tr><th>Invoice</th><th>Client</th><th>Issued</th><th>Due</th><th class="num">Total</th><th>Status</th><th></th></tr>
+    ${list.map(i=>{ const s = invoiceStatus(i); return `<tr data-iid="${i.id}"><td>${escapeHtml(i.number)}</td><td>${escapeHtml(i.client.name)}</td><td>${fmtDate(i.issueDate)}</td><td>${fmtDate(i.dueDate)}</td>
+      <td class="num">${AUD2(i.total)}</td><td><span class="pill ${INV_STATUS_PILL[s]}">${s}</span>${s==='paid'?` <span class="meta">${fmtDate(i.paidDate)}</span>`:''}</td>
+      <td style="white-space:nowrap;"><button class="btn secondary" data-action="inv-pdf">PDF</button>
+        ${s==='void'?'':`<button class="btn secondary" data-action="inv-email">Email</button>`}
+        ${(s==='unpaid'||s==='overdue')?`<button class="btn" data-action="inv-paid">Mark paid</button> <button class="btn danger" data-action="inv-void">Void</button>`:''}</td></tr>`; }).join('')}
+  </table>` : '<div class="empty-hint">No invoices to show.</div>');
+  renderInvoiceSettingsForm();
+}
+document.getElementById('inv-filter').addEventListener('change', renderInvoices);
+document.getElementById('inv-due').addEventListener('click', async e=>{
+  if(e.target.dataset.action!=='create-invoice') return;
+  const client = clients.find(c=>c.id===e.target.closest('tr').dataset.cid); if(!client) return;
+  const d = nextInvoiceDraft(client);
+  if(!confirm(`Create an invoice for ${client.name}?\n\nPeriod ${fmtDate(d.periodStart)} – ${fmtDate(d.periodEnd)}${d.includesOneOff?', including the one-off charges':''}.\nTotal ${AUD2(d.total)}${d.gstPct?' inc GST':''}.`)) return;
+  const inv = await createInvoiceFor(client);
+  document.getElementById('inv-filter').value = 'open';
+  renderInvoices(); renderDashboard();
+  document.getElementById('inv-status').innerHTML = `<div class="status-msg ok">Created ${escapeHtml(inv.number)} for ${escapeHtml(client.name)}. Download the PDF or create an email draft from the list above.</div>`;
+});
+document.getElementById('inv-list').addEventListener('click', async e=>{
+  const action = e.target.dataset.action; if(!action) return;
+  const inv = invoices.find(i=>i.id===e.target.closest('tr').dataset.iid); if(!inv) return;
+  const status = document.getElementById('inv-status');
+  if(action==='inv-pdf'){ if(!confirmInvoiceSettingsOrWarn()) return; try{ downloadInvoicePdf(inv); }catch(err){ status.innerHTML = `<div class="status-msg err">${escapeHtml(err.message)}</div>`; } return; }
+  if(action==='inv-email'){
+    if(!confirmInvoiceSettingsOrWarn()) return;
+    try{ downloadInvoicePdf(inv); }catch(err){}
+    status.innerHTML = '<div class="status-msg info">Creating Gmail draft…</div>';
+    const r = await draftGmailForInvoice(inv);
+    status.innerHTML = `<div class="status-msg ${r.ok?'ok':'err'}">${escapeHtml(r.message)}</div>`; return;
+  }
+  if(action==='inv-paid'){ await markInvoicePaid(inv); renderInvoices(); renderDashboard(); return; }
+  if(action==='inv-void'){
+    if(!confirm(`Void ${inv.number}? It stays on record (numbers are never reused) but no longer counts as owed.`)) return;
+    await voidInvoice(inv); renderInvoices(); renderDashboard();
+  }
+});
+document.getElementById('is-save').addEventListener('click', async ()=>{
+  const v = k => document.getElementById('is-'+k).value.trim();
+  const abn = v('abn');
+  if(abn && !abnValid(abn) && !confirm(`"${abn}" doesn't pass the ABN check-digit test. Save it anyway?`)) return;
+  Object.assign(invoiceSettings, {
+    legalName:v('legalName'), tradingName:v('tradingName'), abn: abnValid(abn) ? formatAbn(abn) : abn, address:v('address'), email:v('email'), phone:v('phone'),
+    bankAccountName:v('bankAccountName'), bsb:v('bsb'), accountNumber:v('accountNumber'),
+    paymentTermsDays: Math.max(0, Number(v('paymentTermsDays'))||0), prefix:v('prefix'), nextNumber: Math.max(1, Math.floor(Number(v('nextNumber'))||1)), footer:v('footer'),
+    gstRegistered: document.getElementById('is-gstRegistered').checked });
+  await saveInvoiceSettings();
+  renderInvoices();
+  document.getElementById('is-status').innerHTML = '<div class="status-msg ok">Business details saved.</div>';
+  setTimeout(()=>{ const el = document.getElementById('is-status'); if(el) el.innerHTML=''; }, 2500);
+});
+
 /* ---------- PURCHASE ORDERS (internal ordering) ---------- */
 // Assigns a sequential PO number the first time it's requested for an order,
 // then always (re-)downloads the same PDF for that order — generating twice
@@ -2978,7 +3290,11 @@ const AGENT_TOOLS = [
   { name:'update_billing', description:"Set a client's billing-cycle fields directly (active flag, cycle, next invoice date, notes). For actually advancing the cycle after a payment comes in, use record_payment instead.", input_schema:{type:'object', properties:{
       clientName:{type:'string'}, active:{type:'boolean'}, cycle:{type:'string', enum:['monthly','yearly']}, nextInvoiceDate:{type:'string', description:'YYYY-MM-DD'}, notes:{type:'string'}
     }, required:['clientName']}},
-  { name:'record_payment', description:"Record that a client's invoice was paid — sets billing active and advances their next invoice date by one cycle (1 month or 1 year) from today.", input_schema:{type:'object', properties:{
+  { name:'list_invoices', description:"List invoices (number, client, issue/due dates, total inc GST, status unpaid/overdue/paid/void), optionally filtered by client or status, plus the total outstanding.", input_schema:{type:'object', properties:{ clientName:{type:'string'}, status:{type:'string', enum:['unpaid','overdue','paid','void','open']} }}},
+  { name:'create_invoice', description:"Create the next invoice for a client on an active billing cycle: bills their next period (itemised from their accepted quote; the first invoice also includes the quote's one-off charges) and moves their next invoice date on by one cycle. Only do this when the user asks. It does not send anything — the user downloads/emails it from the Invoices tab.", input_schema:{type:'object', properties:{ clientName:{type:'string'} }, required:['clientName']}},
+  { name:'mark_invoice_paid', description:"Mark an invoice as paid, by its number (e.g. INV-0003).", input_schema:{type:'object', properties:{ invoiceNumber:{type:'string'} }, required:['invoiceNumber']}},
+  { name:'get_invoice_settings_status', description:"Check whether PP's own business details for tax invoices (legal name, ABN, address, email, bank details) are filled in, and which are missing. Never returns bank details themselves.", input_schema:{type:'object', properties:{}}},
+  { name:'record_payment', description:"Record that a client paid. If they have unpaid invoices, marks the oldest one paid. Otherwise (no invoices) sets billing active and advances their next invoice date by one cycle from today.", input_schema:{type:'object', properties:{
       clientName:{type:'string'}, cycle:{type:'string', enum:['monthly','yearly'], description:"Optional — defaults to the client's current cycle setting."}
     }, required:['clientName']}},
   { name:'list_team', description:"List PP's own internal team members (not a client's staff).", input_schema:{type:'object', properties:{}} },
@@ -3051,7 +3367,7 @@ const TOOL_MIN_ROLE = {
   update_pricing:'Owner', update_size_band:'Owner', update_pp_tier:'Owner', set_venue_tier:'Owner',
   remove_client:'Owner', remove_team_member:'Owner', add_team_member:'Owner', update_team_member:'Owner',
   add_order:'Owner', update_order_status:'Owner', generate_po:'Owner', send_po_email:'Owner', add_supplier:'Owner', list_suppliers:'Owner', list_orders:'Owner',
-  update_billing:'Owner', record_payment:'Owner', get_cost_of_sale_summary:'Owner',
+  update_billing:'Owner', record_payment:'Owner', create_invoice:'Owner', mark_invoice_paid:'Owner', list_invoices:'Sales Manager', get_invoice_settings_status:'Sales Manager', get_cost_of_sale_summary:'Owner',
   add_client:'Sales Manager', add_venue:'Sales Manager', update_venue:'Sales Manager', list_venues:'Sales Manager', edit_client:'Sales Manager', create_quote:'Sales Manager', update_quote_stage:'Sales Manager',
   download_quote_pdf:'Sales Manager', send_quote_email:'Sales Manager', convert_pending_request:'Sales Manager', list_pending_requests:'Sales Manager',
   list_clients:'Sales Manager', get_overview_metrics:'Sales Manager', list_products:'Sales Manager', add_product:'Sales Manager', get_sales_trend:'Sales Manager', get_client_performance:'Sales Manager',
@@ -3376,6 +3692,33 @@ async function executeTool(name, input){
         .map(c=>({name:c.name, ...computeBillingStatus(c), nextInvoiceDate:(c.billing||{}).nextInvoiceDate||null}));
       return { counts: rollup, overdue: byStatus('bill-overdue'), dueSoon: byStatus('bill-duesoon') };
     }
+    if(name==='list_invoices'){
+      const client = input.clientName ? findClientByName(input.clientName) : null;
+      if(input.clientName && !client) return {error:'No client found matching that name.'};
+      const list = invoices.filter(i=>(!client || i.clientId===client.id) && (!input.status || (input.status==='open' ? ['unpaid','overdue'].includes(invoiceStatus(i)) : invoiceStatus(i)===input.status)));
+      const open = invoices.filter(i=>(!client || i.clientId===client.id) && ['unpaid','overdue'].includes(invoiceStatus(i)));
+      return { invoices: list.map(i=>({ number:i.number, client:i.client.name, issueDate:i.issueDate, dueDate:i.dueDate, total:i.total, gst:i.gst, status:invoiceStatus(i), paidDate:i.paidDate||null })), outstanding: Math.round(open.reduce((sm,i)=>sm+i.total,0)*100)/100 };
+    }
+    if(name==='create_invoice'){
+      const client = findClientByName(input.clientName);
+      if(!client) return {error:'No client found matching that name.'};
+      try{
+        const inv = await createInvoiceFor(client);
+        renderClients(); renderDashboard(); if(document.getElementById('panel-invoices').classList.contains('active')) renderInvoices();
+        return { success:true, number:inv.number, client:client.name, period:`${inv.periodStart} to ${inv.periodEnd}`, lines:inv.lines, subtotal:inv.subtotal, gst:inv.gst, total:inv.total, dueDate:inv.dueDate, businessDetailsMissing: invoiceSettingsMissing(), note:'Not sent — download or email it from the Invoices tab.' };
+      }catch(e){ return {error:e.message}; }
+    }
+    if(name==='mark_invoice_paid'){
+      const inv = invoices.find(i=>i.number.toLowerCase()===String(input.invoiceNumber||'').trim().toLowerCase());
+      if(!inv) return {error:'No invoice with that number.'};
+      if(inv.status!=='unpaid') return {error:`${inv.number} is ${inv.status}, not unpaid.`};
+      await markInvoicePaid(inv); renderClients(); renderDashboard(); if(document.getElementById('panel-invoices').classList.contains('active')) renderInvoices();
+      return { success:true, number:inv.number, client:inv.client.name, total:inv.total, paidDate:inv.paidDate };
+    }
+    if(name==='get_invoice_settings_status'){
+      const miss = invoiceSettingsMissing();
+      return { complete: !miss.length, missing: miss, gstRegistered: !!invoiceSettings.gstRegistered, paymentTermsDays: invoiceSettings.paymentTermsDays, nextInvoiceNumber: (invoiceSettings.prefix||'') + String(invoiceSettings.nextNumber).padStart(4,'0') };
+    }
     if(name==='update_billing'){
       const client = findClientByName(input.clientName);
       if(!client) return {error:'No client found matching that name.'};
@@ -3391,6 +3734,8 @@ async function executeTool(name, input){
       const client = findClientByName(input.clientName);
       if(!client) return {error:'No client found matching that name.'};
       if(!client.billing) client.billing = {active:false, cycle:'monthly', nextInvoiceDate:'', notes:''};
+      const open = unpaidInvoicesFor(client.id);
+      if(open.length){ await markInvoicePaid(open[0]); renderClients(); renderDashboard(); return { success:true, client:client.name, invoicePaid:open[0].number, amount:open[0].total, stillUnpaid: open.length-1 }; }
       const cycle = (input.cycle && ['monthly','yearly'].includes(input.cycle)) ? input.cycle : (client.billing.cycle||'monthly');
       const base = new Date();
       if(cycle==='yearly') base.setFullYear(base.getFullYear()+1); else base.setMonth(base.getMonth()+1);
