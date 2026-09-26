@@ -1,0 +1,4 @@
+# pp-apps deploys the repo root as a static site. The backend is its own Vercel
+# project (pp-backend-staging, Root Directory: pp-backend), so keep its source
+# out of the public static deploy.
+pp-backend/
