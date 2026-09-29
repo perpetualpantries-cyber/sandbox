@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perpetual Pantries — Apps</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B2420; --graphite:#20272B; --paper:#F5F2E9; --paper-dim:#EDE9DC; --line:#D9D3C1;
+    --verdigris:#3F6C5C; --verdigris-dark:#2C4E42; --muted:#6b6a5f;
+    --mono:'IBM Plex Mono','SFMono-Regular',Menlo,monospace;
+    --sans:'IBM Plex Sans',-apple-system,'Segoe UI',sans-serif;
+    --display:'Fraunces',Georgia,serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:15px;line-height:1.5;}
+  header{background:var(--graphite);color:#E9E5D8;padding:28px 16px 30px;}
+  .wrap{max-width:920px;margin:0 auto;padding:0 16px;}
+  header .wrap{padding:0;}
+  h1{font-family:var(--display);font-weight:600;font-size:28px;margin:0;color:#fff;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8FA79B;margin-bottom:6px;}
+  header p{margin:8px 0 0;color:#C9C4B4;max-width:600px;}
+  main.wrap{padding:28px 16px 40px;}
+  .apps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  .app{background:#FFFDF9;border:1px solid var(--line);border-radius:10px;padding:20px;display:flex;flex-direction:column;}
+  .app .who{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--verdigris-dark);}
+  .app h2{font-family:var(--display);font-weight:600;font-size:22px;margin:4px 0 2px;}
+  .app .agent{font-size:13px;color:var(--muted);margin-bottom:10px;}
+  .app p{margin:0 0 16px;font-size:14px;flex:1;}
+  .open{display:inline-block;text-align:center;background:var(--verdigris);color:#fff;text-decoration:none;font-weight:500;border-radius:6px;padding:10px 14px;}
+  .open:hover{background:var(--verdigris-dark);}
+  .open:focus-visible,.copy:focus-visible{outline:2px solid var(--verdigris-dark);outline-offset:2px;}
+  .url{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:8px;word-break:break-all;}
+  section.card{background:#FFFDF9;border:1px solid var(--line);border-radius:10px;padding:20px;margin-top:20px;}
+  section.card h3{font-family:var(--display);font-weight:600;font-size:19px;margin:0 0 8px;}
+  .server{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--paper-dim);border-radius:6px;padding:10px 12px;margin:6px 0 14px;}
+  .server code{font-family:var(--mono);font-size:14px;flex:1;min-width:0;word-break:break-all;}
+  .copy{background:transparent;border:1px solid var(--line);border-radius:5px;padding:5px 10px;font:inherit;font-size:13px;cursor:pointer;color:var(--ink);}
+  .copy:hover{border-color:var(--verdigris);color:var(--verdigris-dark);}
+  ol{margin:0;padding-left:20px;}
+  ol li{margin-bottom:8px;}
+  .note{font-size:13px;color:var(--muted);margin-top:12px;}
+  footer{font-size:12px;color:var(--muted);text-align:center;padding:0 16px 30px;}
+  @media (max-width:760px){ .apps{grid-template-columns:1fr;} h1{font-size:24px;} }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="eyebrow">Perpetual Pantries</div>
+    <h1>Apps</h1>
+    <p>Bookmark this page. It always opens the latest version of each app.</p>
+  </div>
+</header>
+<main class="wrap">
+  <div class="apps">
+    <div class="app">
+      <div class="who">For Perpetual Pantries</div>
+      <h2>PPcanopy</h2>
+      <div class="agent">Client ops · Canopy</div>
+      <p>Clients and sites, quote requests, quotes, billing and invoices, pricing, team and internal ops.</p>
+      <a class="open" href="/ppcanopy.html">Open PPcanopy</a>
+      <div class="url">pp-apps.vercel.app/ppcanopy.html</div>
+    </div>
+    <div class="app">
+      <div class="who">For each client (multi-site)</div>
+      <h2>PP Command</h2>
+      <div class="agent">Org console · Ronin</div>
+      <p>Oversees every site in a client's organisation: performance, stock, labour and coordination between sites.</p>
+      <a class="open" href="/pp-command-ronin.html">Open PP Command</a>
+      <div class="url">pp-apps.vercel.app/pp-command-ronin.html</div>
+    </div>
+    <div class="app">
+      <div class="who">For each café / site</div>
+      <h2>PP</h2>
+      <div class="agent">Site app · Gavin</div>
+      <p>Runs one site day to day: inventory, POS and orders, suppliers, payroll and BAS.</p>
+      <a class="open" href="/Perpetual_Pantries_v1.html">Open PP</a>
+      <div class="url">pp-apps.vercel.app/Perpetual_Pantries_v1.html</div>
+    </div>
+  </div>
+
+  <section class="card" aria-labelledby="connect-h">
+    <h3 id="connect-h">Connecting the apps to the server</h3>
+    <p style="margin:0;">Each app has a <strong>Settings</strong> section. Put this server address there:</p>
+    <div class="server">
+      <code id="server-url">https://pp-backend-staging.vercel.app</code>
+      <button class="copy" type="button" data-copy="server-url">Copy</button>
+    </div>
+    <ol>
+      <li><strong>PPcanopy:</strong> sign in with your staff email and password. Your data then saves to the server and is shared with everyone signed in.</li>
+      <li><strong>PP Command:</strong> enter the one-time linking code from PPcanopy (Clients &amp; Venues → <em>Get linking code</em>).</li>
+      <li><strong>PP:</strong> enter the one-time linking code from that client's PP Command (Sites → <em>Generate link code</em>).</li>
+    </ol>
+    <p class="note">Linking codes are single-use and expire after 24 hours. If one runs out, generate a new one.</p>
+  </section>
+</main>
+<footer>Perpetual Pantries</footer>
+<script>
+  document.querySelectorAll('[data-copy]').forEach(btn => btn.addEventListener('click', () => {
+    const text = document.getElementById(btn.dataset.copy).textContent.trim();
+    const done = ok => { btn.textContent = ok ? 'Copied' : 'Select and copy'; setTimeout(() => { btn.textContent = 'Copy'; }, 1800); };
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => done(true), () => done(false)); else done(false);
+  }));
+</script>
+</body>
+</html>
