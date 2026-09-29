@@ -212,6 +212,7 @@
     <div class="brand">
       <div class="mark">PPcanopy</div>
       <div class="sub">Client Ops</div>
+      <div id="cloud-status" style="font-size:11px;margin-top:6px;letter-spacing:.02em;"></div>
     </div>
     <div style="padding:10px 18px;border-bottom:1px solid var(--line);">
       <button class="btn secondary" id="local-settings-btn" style="width:100%;padding:5px;font-size:11px;">Settings (this device)</button>
@@ -775,12 +776,14 @@ const STORE = {
           : (function(){ try { localStorage.setItem('__pc_t','1'); localStorage.removeItem('__pc_t'); return 'local'; } catch(e){ return 'memory'; } })(),
   async get(key, shared){
     if (this.backend === 'artifact') return window.storage.get(key, shared);
+    if (CLOUD.active(key)) { const it = CLOUD.items[key]; return it ? { key, value: it.value } : null; }
     const v = this.backend === 'local' ? localStorage.getItem('ppcanopy:' + key) : (_memStore[key] ?? null);
     return v == null ? null : { key, value: v };
   },
   async set(key, value, shared){
     if (this.backend === 'artifact') return window.storage.set(key, value, shared);
-    if (this.backend === 'local') localStorage.setItem('ppcanopy:' + key, value); else _memStore[key] = value;
+    if (this.backend === 'local') localStorage.setItem('ppcanopy:' + key, value); else _memStore[key] = value;   // this device's copy
+    if (CLOUD.active(key) || CLOUD.state==='offline' && CLOUD_KEYS.has(key)) CLOUD.save(key, value);
     return { key, value };
   },
 };
@@ -829,6 +832,138 @@ const SERVER = {
     return data;
   },
 };
+/* ---------- Server storage (Neon, via the PP backend) ----------
+   Signed in to the PP server: every shared PPcanopy collection is read from and saved to the server,
+   so all staff and devices see the same data. This browser keeps a copy (for offline use) and a
+   queue of saves that haven't reached the server yet. Who is signed in on this device never syncs. */
+const CLOUD_KEYS = new Set(['clients','quotes','requests','salesRecords','meetings','escalations','invoices','invoiceSettings','canopy_ronin_asks',
+  'pricing','pipelineStages','teamMembers','scheduleItems','orders','suppliers','nextPoNumber','hoursLog','internalComms']);
+const CLOUD_LABELS = { clients:'clients', quotes:'quotes', requests:'quote requests', invoices:'invoices', invoiceSettings:'business details', pricing:'pricing',
+  pipelineStages:'pipeline stages', teamMembers:'team', scheduleItems:'schedule', orders:'orders', suppliers:'suppliers', nextPoNumber:'PO numbering',
+  hoursLog:'hours', internalComms:'internal comms', meetings:'meetings', escalations:'escalations', salesRecords:'sales records', canopy_ronin_asks:'Ronin asks' };
+const CLOUD = {
+  state: 'off',            // off (local only) | synced | offline (signed in but can't reach the server; saves queued)
+  items: {},               // key -> { value: JSON string, version }
+  readable: null,          // keys this staff role may read
+  chains: {},              // key -> promise, so saves of one key go out in order
+  lastPull: 0,
+  pendingKey: 'ppcanopy_cloud_pending',
+  active(key){ return this.state==='synced' && CLOUD_KEYS.has(key) && (!this.readable || this.readable.has(key)); },
+  pending(){ try { return JSON.parse(localStorage.getItem(this.pendingKey) || '{}'); } catch(e){ return {}; } },
+  setPending(p){ try { Object.keys(p).length ? localStorage.setItem(this.pendingKey, JSON.stringify(p)) : localStorage.removeItem(this.pendingKey); } catch(e){} },
+  async pull(){
+    const r = await SERVER.req('GET', '/api/pp/store');
+    if(!r.ok) throw Object.assign(new Error(r.data.error || ('HTTP ' + r.status)), { status: r.status });
+    this.readable = new Set(r.data.readable || []);
+    this.lastPull = Date.now();
+    return Object.fromEntries(Object.entries(r.data.items || {}).map(([k, it]) => [k, { value: JSON.stringify(it.value), version: it.version, updated_by: it.updated_by, updated_at: it.updated_at }]));
+  },
+  localCopy(key){ try { return localStorage.getItem('ppcanopy:' + key); } catch(e){ return null; } },
+  mirror(key){ try { const it = this.items[key]; if(it) localStorage.setItem('ppcanopy:' + key, it.value); } catch(e){} },
+  backupLocal(){
+    try {
+      const snap = {}; CLOUD_KEYS.forEach(k=>{ const v = this.localCopy(k); if(v!=null) snap[k] = v; });
+      if(Object.keys(snap).length) localStorage.setItem('ppcanopy-backup:' + new Date().toISOString(), JSON.stringify(snap));
+    } catch(e){}
+  },
+  // Called once at start-up, before loadAll().
+  async boot(){
+    if(STORE.backend!=='local' || !SERVER.on()){ this.state = 'off'; return; }
+    let server;
+    try { server = await this.pull(); }
+    catch(e){ this.state = e.status===401 ? 'off' : 'offline'; cloudBanner(e.status===401 ? 'Signed out of the PP server — PPcanopy is only saving in this browser. Sign in again in Settings.' : `Can't reach the PP server (${e.message}) — working from this browser's copy; changes will upload when it's back.`); return; }
+    const firstTime = localStorage.getItem('ppcanopy_cloud_linked') !== SERVER.url();
+    const localKeys = [...CLOUD_KEYS].filter(k=>this.readable.has(k) && this.localCopy(k)!=null && !server[k]);
+    if(firstTime && localKeys.length){
+      const count = k => { try { const v = JSON.parse(this.localCopy(k)); return Array.isArray(v) ? v.length : 1; } catch(e){ return 0; } };
+      const summary = localKeys.map(k=>`${count(k)} ${CLOUD_LABELS[k]||k}`).join(', ');
+      if(!confirm(`Upload this browser's PPcanopy data to the PP server so every signed-in staff member sees it?\n\n${summary}\n\nA backup copy stays in this browser either way. Cancel = keep working from this browser only for now (you'll be asked again next time).`)){
+        this.state = 'off'; renderCloudStatus(); return;
+      }
+      this.backupLocal();
+      for(const k of localKeys){
+        let r; try { r = await SERVER.req('PUT', '/api/pp/store/' + k, { value: JSON.parse(this.localCopy(k)), version: 0 }); } catch(e){ r = { ok:false, status:0, data:{} }; }
+        if(!r.ok && r.status!==409){ const pend = this.pending(); pend[k] = 0; this.setPending(pend); continue; }   // retried below / on next sync
+        if(r.ok) server[k] = { value: this.localCopy(k), version: r.data.version };
+        else if(r.status===409 && r.data.current) server[k] = { value: JSON.stringify(r.data.current.value), version: r.data.current.version };
+      }
+    } else if(firstTime){ this.backupLocal(); }
+    localStorage.setItem('ppcanopy_cloud_linked', SERVER.url());
+    this.items = server;
+    this.state = 'synced';
+    // Saves made while offline / signed out go up now, against the version they were based on.
+    const pend = this.pending();
+    for(const [k, base] of Object.entries(pend)){ const v = this.localCopy(k); if(v!=null) await this.push(k, v, base); }
+    Object.keys(this.items).forEach(k=>this.mirror(k));
+    renderCloudStatus();
+  },
+  save(key, value){
+    this.chains[key] = (this.chains[key] || Promise.resolve()).then(()=>this.push(key, value)).catch(()=>{});
+    return this.chains[key];
+  },
+  async push(key, value, baseVersion){
+    const version = baseVersion ?? (this.items[key] ? this.items[key].version : 0);
+    const pend = this.pending();
+    let r;
+    try { r = await SERVER.req('PUT', '/api/pp/store/' + key, { value: JSON.parse(value), version }); }
+    catch(e){ r = { ok:false, status:0, data:{ error: e.message } }; }
+    if(r.ok){
+      this.items[key] = { value, version: r.data.version };
+      delete pend[key]; this.setPending(pend);
+      if(this.state!=='synced'){ this.state = 'synced'; cloudBanner(''); }
+      renderCloudStatus(); return;
+    }
+    if(r.status===409 && r.data.current){
+      // Someone else saved first: the server copy wins, and we say so.
+      this.items[key] = { value: JSON.stringify(r.data.current.value), version: r.data.current.version };
+      this.mirror(key); delete pend[key]; this.setPending(pend);
+      cloudBanner(`${r.data.current.updated_by || 'Someone'} changed ${CLOUD_LABELS[key]||key} on another device just before you, so your last change there wasn't saved. PPcanopy has loaded the latest — please redo it.`);
+      await cloudReload(true); return;
+    }
+    if(r.status===403){ cloudBanner(`Your role can't change ${CLOUD_LABELS[key]||key} on the server; that change is only in this browser.`); return; }
+    // Network error or signed out: keep the change queued against the version it was based on.
+    if(!(key in pend)) pend[key] = version;
+    this.setPending(pend);
+    this.state = 'offline';
+    cloudBanner(r.status===401 ? 'Signed out of the PP server — changes are saved in this browser and will upload after you sign in again (Settings).' : "Can't reach the PP server — changes are saved in this browser and will upload when it's back.");
+    renderCloudStatus();
+  },
+  // Pick up other people's changes (on focus / every minute). Skipped while typing or with a dialog open.
+  async refresh(){
+    if(!SERVER.on() || STORE.backend!=='local') return;
+    if(this.state==='offline'){ const pend = this.pending(); for(const [k, base] of Object.entries(pend)){ const v = this.localCopy(k); if(v!=null) await this.push(k, v, base); } if(this.state!=='synced') return; }
+    if(this.state!=='synced') return;
+    let server; try { server = await this.pull(); } catch(e){ return; }
+    const changed = Object.keys(server).filter(k=>!this.items[k] || this.items[k].version!==server[k].version);
+    if(!changed.length) return;
+    const busy = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) || document.getElementById('clientops-backdrop').classList.contains('open');
+    if(busy){ this.lastPull = 0; return; }   // try again next tick
+    changed.forEach(k=>{ this.items[k] = server[k]; this.mirror(k); });
+    await cloudReload(false);
+  },
+};
+function cloudBanner(text){
+  let el = document.getElementById('cloud-banner');
+  if(!el){ el = document.createElement('div'); el.id = 'cloud-banner'; el.className = 'status-msg info'; el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:10px;z-index:200;max-width:640px;box-shadow:0 4px 18px rgba(0,0,0,.15);cursor:pointer;'; el.title = 'Click to dismiss'; el.addEventListener('click', ()=>el.remove()); document.body.appendChild(el); }
+  if(!text){ el.remove(); return; }
+  el.textContent = text;
+}
+function renderCloudStatus(){
+  const el = document.getElementById('cloud-status'); if(!el) return;
+  const t = { synced:'● Saved to PP server', offline:'● Offline — saving in this browser', off: SERVER.on() ? '● This browser only (not uploaded)' : '● This browser only' }[CLOUD.state];
+  el.textContent = t; el.style.color = CLOUD.state==='synced' ? '#8fc2ad' : CLOUD.state==='offline' ? '#e0b57a' : '#9aa19c';
+  el.title = CLOUD.state==='synced' ? 'Clients, quotes, invoices and the rest are stored on the PP server (Neon) and shared with every signed-in staff member.' : 'Sign in to the PP server in Settings to share PPcanopy data across staff and devices.';
+}
+// Re-read everything from storage and redraw whatever is on screen.
+async function cloudReload(){
+  await loadAll();
+  renderDashboard(); renderClients();
+  const active = document.querySelector('#nav button.active');
+  if(active && active.dataset.tab!=='dashboard' && active.dataset.tab!=='clients') active.click();
+}
+window.addEventListener('focus', ()=>{ if(Date.now()-CLOUD.lastPull > 15000) CLOUD.refresh(); });
+setInterval(()=>{ if(document.visibilityState==='visible' && Date.now()-CLOUD.lastPull > 55000) CLOUD.refresh(); }, 60000);
+
 // Create the org on the server for a local client record; returns a one-time,
 // 24h org-level link code (not a raw key — PP Command claims it itself).
 async function serverCreateOrg(client){
@@ -928,7 +1063,7 @@ function weeklyTrendHtml(weeks){
 function showOrgLinkCodeOnce(client, linkCode){
   const expires = linkCode.expires_at ? new Date(linkCode.expires_at).toLocaleString() : 'in 24 hours';
   let copied = false;
-  try { navigator.clipboard?.writeText(linkCode.code); copied = true; } catch(e){}
+  try { if (navigator.clipboard) { navigator.clipboard.writeText(linkCode.code).catch(()=>{}); copied = true; } } catch(e){}
   // A plain alert()'s text can't be selected/copied in most browsers — use prompt()
   // instead, whose input field is selectable, and pre-fill it with the code so
   // Ctrl/Cmd+A, Ctrl/Cmd+C works even if the clipboard write above silently failed.
@@ -1154,12 +1289,14 @@ document.getElementById('ds-form').addEventListener('submit', async e=>{
   if (on('ds-gmail-clear')) setLocalSetting('gmail_token', ''); else if (v('ds-gmail')) setLocalSetting('gmail_token', v('ds-gmail'));
   if (on('ds-disconnect')) {
     setLocalSetting('server_url', ''); setLocalSetting('staff_token', '');
+    say('Disconnected. PPcanopy will now use this browser\'s copy.'); setTimeout(()=>location.reload(), 900);
   } else if (v('ds-server-url') && v('ds-email') && document.getElementById('ds-password').value) {
     say('Signing in…');
     try {
       const d = await SERVER.login(v('ds-server-url'), v('ds-email'), document.getElementById('ds-password').value);
       document.getElementById('ds-password').value = '';
-      dsRender(); say('Saved. Signed in to PP server as ' + d.name + ' (' + d.role + ').');
+      dsRender(); say('Saved. Signed in to PP server as ' + d.name + ' (' + d.role + '). Loading shared data…');
+      setTimeout(()=>location.reload(), 900);   // start again with the server as the data source
     } catch (err) { say('Other settings saved, but server sign-in failed: ' + err.message, true); return; }
   } else if (v('ds-server-url') !== (SERVER.url() || '')) {
     setLocalSetting('server_url', v('ds-server-url').replace(/\/+$/, '')); setLocalSetting('staff_token', '');
@@ -4454,6 +4591,9 @@ document.getElementById('add-comms-btn').addEventListener('click', async ()=>{
 
 /* ---------- boot ---------- */
 (async function(){
+  try { await CLOUD.boot(); }
+  catch(e){ CLOUD.state = 'offline'; cloudBanner(`Couldn't load from the PP server (${e.message}) — working from this browser's copy.`); }
+  renderCloudStatus();
   await loadAll();
   renderDashboard();
   renderClients();
