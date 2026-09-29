@@ -39,6 +39,7 @@ The Vercel project `pp-backend-staging` (served at `pp-backend-staging.vercel.ap
 
 - Merging to `main` deploys to production automatically; other branches get a preview deployment.
 - Environment variables (`DATABASE_URL`, `JWT_SECRET`, `BACKUP_KEY`, and `CRON_SECRET` / `RESEND_*` for scheduled POs) live in the Vercel project, never in this repo.
+- **Database:** Neon project `pp-backend`, branch **`staging-24h-test`** — that's the branch `pp-backend-staging`'s `DATABASE_URL` points at, not `main`. Apply migrations and any manual fixes to that branch (Neon console → SQL editor → pick the branch), and don't delete or reset it from `main`: PPcanopy's data (`canopy_store`) lives there.
 - Migrations are **not** run on deploy. After adding a file to `migrations/`, run `npm run migrate` against the production database before (or right after) merging.
 - The repo-root `.vercelignore` keeps this folder out of the static `pp-apps` deploy.
 
