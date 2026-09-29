@@ -495,3 +495,37 @@ test('cron: requires a valid secret; only releases due POs; sends when configure
   const run3 = await api('GET', '/api/cron/release-scheduled-pos', { headers: { Authorization: 'Bearer test-cron-secret' } });
   assert.equal(run3.json.checked, 0);
 });
+
+test('PPcanopy store: versioned saves, conflicts, role rules', async () => {
+  const sales = { Authorization: 'Bearer ' + S.sales }, owner = { Authorization: 'Bearer ' + S.owner };
+  const empty = await api('GET', '/api/pp/store', { headers: sales });
+  assert.equal(empty.status, 200); assert.deepEqual(empty.json.items, {});
+
+  const created = await api('PUT', '/api/pp/store/clients', { headers: sales, body: { value: [{ id: 'c1', name: 'Bellbird' }], version: 0 } });
+  assert.equal(created.status, 200); assert.equal(created.json.version, 1);
+  const again = await api('PUT', '/api/pp/store/clients', { headers: sales, body: { value: [], version: 0 } });   // create twice → conflict
+  assert.equal(again.status, 409); assert.equal(again.json.current.version, 1); assert.equal(again.json.current.value[0].name, 'Bellbird');
+  const v2 = await api('PUT', '/api/pp/store/clients', { headers: owner, body: { value: [{ id: 'c1', name: 'Bellbird Group' }], version: 1 } });
+  assert.equal(v2.json.version, 2);
+  const stale = await api('PUT', '/api/pp/store/clients', { headers: sales, body: { value: [], version: 1 } });   // someone else saved first
+  assert.equal(stale.status, 409); assert.equal(stale.json.current.version, 2); assert.equal(stale.json.current.updated_by, 'Josh');
+
+  const got = await api('GET', '/api/pp/store', { headers: sales });
+  assert.equal(got.json.items.clients.version, 2); assert.equal(got.json.items.clients.value[0].name, 'Bellbird Group'); assert.equal(got.json.items.clients.updated_by, 'Josh');
+
+  assert.equal((await api('PUT', '/api/pp/store/nonsense', { headers: sales, body: { value: 1, version: 0 } })).status, 400);
+  assert.equal((await api('PUT', '/api/pp/store/clients', { headers: sales, body: { version: 2 } })).status, 400);         // value missing
+  assert.equal((await api('PUT', '/api/pp/store/pricing', { headers: sales, body: { value: {}, version: 0 } })).status, 403); // Owner-only to change
+  assert.equal((await api('PUT', '/api/pp/store/pricing', { headers: owner, body: { value: { gstPct: 10 }, version: 0 } })).status, 200);
+
+  const it = await api('POST', '/api/pp/staff', { headers: owner, body: { name: 'Ivy', email: 'ivy@pp.example', password: 'password123', role: 'IT Staff' } });
+  assert.equal(it.status, 201);
+  const itTok = { Authorization: 'Bearer ' + (await api('POST', '/api/pp/staff/login', { body: { email: 'ivy@pp.example', password: 'password123' } })).json.token };
+  const itView = await api('GET', '/api/pp/store', { headers: itTok });
+  assert.equal(itView.json.items.clients, undefined); assert.equal(itView.json.items.pricing, undefined);   // no client/pricing data for IT Staff
+  assert.equal((await api('PUT', '/api/pp/store/clients', { headers: itTok, body: { value: [], version: 2 } })).status, 403);
+  assert.equal((await api('PUT', '/api/pp/store/teamMembers', { headers: itTok, body: { value: [{ name: 'Ivy' }], version: 0 } })).status, 200);
+
+  assert.equal((await api('GET', '/api/pp/store', { headers: { Authorization: 'Bearer ' + S.siteTok } })).status, 401);   // venue tokens can't read it
+  assert.equal((await api('GET', '/api/pp/store')).status, 401);
+});

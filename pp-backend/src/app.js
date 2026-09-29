@@ -5,6 +5,7 @@ import { pp } from './routes/pp.js';
 import { link } from './routes/link.js';
 import { scheduledPos } from './routes/scheduled-pos.js';
 import { cron } from './routes/cron.js';
+import { canopyStore } from './routes/canopy-store.js';
 import { errorMiddleware } from './lib/errors.js';
 
 export function createApp() {
@@ -18,7 +19,7 @@ export function createApp() {
     const o = req.headers.origin;
     res.setHeader('Access-Control-Allow-Origin', allow.includes('*') ? '*' : (allow.includes(o) ? o : 'null'));
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Org-Key, Idempotency-Key');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
   });
@@ -37,7 +38,7 @@ export function createApp() {
   // Never log bodies for the backup route.
   app.use((req, _res, next) => { if (process.env.LOG_REQUESTS && !req.path.startsWith('/api/venue/sync')) console.log(req.method, req.path); next(); });
 
-  app.use(site); app.use(org); app.use(pp); app.use(link); app.use(scheduledPos); app.use(cron);
+  app.use(site); app.use(org); app.use(pp); app.use(link); app.use(scheduledPos); app.use(cron); app.use(canopyStore);
   app.use((_req, res) => res.status(404).json({ error: 'no such route' }));
   app.use(errorMiddleware);
   return app;

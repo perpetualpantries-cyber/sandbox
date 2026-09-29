@@ -60,9 +60,10 @@ The Vercel project `pp-backend-staging` (served at `pp-backend-staging.vercel.ap
 | staff | `POST|GET /api/pp/clients`, `POST …/:id/link-code` (regenerate, pre-claim only), `POST …/:id/rotate-key` (Owner) | client = org; `create` returns an org-level link code, not a key |
 | staff | `GET /api/pp/clients/:id/products|overview|sales-trend` | menu items and aggregates only |
 | staff | `POST|GET /api/pp/ronin-asks`, `POST …/:id/withdraw` | Canopy→Ronin queue |
+| staff | `GET /api/pp/store`, `PUT /api/pp/store/:key` | PPcanopy's own collections (clients, quotes, invoices, pricing, team, …) as versioned JSON; a stale `version` → 409 with the current copy; per-collection role rules (IT Staff never sees client data, pricing is Owner-only to change) |
 
 Writes accept an `Idempotency-Key` header (24 h replay). All lists page with `?limit=&cursor=`.
 
 ## Not in this build (spec §8 steps 5–6)
 
-PPcanopy's remaining collections (quotes, billing, team, orders) still live in the browser; the escalation cron; the `sales_records` roll-up (needs POS); real inbox OAuth; a shared server-side payroll engine. `pp_schema.sql` tables for those already exist and aren't touched here.
+the escalation cron; the `sales_records` roll-up (needs POS); real inbox OAuth; a shared server-side payroll engine. `pp_schema.sql` tables for those already exist and aren't touched here.
