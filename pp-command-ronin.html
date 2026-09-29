@@ -56,6 +56,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .sidebar-foot{margin-top:auto;padding:10px 0 4px;border-top:1px solid var(--border)}
 .sidebar-foot .foot-label{padding:8px 18px 0;display:block}
 .live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);margin-right:6px;box-shadow:0 0 0 0 rgba(76,154,92,.6);animation:pulse 2s infinite}
+.live-dot.off{background:var(--amber);animation:none}
 @media (prefers-reduced-motion:reduce){.live-dot{animation:none}}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(76,154,92,.45)}70%{box-shadow:0 0 0 6px rgba(76,154,92,0)}100%{box-shadow:0 0 0 0 rgba(76,154,92,0)}}
 .foot-label{font-family:var(--mono);font-size:10px;color:var(--sub)}
@@ -269,6 +270,7 @@ label{font-family:var(--mono);font-size:10.5px;color:var(--sub);text-transform:u
             <input id="new-link-code-value" readonly class="mono" style="font-size:18px;text-align:center;letter-spacing:2px">
             <button class="btn ghost small" onclick="copyLinkCode()">Copy</button>
           </div>
+          <div id="new-link-code-note" class="tile-note hidden" style="color:var(--amber)">Demo code: it only exists in this browser and works with “Simulate cafe linking”, not with a real PP site. Connect to the PP server in Settings for a real code.</div>
         </div>
       </div>
       <div class="panel">
@@ -812,14 +814,18 @@ async function generateLinkCode(){
     document.getElementById('link-name-hint').value = '';
     document.getElementById('new-link-code-panel').classList.remove('hidden');
     document.getElementById('new-link-code-value').value = r.data.code;
+    document.getElementById('new-link-code-note').classList.add('hidden');
     await refreshFromServer(); return;
   }
+  // Without the server a code only exists in this browser, so a real PP site can never redeem it.
+  if (!isDemoMode()) { toastMsg('Connect PP Command to the PP server first — codes made offline won’t work for a real site.'); openSettings(); return; }
   const code = secureCode(8);
   STATE.linkCodes.push({ id: uid('code'), code, hint, status: 'pending', created_at: nowIso(), expires_at: new Date(Date.now() + 24*3600*1000).toISOString() });
   await saveState(true);
   document.getElementById('link-name-hint').value = '';
   document.getElementById('new-link-code-panel').classList.remove('hidden');
   document.getElementById('new-link-code-value').value = code;
+  document.getElementById('new-link-code-note').classList.remove('hidden');
   renderSites();
 }
 function copyLinkCode(){
@@ -1621,8 +1627,15 @@ async function sendChatMessage(source){
 // ══════════════════════════════════════════════════════════════════════════
 // Render everything
 // ══════════════════════════════════════════════════════════════════════════
+function renderConnection(){
+  const on = SERVER.on();
+  document.getElementById('live-label').textContent = on ? 'Connected to PP server' : isDemoMode() ? 'Demo · this browser only' : 'Not connected · this browser only';
+  document.getElementById('live-dot').classList.toggle('off', !on);
+}
+
 function renderAll(skipChat){
   document.getElementById('org-name-label').textContent = STATE.orgName || 'org';
+  renderConnection();
   renderOverview();
   renderSites();
   renderMessages();
