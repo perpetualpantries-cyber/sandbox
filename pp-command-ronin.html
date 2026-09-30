@@ -829,7 +829,7 @@ async function dismissPlannedSite(id){
 function renderSites(){
   renderPlannedSites();
   document.getElementById('sites-table').innerHTML = STATE.sites.length
-    ? `<table><tr><th>Name</th><th>Venue ID (cafe's own)</th><th>Linked</th><th></th></tr>${STATE.sites.map(s=>`<tr><td>${escapeHtml(s.name)}</td><td class="mono">${escapeHtml(s.venue_id)}</td><td class="mono" style="color:var(--faint)">${fmtTime(s.linked_at)}</td><td><button class="btn small ghost" onclick="renameSite('${s.id}')">Rename</button></td></tr>`).join('')}</table>`
+    ? `<table><tr><th>Name</th><th>Tier</th><th>Venue ID (cafe's own)</th><th>Linked</th><th></th></tr>${STATE.sites.map(s=>`<tr><td>${escapeHtml(s.name)}</td><td class="mono" title="Set by Perpetual Pantries">${escapeHtml(s.tier || '—')}</td><td class="mono">${escapeHtml(s.venue_id)}</td><td class="mono" style="color:var(--faint)">${fmtTime(s.linked_at)}</td><td><button class="btn small ghost" onclick="renameSite('${s.id}')">Rename</button></td></tr>`).join('')}</table>`
     : `<div class="empty">No sites linked yet — generate a link code above and give it to a cafe.</div>`;
   STATE.linkCodes.forEach(c => { if (c.status === 'pending' && !linkCodeIsLive(c)) c.status = 'expired'; });
   const pending = STATE.linkCodes.filter(c => c.status === 'pending' && !(SERVER.on() && c.planned_site_id));
