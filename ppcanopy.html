@@ -219,6 +219,7 @@
     .custom-line > :first-child{grid-column:1 / -1;}
   }
   .add-venue-row input{flex:1;}
+  .add-venue-row input.needs-value{border-color:var(--amber, #C98A2E);box-shadow:0 0 0 3px rgba(201,138,46,.18);}
 
   .client-list-item{border:1px solid var(--rule);border-radius:var(--r-sm);padding:14px 16px;margin-bottom:10px;background:#fff;}
   .client-list-item .head{display:flex;justify-content:space-between;align-items:center;}
@@ -1980,7 +1981,7 @@ function renderClients(){
           <button data-action="remove-venue" data-vid="${v.id}">×</button></span>`).join('')}
       </div>
       <div class="add-venue-row">
-        <input placeholder="New venue name" data-role="venue-input">
+        <input placeholder="New venue name, e.g. Burwood Café" data-role="venue-input" aria-label="New venue name">
         <button class="btn secondary" data-action="add-venue">+ Add venue</button>
       </div>
     </div>
@@ -2037,7 +2038,9 @@ document.getElementById('client-list').addEventListener('click', async e=>{
   }
   if(action==='add-venue'){
     const input = item.querySelector('[data-role="venue-input"]');
-    const val = input.value.trim(); if(!val) return;
+    const val = input.value.trim();
+    if(!val){ input.classList.add('needs-value'); input.placeholder = 'Type the venue name here first, then Add venue'; input.focus(); return; }
+    if(!Array.isArray(client.venues)) client.venues = [];
     client.venues.push({id:uid(), name:val, tier: pricing.ppTiers[0] ? pricing.ppTiers[0].label : 'T1'});
     await saveClients(); renderClients(); return;
   }
@@ -2046,6 +2049,12 @@ document.getElementById('client-list').addEventListener('click', async e=>{
     await saveClients(); renderClients(); return;
   }
 });
+// Enter in a "New venue name" box adds it, same as the button.
+document.getElementById('client-list').addEventListener('keydown', e=>{
+  if(e.key!=='Enter' || e.target.dataset.role!=='venue-input') return;
+  e.preventDefault(); e.target.closest('.add-venue-row').querySelector('[data-action="add-venue"]').click();
+});
+document.getElementById('client-list').addEventListener('input', e=>{ if(e.target.dataset.role==='venue-input') e.target.classList.remove('needs-value'); });
 document.getElementById('client-list').addEventListener('change', async e=>{
   if(e.target.dataset.action==='set-venue-tier'){
     const item = e.target.closest('.client-list-item');
