@@ -157,7 +157,7 @@ test('coordination creates two linked, gated messages', async () => {
   const c = await api('POST', '/api/org/messages/coordinate', { headers: { 'X-Org-Key': S.orgKey }, body: { site_a_id: S.siteId, site_b_id: S.siteId2, request: 'Pier to send two crates of oat milk to Wharf', requires_manager_approval: false } });
   assert.equal(c.status, 201); assert.equal(c.json.messages.length, 2);
   assert.ok(c.json.messages.every(m => m.coordination_id === c.json.coordination_id && m.status === 'awaiting_approval'));
-  assert.equal(c.json.messages[0].intent, 'coordinate_with_wharf_cafe');
+  assert.equal(c.json.messages[0].intent, 'coordinate_with_wharf');   // site named by PP Command's link hint
 });
 
 test('Canopy → Ronin ask: operator-gated; Canopy can only withdraw', async () => {
@@ -310,6 +310,22 @@ test('relink (Owner) issues a new org code for an already-claimed org; claiming 
   assert.equal((await api('GET', '/api/org', { headers: { 'X-Org-Key': second.json.api_key } })).status, 200);
   assert.equal((await api('GET', '/api/org', { headers: { 'X-Org-Key': oldKey } })).status, 401);
   assert.equal((await api('POST', '/api/pp/clients/00000000-0000-0000-0000-000000000000/relink', { headers: { Authorization: 'Bearer ' + S.owner } })).status, 404);
+});
+
+test('site names belong to PP Command: link hint names the site, snapshots never rename it, PATCH renames, PP reads it back', async () => {
+  const site = { Authorization: 'Bearer ' + S.siteTok };
+  const me = await api('GET', '/api/venue/me', { headers: site });
+  assert.equal(me.status, 200); assert.equal(me.json.name, 'Pier'); assert.equal(me.json.org_name, 'Harbour Cafés');   // hint 'Pier' beat PP's 'Pier Café'
+  const snap = await api('POST', '/api/venue/snapshot', { headers: site, body: { venue_id: 'venue_8841', cafe_name: 'Something Else', revenue_week: 18420, gp_pct: 64, labour_pct: 29, covers_week: 1240,
+    stock_out: 1, stock_low: 3, stock_out_items: ['Oat Milk'], stock_low_items: ['Espresso Blend'], stock_value: 6120.5, open_orders: 2,
+    loyalty: { total_members: 84, active_members: 31, avg_points: 210, redemptions: 12 },
+    menu_items: [{ name: 'Flat White', sellingPrice: 5.5, category: 'Coffee' }, { name: 'Smashed Avo', sellingPrice: 22, category: 'Food' }] } });   // same figures as the first push, so later aggregates are unchanged
+  assert.equal(snap.status, 200); assert.equal(snap.json.site.name, 'Pier');
+  const renamed = await api('PATCH', `/api/org/sites/${S.siteId}`, { headers: { 'X-Org-Key': S.orgKey }, body: { name: '  Pier Kiosk ' } });
+  assert.equal(renamed.status, 200); assert.equal(renamed.json.name, 'Pier Kiosk');
+  assert.equal((await api('GET', '/api/venue/me', { headers: site })).json.name, 'Pier Kiosk');
+  assert.equal((await api('PATCH', `/api/org/sites/${S.siteId}`, { headers: { 'X-Org-Key': S.orgKey }, body: { name: '   ' } })).status, 400);
+  assert.equal((await api('GET', '/api/venue/me')).status, 401);
 });
 
 test('org site tier patch: happy path, invalid enum, not found', async () => {

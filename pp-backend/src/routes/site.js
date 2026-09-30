@@ -37,7 +37,7 @@ async function redeem(req, res) {
     const { rows: [s] } = await c.query(
       `INSERT INTO sites(org_id, external_venue_id, name, suburb, state, timezone)
        VALUES ($1,$2,$3,$4,$5,COALESCE($6,'Australia/Melbourne')) RETURNING *`,
-      [lc.org_id, venue.venue_id, venue.cafe_name || lc.hint || 'New site', venue.suburb || null, venue.state || null, venue.timezone || null]);
+      [lc.org_id, venue.venue_id, (lc.hint || '').trim() || venue.cafe_name || 'New site', venue.suburb || null, venue.state || null, venue.timezone || null]);
     await c.query("UPDATE link_codes SET status='used', used_at=now(), site_id=$2 WHERE id=$1", [lc.id, s.id]);
     const { rows: [org] } = await c.query('SELECT id, name FROM orgs WHERE id=$1', [lc.org_id]);
     await c.query(`INSERT INTO org_notifications(org_id,type,subject,body) VALUES ($1,'site_linked',$2,$3)`,
@@ -89,7 +89,6 @@ site.post('/api/venue/snapshot', requireSite, wrap(async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING received_at`,
       [req.site.id, s.revenue_week ?? null, s.gp_pct ?? null, s.labour_pct ?? null, s.covers_week ?? null, s.stock_out ?? null, s.stock_low ?? null,
        s.stock_out_items ?? null, s.stock_low_items ?? null, s.stock_value ?? null, s.open_orders ?? null, s.loyalty ?? null]);
-    if (s.cafe_name && s.cafe_name !== req.site.name) await c.query('UPDATE sites SET name=$2 WHERE id=$1', [req.site.id, s.cafe_name]);
     if (s.menu_items) {
       await c.query('UPDATE menu_items SET active=false WHERE site_id=$1', [req.site.id]);
       for (const m of s.menu_items) {
@@ -110,7 +109,19 @@ site.post('/api/venue/snapshot', requireSite, wrap(async (req, res) => {
     await c.query(`DELETE FROM site_snapshots WHERE site_id=$1 AND id NOT IN (SELECT id FROM site_snapshots WHERE site_id=$1 ORDER BY received_at DESC LIMIT 500)`, [req.site.id]);
     return snap.received_at;
   });
-  res.json({ ok: true, received_at: received });
+  const me = await siteInfo(req.site.id);
+  res.json({ ok: true, received_at: received, site: me });
+}));
+
+// The site's name is PP Command's to set (link-code name, or a rename in Sites); PP shows it.
+async function siteInfo(siteId) {
+  const { rows: [r] } = await q('SELECT s.id, s.name, s.tier, o.name AS org_name FROM sites s JOIN orgs o ON o.id=s.org_id WHERE s.id=$1', [siteId]);
+  return r ? { id: r.id, name: r.name, tier: r.tier, org_name: r.org_name } : null;
+}
+site.get('/api/venue/me', requireSite, wrap(async (req, res) => {
+  const me = await siteInfo(req.site.id);
+  if (!me) throw notFound('site not found');
+  res.json(me);
 }));
 
 // ── 3.3 Ronin → Gavin inbox ────────────────────────────────────────────────

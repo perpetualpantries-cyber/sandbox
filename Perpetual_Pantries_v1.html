@@ -2258,7 +2258,8 @@ const PP_API = (function() {
         localStorage.setItem('pp_jwt', data.token);
         localStorage.setItem('pp_link', JSON.stringify({ site_id: data.site_id, org_id: data.org_id, org_name: data.org_name, linked_at: new Date().toISOString() }));
         // Only the server-side site id and org name are merged — never the café's own details.
-        cafeDetails = { ...cafeDetails, command_site_id: data.site_id, command_org_name: data.org_name };
+        cafeDetails = { ...cafeDetails, command_site_id: data.site_id, command_org_name: data.org_name, command_site_name: (data.venue && data.venue.name) || cafeDetails.command_site_name };
+        try { renderSidebar(); } catch(e) {}
         localStorage.setItem('oc_cafe', JSON.stringify(cafeDetails));
         pushSnapshot();
         setTimeout(pollInbox, 500);
@@ -2267,6 +2268,20 @@ const PP_API = (function() {
     } catch(e) {
       return { ok: false, offline: true, error: e.message };
     }
+  }
+  // The site's name is set in PP Command; PP shows it (sidebar) and never sends its own over it.
+  function applySiteInfo(info) {
+    if (!info || !info.name) return;
+    const changed = cafeDetails.command_site_name !== info.name || (info.org_name && cafeDetails.command_org_name !== info.org_name);
+    if (!changed) return;
+    cafeDetails = { ...cafeDetails, command_site_name: info.name, command_org_name: info.org_name || cafeDetails.command_org_name };
+    localStorage.setItem('oc_cafe', JSON.stringify(cafeDetails));
+    try { renderSidebar(); } catch(e) {}
+  }
+  async function refreshSiteInfo() {
+    if (!isConfigured()) return;
+    const r = await req('GET', '/api/venue/me');
+    if (r.ok) applySiteInfo(r.data);
   }
   function linkInfo() { try { return JSON.parse(localStorage.getItem('pp_link') || 'null'); } catch(e) { return null; } }
 
@@ -2380,7 +2395,9 @@ const PP_API = (function() {
           ? staffList.map(st => ({ name: st.name, role: st.role, hourly_rate_cents: Math.round((st.rate||0)*100), hours_this_period: (typeof actualHours !== 'undefined' ? actualHours.filter(a => a.staffId === st.id && (Date.now() - new Date(a.date)) < 7*86400000).reduce((t,a) => t + (a.actualHours||0), 0) : 0) }))
           : undefined,
       };
-      return await req('POST', '/api/venue/snapshot', snapshot);
+      const r = await req('POST', '/api/venue/snapshot', snapshot);
+      if (r.ok && r.data && r.data.site) applySiteInfo(r.data.site);
+      return r;
     } catch(e) {
       console.warn('[PP_API] Snapshot error:', e.message);
     }
@@ -2490,6 +2507,8 @@ const PP_API = (function() {
     setInterval(pushSnapshot, 30 * 60 * 1000);
     pollInbox();
     setInterval(pollInbox, 2 * 60 * 1000);
+    refreshSiteInfo();
+    setInterval(refreshSiteInfo, 5 * 60 * 1000);   // pick up a rename in PP Command
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -2497,6 +2516,7 @@ const PP_API = (function() {
     isConfigured,
     authenticate,
     pushSnapshot,
+    refreshSiteInfo,
     pushScheduledPO,
     pushAllData,
     pullAllData,
@@ -2731,11 +2751,14 @@ function renderSidebar() {
   // Which venue this is, under the product name. Linked to PP Command → the org name too.
   let _venueLine = '';
   try {
-    const vName = (cafeDetails && cafeDetails.name || '').trim();
+    const linked = !!(cafeDetails && cafeDetails.command_site_id);
+    const vName = ((linked && cafeDetails.command_site_name) || (cafeDetails && cafeDetails.name) || '').trim();
     const org = (cafeDetails && cafeDetails.command_org_name) || '';
     _venueLine = vName
-      ? `<div class="sb-venue" title="${escapeHtml(vName)}">${escapeHtml(vName)}</div>` + (org ? `<div class="sb-org">${escapeHtml(org)}</div>` : '')
-      : `<button type="button" class="sb-venue unset" onclick="showPage('admin')" title="Admin → Cafe Details → Trading Name">Add your venue name →</button>`;
+      ? `<div class="sb-venue" title="${escapeHtml(vName)}${linked && cafeDetails.command_site_name ? ' (name set in PP Command)' : ''}">${escapeHtml(vName)}</div>` + (org ? `<div class="sb-org">${escapeHtml(org)}</div>` : '')
+      : linked
+        ? `<div class="sb-venue">${escapeHtml(cafeDetails.command_org_name || 'Linked site')}</div>`
+        : `<button type="button" class="sb-venue unset" onclick="showPage('admin')" title="Admin → Cafe Details → Trading Name">Add your venue name →</button>`;
   } catch(e) {}
   let html = '<div class="sb-brand">🍽️ Perpetual Pantries' + _venueLine + '</div>';
 
@@ -5539,8 +5562,6 @@ function saveCafeDetails() {
   localStorage.setItem('oc_cafe', JSON.stringify(cafeDetails));
   toast('Cafe details saved', 'ok');
   try { renderSidebar(); } catch(e) {}
-  // Linked to PP Command: send the new name now so the org sees it straight away.
-  try { if (typeof PP_API !== 'undefined' && PP_API.isConfigured()) PP_API.pushSnapshot(); } catch(e) {}
   if (typeof ppRenderCompliance === 'function' && _rptMainTab === 'compliance') ppRenderCompliance();
 }
 

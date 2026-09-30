@@ -52,9 +52,9 @@ org.delete('/api/org/link-codes/:id', requireOrg, wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 org.patch('/api/org/sites/:id', requireOrg, wrap(async (req, res) => {
-  // Only org-level knobs; a site's own details come from its snapshot.
-  const b = z.object({ tier: z.enum(['T1', 'T2', 'T3', 'T4']).optional() }).parse(req.body || {});
-  const { rows: [s] } = await q('UPDATE sites SET tier=COALESCE($3,tier) WHERE id=$1 AND org_id=$2 RETURNING *', [req.params.id, req.org.id, b.tier ?? null]);
+  // Org-level knobs: tier, and the site's display name (PP Command owns it; PP shows it).
+  const b = z.object({ tier: z.enum(['T1', 'T2', 'T3', 'T4']).optional(), name: z.string().trim().min(1).max(200).optional() }).parse(req.body || {});
+  const { rows: [s] } = await q('UPDATE sites SET tier=COALESCE($3,tier), name=COALESCE($4,name) WHERE id=$1 AND org_id=$2 RETURNING *', [req.params.id, req.org.id, b.tier ?? null, b.name ?? null]);
   if (!s) throw notFound('site not found');
   res.json(await serializeSite(s));
 }));
