@@ -193,6 +193,15 @@
   .canopy-widget .agent-input-row{padding:0 16px 16px;}
 
   .venue-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+  .vtag.linked{box-shadow:inset 0 0 0 1px var(--verdigris);}
+  .linked-sites{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;font-size:12.5px;}
+  .ls-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-quiet);margin-right:2px;}
+  .ls-empty{color:var(--ink-quiet);}
+  .ls-site{border-radius:var(--r-sm);padding:3px 8px;display:inline-flex;align-items:center;gap:6px;}
+  .ls-site.ok{background:var(--verdigris-wash, rgba(63,108,92,.1));color:var(--verdigris-dark);}
+  .ls-site.warn{background:var(--amber-wash, rgba(193,135,60,.14));color:var(--amber-ink);}
+  .ls-site button{all:unset;cursor:pointer;font-weight:600;text-decoration:underline;}
+  .ls-site button:focus-visible{outline:2px solid var(--amber-ink);outline-offset:2px;border-radius:2px;}
   .vtag{background:var(--paper-dim);border-radius:var(--r-sm);padding:3px 4px 3px 10px;font-size:12.5px;display:flex;align-items:center;gap:4px;white-space:nowrap;}
   .vtag select{width:auto;min-height:0;padding:2px 4px;border:none;background:transparent;box-shadow:none;font-family:var(--mono);font-size:11px;color:var(--verdigris-dark);cursor:pointer;}
   .vtag button{all:unset;cursor:pointer;color:var(--ink-faint);font-size:14px;line-height:1;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;}
@@ -1085,13 +1094,51 @@ async function serverSyncClients(){
   let r; try { r = await SERVER.req('GET', '/api/pp/clients'); } catch(e) { return; } // server unreachable — keep local state
   if (!r.ok) return;
   const byId = new Map(r.data.clients.map(c => [c.id, c]));
+  let renamed = false;
   clients.forEach(c => {
     if (!c.serverOrgId) return;
     const s = byId.get(c.serverOrgId);
     if (!s) return;
     c.serverClaimed = s.claimed;
     c.serverSitesLinked = s.sites_linked;
+    LINKED_SITES[c.serverOrgId] = s.venues || [];
+    // A billing-list venue with the same name as a linked site gets tied to it, so later renames carry over.
+    LINKED_SITES[c.serverOrgId].forEach(site => {
+      if ((c.venues || []).some(v => v.serverSiteId === site.id)) return;
+      const v = (c.venues || []).find(v => !v.serverSiteId && sameName(v.name, site.name));
+      if (v) { v.serverSiteId = site.id; renamed = true; }
+    });
+    // A billing-list venue tied to a linked site follows PP Command's name for it.
+    (c.venues || []).forEach(v => {
+      const site = v.serverSiteId && LINKED_SITES[c.serverOrgId].find(x => x.id === v.serverSiteId);
+      if (site && site.name && site.name !== v.name) { v.name = site.name; renamed = true; }
+    });
   });
+  if (renamed) await saveClients();
+}
+// Sites actually linked through PP Command, per server org (names are PP Command's). In memory only.
+const LINKED_SITES = {};
+const sameName = (a, b) => String(a||'').trim().toLowerCase() === String(b||'').trim().toLowerCase();
+// Which billing-list venue a linked site corresponds to: tied by id, else same name (and not tied elsewhere).
+function venueForSite(client, site){
+  const vs = client.venues || [];
+  return vs.find(v => v.serverSiteId === site.id) || vs.find(v => !v.serverSiteId && sameName(v.name, site.name)) || null;
+}
+function isVenueLinked(c, v){
+  const sites = c.serverOrgId && LINKED_SITES[c.serverOrgId];
+  return !!(sites && sites.some(site => venueForSite(c, site) === v));
+}
+function linkedSitesHtml(c){
+  if (!c.serverOrgId || !SERVER.on()) return '';
+  const sites = LINKED_SITES[c.serverOrgId];
+  if (!sites) return '';
+  if (!sites.length) return `<div class="linked-sites"><span class="ls-label">Linked in PP Command</span><span class="ls-empty">No sites linked yet</span></div>`;
+  return `<div class="linked-sites"><span class="ls-label">Linked in PP Command</span>${sites.map(site => {
+    const v = venueForSite(c, site);
+    return v
+      ? `<span class="ls-site ok" title="Matched to “${escapeAttr(v.name)}” in the billing list">🔗 ${escapeHtml(site.name)}</span>`
+      : `<span class="ls-site warn" title="Linked, but not in this client's billing list — it isn't being billed">${escapeHtml(site.name)} · not in billing list <button data-action="add-linked-site" data-sid="${escapeAttr(site.id)}">Add</button></span>`;
+  }).join('')}</div>`;
 }
 // Live client data (server mode, linked clients only): org-level aggregates and
 // menu items that linked venues promote via their weekly snapshot. Held in memory
@@ -1974,12 +2021,14 @@ function renderClients(){
         </div>
       </div>
       <div class="venue-tags">
-        ${c.venues.map(v=>`<span class="vtag" title="${escapeAttr([v.address, [v.contactName, v.contactPhone, v.contactEmail].filter(Boolean).join(' · ')].filter(Boolean).join(' — ') || 'No address or contact yet (add them in Quote Builder → Sites)')}">${escapeHtml(v.name || '(unnamed site)')}
+        <span class="ls-label" style="align-self:center">Billing list</span>${c.venues.length ? '' : '<span class="ls-empty" style="align-self:center;font-size:12.5px">No venues yet</span>'}
+        ${c.venues.map(v=>`<span class="vtag${isVenueLinked(c, v)?' linked':''}" title="${isVenueLinked(c, v)?'Linked in PP Command. ':''}${escapeAttr([v.address, [v.contactName, v.contactPhone, v.contactEmail].filter(Boolean).join(' · ')].filter(Boolean).join(' — ') || 'No address or contact yet (add them in Quote Builder → Sites)')}">${escapeHtml(v.name || '(unnamed site)')}
           <select data-action="set-venue-tier" data-vid="${v.id}" style="border:none;background:transparent;font-size:11px;font-family:inherit;margin:0 2px;">
             ${pricing.ppTiers.map(t=>`<option value="${escapeAttr(t.label)}" ${t.label===(v.tier||pricing.ppTiers[0].label)?'selected':''}>${escapeHtml(t.label)}</option>`).join('')}
           </select>
           <button data-action="remove-venue" data-vid="${v.id}">×</button></span>`).join('')}
       </div>
+      ${linkedSitesHtml(c)}
       <div class="add-venue-row">
         <input placeholder="New venue name, e.g. Burwood Café" data-role="venue-input" aria-label="New venue name">
         <button class="btn secondary" data-action="add-venue">+ Add venue</button>
@@ -2034,6 +2083,13 @@ document.getElementById('client-list').addEventListener('click', async e=>{
   }
   if(action==='remove-client'){
     clients = clients.filter(c=>c.id!==client.id);
+    await saveClients(); renderClients(); return;
+  }
+  if(action==='add-linked-site'){
+    const site = (LINKED_SITES[client.serverOrgId] || []).find(x => x.id === e.target.dataset.sid); if(!site) return;
+    if(!Array.isArray(client.venues)) client.venues = [];
+    const tier = findTierLabel(site.tier) || (pricing.ppTiers[0] ? pricing.ppTiers[0].label : 'T1');
+    client.venues.push({ id:uid(), name:site.name, tier, serverSiteId:site.id });
     await saveClients(); renderClients(); return;
   }
   if(action==='add-venue'){
