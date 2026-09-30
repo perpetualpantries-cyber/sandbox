@@ -259,7 +259,7 @@ label{font-family:var(--mono);font-size:10.5px;color:var(--sub);text-transform:u
         <div class="panel-head">Link a cafe</div>
         <div style="padding:16px">
           <div class="page-sub" style="margin-bottom:12px">Each cafe's own Perpetual Pantries app already has its own identity. Generate a one-time code here and give it to that cafe — their app enters it and links itself in with its own venue ID. In this demo build (no live cafe app wired up yet), use "Simulate cafe linking" to act out what happens once a real cafe enters the code.</div>
-          <div class="field"><label>Site name (optional hint)</label><input id="link-name-hint" placeholder="e.g. Fitzroy — helps you recognise the code below"></div>
+          <div class="field"><label>Site name</label><input id="link-name-hint" placeholder="e.g. Deakin Burwood Café — the site shows this name in PP"></div>
           <button class="btn" onclick="generateLinkCode()">Generate link code</button>
         </div>
       </div>
@@ -788,7 +788,7 @@ function renderOverview(){
 // ══════════════════════════════════════════════════════════════════════════
 function renderSites(){
   document.getElementById('sites-table').innerHTML = STATE.sites.length
-    ? `<table><tr><th>Name</th><th>Venue ID (cafe's own)</th><th>Linked</th></tr>${STATE.sites.map(s=>`<tr><td>${escapeHtml(s.name)}</td><td class="mono">${escapeHtml(s.venue_id)}</td><td class="mono" style="color:var(--faint)">${fmtTime(s.linked_at)}</td></tr>`).join('')}</table>`
+    ? `<table><tr><th>Name</th><th>Venue ID (cafe's own)</th><th>Linked</th><th></th></tr>${STATE.sites.map(s=>`<tr><td>${escapeHtml(s.name)}</td><td class="mono">${escapeHtml(s.venue_id)}</td><td class="mono" style="color:var(--faint)">${fmtTime(s.linked_at)}</td><td><button class="btn small ghost" onclick="renameSite('${s.id}')">Rename</button></td></tr>`).join('')}</table>`
     : `<div class="empty">No sites linked yet — generate a link code above and give it to a cafe.</div>`;
   STATE.linkCodes.forEach(c => { if (c.status === 'pending' && !linkCodeIsLive(c)) c.status = 'expired'; });
   const pending = STATE.linkCodes.filter(c => c.status === 'pending');
@@ -827,6 +827,19 @@ async function generateLinkCode(){
   document.getElementById('new-link-code-value').value = code;
   document.getElementById('new-link-code-note').classList.remove('hidden');
   renderSites();
+}
+// PP Command owns each site's name; the site's PP app shows whatever is set here.
+async function renameSite(id){
+  const site = STATE.sites.find(s => s.id === id); if (!site) return;
+  const name = (prompt('Site name (shown in this site\'s PP app):', site.name) || '').trim();
+  if (!name || name === site.name) return;
+  if (SERVER.on()) {
+    const r = await SERVER.req('PATCH', '/api/org/sites/' + id, { name });
+    if (!r.ok) return toastMsg('Could not rename: ' + (r.data.error || r.status));
+    toastMsg('Renamed. ' + name + ' will show in that site\'s PP app on its next sync.');
+    return refreshFromServer();
+  }
+  site.name = name; await saveState(true); renderAll(true);
 }
 function copyLinkCode(){
   const el = document.getElementById('new-link-code-value');
