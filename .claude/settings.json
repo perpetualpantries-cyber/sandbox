@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git bundle verify*)",
+      "Bash(git bundle list-heads*)",
+      "Bash(grep *)",
+      "Bash(rg *)",
+      "Bash(wc *)",
+      "Bash(diff *)",
+      "Bash(ls*)",
+      "Bash(find *)",
+      "Bash(unzip -l*)",
+      "Bash(node --check *)",
+      "Bash(npm install*)",
+      "Bash(npm test*)",
+      "Bash(npm run migrate*)"
+    ]
+  }
+}
