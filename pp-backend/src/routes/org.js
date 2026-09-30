@@ -31,19 +31,45 @@ org.get('/api/org/sites', requireOrg, wrap(async (req, res) => {
   res.json({ sites: await Promise.all(rows.map(serializeSite)) });
 }));
 
-org.post('/api/org/link-codes', requireOrg, wrap(async (req, res) => {
-  const hint = String(req.body?.hint || '').slice(0, 120) || null;
+async function issueSiteLinkCode(orgId, hint, plannedSiteId = null) {
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      const { rows: [c] } = await q(`INSERT INTO link_codes(org_id, code, hint, expires_at) VALUES ($1,$2,$3, now() + interval '24 hours') RETURNING id, code, hint, status, created_at, expires_at`, [req.org.id, linkCode(8), hint]);
-      return res.status(201).json(c);
+      const { rows: [c] } = await q(`INSERT INTO link_codes(org_id, code, hint, planned_site_id, expires_at) VALUES ($1,$2,$3,$4, now() + interval '24 hours') RETURNING id, code, hint, status, created_at, expires_at, planned_site_id`, [orgId, linkCode(8), hint, plannedSiteId]);
+      return c;
     } catch (e) { if (e.code !== '23505') throw e; } // unique collision — retry
   }
   throw new Error('could not allocate a unique code');
+}
+org.post('/api/org/link-codes', requireOrg, wrap(async (req, res) => {
+  const hint = String(req.body?.hint || '').slice(0, 120) || null;
+  res.status(201).json(await issueSiteLinkCode(req.org.id, hint));
+}));
+
+// ── Sites Perpetual Pantries has set up for this org (from PPcanopy), waiting for a café to link.
+org.get('/api/org/planned-sites', requireOrg, wrap(async (req, res) => {
+  await q(`UPDATE link_codes SET status='expired' WHERE org_id=$1 AND status='pending' AND expires_at < now()`, [req.org.id]);
+  const { rows } = await q(`
+    SELECT p.id, p.name, p.tier, p.created_at, lc.code, lc.expires_at AS code_expires_at
+    FROM planned_sites p
+    LEFT JOIN LATERAL (SELECT code, expires_at FROM link_codes WHERE planned_site_id=p.id AND status='pending' ORDER BY created_at DESC LIMIT 1) lc ON true
+    WHERE p.org_id=$1 AND p.status='waiting' ORDER BY p.created_at`, [req.org.id]);
+  res.json({ planned_sites: rows });
+}));
+org.post('/api/org/planned-sites/:id/link-code', requireOrg, wrap(async (req, res) => {
+  const { rows: [p] } = await q(`SELECT id, name FROM planned_sites WHERE id=$1 AND org_id=$2 AND status='waiting'`, [req.params.id, req.org.id]);
+  if (!p) throw notFound('waiting site not found');
+  await q(`UPDATE link_codes SET status='revoked' WHERE planned_site_id=$1 AND status='pending'`, [p.id]);   // one live code per waiting site
+  res.status(201).json(await issueSiteLinkCode(req.org.id, p.name.slice(0, 120), p.id));
+}));
+org.post('/api/org/planned-sites/:id/dismiss', requireOrg, wrap(async (req, res) => {
+  const { rowCount } = await q(`UPDATE planned_sites SET status='dismissed' WHERE id=$1 AND org_id=$2 AND status='waiting'`, [req.params.id, req.org.id]);
+  if (!rowCount) throw notFound('waiting site not found');
+  await q(`UPDATE link_codes SET status='revoked' WHERE planned_site_id=$1 AND status='pending'`, [req.params.id]);
+  res.json({ ok: true });
 }));
 org.get('/api/org/link-codes', requireOrg, wrap(async (req, res) => {
   await q(`UPDATE link_codes SET status='expired' WHERE org_id=$1 AND status='pending' AND expires_at < now()`, [req.org.id]);
-  const { rows } = await q('SELECT id, code, hint, status, created_at, expires_at, used_at, site_id FROM link_codes WHERE org_id=$1 ORDER BY created_at DESC LIMIT 100', [req.org.id]);
+  const { rows } = await q('SELECT id, code, hint, status, created_at, expires_at, used_at, site_id, planned_site_id FROM link_codes WHERE org_id=$1 ORDER BY created_at DESC LIMIT 100', [req.org.id]);
   res.json({ codes: rows });
 }));
 org.delete('/api/org/link-codes/:id', requireOrg, wrap(async (req, res) => {

@@ -255,10 +255,14 @@ label{font-family:var(--mono);font-size:10.5px;color:var(--sub);text-transform:u
     <!-- Sites -->
     <section id="tab-sites" class="hidden">
       <div class="page-head"><div class="page-title">Sites</div></div>
+      <div class="panel hidden" id="planned-sites-panel">
+        <div class="panel-head">Waiting to link — set up by Perpetual Pantries</div>
+        <div id="planned-sites-table"></div>
+      </div>
       <div class="panel">
         <div class="panel-head">Link a cafe</div>
         <div style="padding:16px">
-          <div class="page-sub" style="margin-bottom:12px">Each cafe's own Perpetual Pantries app already has its own identity. Generate a one-time code here and give it to that cafe — their app enters it and links itself in with its own venue ID. In this demo build (no live cafe app wired up yet), use "Simulate cafe linking" to act out what happens once a real cafe enters the code.</div>
+          <div class="page-sub" style="margin-bottom:12px">Give each café a one-time code: they enter it in their PP app (Settings → PP Command link code) and it links in under the name you type here. Sites Perpetual Pantries has set up for you appear above, ready for a one-click code. In demo mode, use “Simulate cafe linking” to act it out.</div>
           <div class="field"><label>Site name</label><input id="link-name-hint" placeholder="e.g. Deakin Burwood Café — the site shows this name in PP"></div>
           <button class="btn" onclick="generateLinkCode()">Generate link code</button>
         </div>
@@ -479,6 +483,7 @@ const SERVER = {
       orgName: org.data.name, orgId: org.data.id, serverMode: true, demoMode: false,
       sites: sites.data.sites || [],
       linkCodes: (await this.req('GET', '/api/org/link-codes')).data.codes || [],
+      plannedSites: (await this.req('GET', '/api/org/planned-sites')).data.planned_sites || [],
       messages: (msgs.data.messages || []).map(m => ({ ...m, direction: m.direction, created_at: m.created_at })),
       notifications: notifs.data.notifications || [],
       canopyRequests: canopy.data.requests || [],
@@ -742,6 +747,8 @@ function renderOverview(){
   if (canopyWaiting) attn.push({ tone:'', n:canopyWaiting, text:`${plural(canopyWaiting,'request','requests')} from Perpetual Pantries need your answer`, sub:'Approve, answer or decline', tab:'messages', go:'Open Ronin log' });
   if (msgWaiting) attn.push({ tone:'', n:msgWaiting, text:`${plural(msgWaiting,'request is','requests are')} waiting on a site manager`, sub:'Sent by Ronin, approved on the site’s own screen', tab:'messages', go:'Open Ronin log' });
   if (t.stock_low) attn.push({ tone:'', n:t.stock_low, text:`${plural(t.stock_low,'item','items')} running low`, sub:listNames(sitesWith('stock_low')), tab:'overview-sites', go:'See sites' });
+  const waitingSites = SERVER.on() ? (STATE.plannedSites || []) : [];
+  if (waitingSites.length) attn.push({ tone:'', n:waitingSites.length, text:`${plural(waitingSites.length,'site is','sites are')} waiting to link`, sub:listNames(waitingSites.map(p => p.name)), tab:'sites', go:'Open Sites' });
   if (quiet.length && STATE.sites.length) attn.push({ tone:'', n:quiet.length, text:`${plural(quiet.length,'site hasn’t','sites haven’t')} sent a snapshot`, sub:listNames(quiet), tab:'sites', go:'Open Sites' });
   if (unread) attn.push({ tone:'', n:unread, text:`unread ${plural(unread,'notification','notifications')}`, sub:'', tab:'notifications', go:'Open' });
   const attnHtml = attn.length
@@ -786,12 +793,46 @@ function renderOverview(){
 // ══════════════════════════════════════════════════════════════════════════
 // Sites / link codes
 // ══════════════════════════════════════════════════════════════════════════
+// Sites Perpetual Pantries has set up for this org in PPcanopy. One click makes the café's link code,
+// already named; when the café redeems it, the site links and PPcanopy's billing venue ties to it.
+function renderPlannedSites(){
+  const list = (SERVER.on() && STATE.plannedSites) || [];
+  document.getElementById('planned-sites-panel').classList.toggle('hidden', !list.length);
+  document.getElementById('planned-sites-table').innerHTML = list.length
+    ? `<table><tr><th>Site</th><th>Added</th><th>Link code</th><th></th></tr>${list.map(p => `<tr>
+        <td>${escapeHtml(p.name)}</td>
+        <td class="mono" style="color:var(--faint)">${fmtTime(p.created_at)}</td>
+        <td class="mono">${p.code ? `${p.code} <span style="color:var(--faint)">· expires ${fmtTime(p.code_expires_at)}</span>` : '<span style="color:var(--faint)">—</span>'}</td>
+        <td style="display:flex;gap:6px;justify-content:flex-end">
+          <button class="btn small" onclick="plannedSiteCode('${p.id}')">${p.code ? 'New code' : 'Generate link code'}</button>
+          <button class="btn small ghost" onclick="dismissPlannedSite('${p.id}')">Dismiss</button>
+        </td></tr>`).join('')}</table>`
+    : '';
+}
+async function plannedSiteCode(id){
+  const r = await SERVER.req('POST', '/api/org/planned-sites/' + id + '/link-code');
+  if (!r.ok) return toastMsg('Could not create code: ' + (r.data.error || r.status));
+  document.getElementById('new-link-code-panel').classList.remove('hidden');
+  document.getElementById('new-link-code-value').value = r.data.code;
+  document.getElementById('new-link-code-note').classList.add('hidden');
+  toastMsg('Code for ' + r.data.hint + ' — give it to that café to enter in PP Settings.');
+  await refreshFromServer();
+  document.getElementById('new-link-code-panel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+async function dismissPlannedSite(id){
+  const p = (STATE.plannedSites || []).find(x => x.id === id);
+  if (!confirm(`Dismiss “${p ? p.name : 'this site'}”? Perpetual Pantries set it up for you; dismiss only if it won't be opening.`)) return;
+  const r = await SERVER.req('POST', '/api/org/planned-sites/' + id + '/dismiss');
+  if (!r.ok) return toastMsg('Could not dismiss: ' + (r.data.error || r.status));
+  refreshFromServer();
+}
 function renderSites(){
+  renderPlannedSites();
   document.getElementById('sites-table').innerHTML = STATE.sites.length
     ? `<table><tr><th>Name</th><th>Venue ID (cafe's own)</th><th>Linked</th><th></th></tr>${STATE.sites.map(s=>`<tr><td>${escapeHtml(s.name)}</td><td class="mono">${escapeHtml(s.venue_id)}</td><td class="mono" style="color:var(--faint)">${fmtTime(s.linked_at)}</td><td><button class="btn small ghost" onclick="renameSite('${s.id}')">Rename</button></td></tr>`).join('')}</table>`
     : `<div class="empty">No sites linked yet — generate a link code above and give it to a cafe.</div>`;
   STATE.linkCodes.forEach(c => { if (c.status === 'pending' && !linkCodeIsLive(c)) c.status = 'expired'; });
-  const pending = STATE.linkCodes.filter(c => c.status === 'pending');
+  const pending = STATE.linkCodes.filter(c => c.status === 'pending' && !(SERVER.on() && c.planned_site_id));
   document.getElementById('link-codes-table').innerHTML = pending.length
     ? `<table><tr><th>Code</th><th>Hint</th><th>Created</th><th>Expires</th><th></th></tr>${pending.map(c=>`<tr>
         <td class="mono">${c.code}</td>

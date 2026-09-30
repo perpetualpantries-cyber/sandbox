@@ -39,6 +39,10 @@ async function redeem(req, res) {
        VALUES ($1,$2,$3,$4,$5,COALESCE($6,'Australia/Melbourne')) RETURNING *`,
       [lc.org_id, venue.venue_id, (lc.hint || '').trim() || venue.cafe_name || 'New site', venue.suburb || null, venue.state || null, venue.timezone || null]);
     await c.query("UPDATE link_codes SET status='used', used_at=now(), site_id=$2 WHERE id=$1", [lc.id, s.id]);
+    if (lc.planned_site_id) {
+      const { rows: [p] } = await c.query(`UPDATE planned_sites SET status='linked', site_id=$2 WHERE id=$1 RETURNING tier`, [lc.planned_site_id, s.id]);
+      if (p && p.tier) await c.query('UPDATE sites SET tier=$2 WHERE id=$1', [s.id, p.tier]);
+    }
     const { rows: [org] } = await c.query('SELECT id, name FROM orgs WHERE id=$1', [lc.org_id]);
     await c.query(`INSERT INTO org_notifications(org_id,type,subject,body) VALUES ($1,'site_linked',$2,$3)`,
       [org.id, `${s.name} linked`, `Venue ${venue.venue_id} redeemed code ${lc.code}.`]);
