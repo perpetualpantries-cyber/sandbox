@@ -646,3 +646,176 @@ test('notifications: push key, subscriptions, approval notify (email + push), cl
   } finally { delete process.env.RESEND_API_KEY; delete process.env.RESEND_API_URL; fake.close(); }
   assert.equal((await api('POST', '/api/pp/email', { headers: sales, body: { to: 'a@b.example', subject: 's', text: 't' } })).status, 503);
 });
+
+// ── Head office ↔ regions ──────────────────────────────────────────────────
+// Own fixtures (a head office, two regions, one café each) so earlier key rotations don't matter.
+const H = {};
+const org = key => ({ headers: { 'X-Org-Key': key } });
+async function newClaimedClient(name, command_tier) {
+  const c = await api('POST', '/api/pp/clients', { headers: { Authorization: 'Bearer ' + S.sales }, body: { name, ...(command_tier ? { command_tier } : {}) } });
+  assert.equal(c.status, 201, JSON.stringify(c.json));
+  const claim = await api('POST', '/api/org/link/claim', { body: { code: c.json.linkCode.code } });
+  assert.equal(claim.status, 200); assert.equal(claim.json.command_tier, command_tier || 'compliance');
+  return { id: c.json.client.id, key: claim.json.api_key };
+}
+async function linkCafe(orgKey, venue_id, name, snap) {
+  const code = await api('POST', '/api/org/link-codes', { ...org(orgKey), body: { hint: name } });
+  const r = await api('POST', '/api/link/redeem', { body: { code: code.json.code, venue: { venue_id, cafe_name: name } } });
+  assert.equal(r.status, 200);
+  const s = await api('POST', '/api/venue/snapshot', { headers: { Authorization: 'Bearer ' + r.json.token }, body: snap });
+  assert.equal(s.status, 200, JSON.stringify(s.json));
+}
+
+test('head office: PPcanopy creates it as a tier; it has no sites of its own; region codes are head-office only', async () => {
+  H.hq = await newClaimedClient('Demo Group — Head Office', 'head_office');
+  H.vic = await newClaimedClient('Demo Group VIC');
+  H.nsw = await newClaimedClient('Demo Group NSW');
+  H.other = await newClaimedClient('Unrelated Cafés');
+  await linkCafe(H.vic.key, 'venue_hq_1', 'Fitzroy', { revenue_week: 18000, gp_pct: 64, labour_pct: 29, stock_out: 1, stock_low: 3, stock_out_items: ['Oat Milk'], open_orders: 2,
+    menu_items: [{ name: 'Flat White', sellingPrice: 5.5 }], shared_payroll: [{ name: 'Sarah Chen', role: 'Barista', hourly_rate_cents: 3000, hours_this_period: 10 }] });
+  await linkCafe(H.nsw.key, 'venue_hq_2', 'Surry Hills', { revenue_week: 6000, gp_pct: 56, labour_pct: 37, stock_out: 0, stock_low: 1, open_orders: 1 });
+
+  const siteCode = await api('POST', '/api/org/link-codes', { ...org(H.hq.key), body: { hint: 'x' } });
+  assert.equal(siteCode.status, 409);
+  const notHq = await api('POST', '/api/org/regions/link-codes', { ...org(H.vic.key), body: {} });
+  assert.equal(notHq.status, 403);
+  const me = await api('GET', '/api/org/head-office', org(H.hq.key));
+  assert.equal(me.json.role, 'head_office');
+});
+
+test('head office: a region claims a region code once; cafés, orgs and head offices cannot use it', async () => {
+  const c1 = await api('POST', '/api/org/regions/link-codes', { ...org(H.hq.key), body: { hint: 'VIC' } });
+  assert.equal(c1.status, 201); assert.match(c1.json.code, /^[A-HJ-NP-Z2-9]{8}$/);
+  const asCafe = await api('POST', '/api/link/redeem', { body: { code: c1.json.code, venue: { venue_id: 'venue_hq_x', cafe_name: 'X' } } });
+  assert.equal(asCafe.status, 404);
+  const asOrgClaim = await api('POST', '/api/org/link/claim', { body: { code: c1.json.code } });
+  assert.equal(asOrgClaim.status, 404);
+  const hqSelf = await api('POST', '/api/org/head-office/claim', { ...org(H.hq.key), body: { code: c1.json.code } });
+  assert.equal(hqSelf.status, 403);
+
+  const claim = await api('POST', '/api/org/head-office/claim', { ...org(H.vic.key), body: { code: c1.json.code.toLowerCase() } });
+  assert.equal(claim.status, 200); assert.equal(claim.json.region_name, 'VIC'); assert.equal(claim.json.head_office.id, H.hq.id);
+  const again = await api('POST', '/api/org/head-office/claim', { ...org(H.nsw.key), body: { code: c1.json.code } });
+  assert.equal(again.status, 409);
+
+  const c2 = await api('POST', '/api/org/regions/link-codes', { ...org(H.hq.key), body: {} });
+  const nsw = await api('POST', '/api/org/head-office/claim', { ...org(H.nsw.key), body: { code: c2.json.code, region_name: 'NSW' } });
+  assert.equal(nsw.status, 200); assert.equal(nsw.json.region_name, 'NSW');
+  const c3 = await api('POST', '/api/org/regions/link-codes', { ...org(H.hq.key), body: {} });
+  const twice = await api('POST', '/api/org/head-office/claim', { ...org(H.vic.key), body: { code: c3.json.code } });
+  assert.equal(twice.status, 409);
+
+  const codes = await api('GET', '/api/org/regions/link-codes', org(H.hq.key));
+  assert.equal(codes.json.codes.filter(c => c.status === 'used').length, 2);
+  const siteCodes = await api('GET', '/api/org/link-codes', org(H.hq.key));
+  assert.equal(siteCodes.json.codes.length, 0);   // region codes don't show up as site codes
+  const notif = await api('GET', '/api/org/notifications', org(H.hq.key));
+  assert.ok(notif.json.notifications.some(n => n.type === 'region_linked' && n.subject.startsWith('VIC')));
+  const clients = await api('GET', '/api/pp/clients', { headers: { Authorization: 'Bearer ' + S.sales } });
+  assert.equal(clients.json.clients.find(c => c.id === H.vic.id).parent_org_id, H.hq.id);
+});
+
+test('head office: sees each region as headline figures only, revenue-weighted, never item names, menus or pay lines', async () => {
+  const regions = await api('GET', '/api/org/regions', org(H.hq.key));
+  assert.equal(regions.status, 200); assert.equal(regions.json.regions.length, 2);
+  const vic = regions.json.regions.find(r => r.name === 'VIC');
+  assert.equal(vic.site_count, 1); assert.equal(vic.totals.revenue_week, 18000); assert.equal(vic.totals.avg_gp_pct, 64);
+  assert.equal(vic.stale, false); assert.deepEqual(vic.payroll, { sites_sharing: 1, gross_cents: 30000 });
+  const text = JSON.stringify(regions.json);
+  for (const leak of ['Oat Milk', 'Flat White', 'Sarah Chen', 'stock_out_items', 'hourly_rate_cents', 'venue_hq_1']) assert.ok(!text.includes(leak), leak);
+
+  const g = await api('GET', '/api/org/group-overview', org(H.hq.key));
+  assert.equal(g.json.region_count, 2); assert.equal(g.json.site_count, 2); assert.equal(g.json.totals.revenue_week, 24000);
+  assert.equal(g.json.totals.gp_pct, 62);        // (64×18000 + 56×6000) / 24000 — not the plain average 60
+  assert.equal(g.json.totals.labour_pct, 31);    // (29×18000 + 37×6000) / 24000
+
+  const one = await api('GET', `/api/org/regions/${H.nsw.id}`, org(H.hq.key));
+  assert.equal(one.status, 200); assert.equal(one.json.name, 'NSW');
+  const notMine = await api('GET', `/api/org/regions/${H.other.id}`, org(H.hq.key));
+  assert.equal(notMine.status, 404);
+  const regionCantList = await api('GET', '/api/org/regions', org(H.vic.key));
+  assert.equal(regionCantList.status, 403);
+  // What the region is told head office sees matches what head office gets.
+  const mine = await api('GET', '/api/org/head-office', org(H.vic.key));
+  assert.equal(mine.json.visible_to_head_office.totals.revenue_week, 18000);
+});
+
+test('group policy: defaults, versioned save, stale save conflicts, regions inherit it and are notified', async () => {
+  const p0 = await api('GET', '/api/org/group-policy', org(H.hq.key));
+  assert.equal(p0.json.version, 0); assert.equal(p0.json.gp_target_pct, 60);
+  const policy = { gp_target_pct: 62, labour_cap_pct: 30, spend_approval_cents: 250000, approved_suppliers: ['Bean & Co', 'Metro Dairy'], notes: 'Spring menu 1 Oct' };
+  const p1 = await api('PUT', '/api/org/group-policy', { ...org(H.hq.key), body: { policy, version: 0 } });
+  assert.equal(p1.status, 200); assert.equal(p1.json.version, 1);
+  const stale = await api('PUT', '/api/org/group-policy', { ...org(H.hq.key), body: { policy: { ...policy, gp_target_pct: 50 }, version: 0 } });
+  assert.equal(stale.status, 409); assert.equal(stale.json.current.gp_target_pct, 62);
+  const bad = await api('PUT', '/api/org/group-policy', { ...org(H.hq.key), body: { policy: { ...policy, gp_target_pct: 140 }, version: 1 } });
+  assert.equal(bad.status, 400);
+  const regionPut = await api('PUT', '/api/org/group-policy', { ...org(H.vic.key), body: { policy, version: 1 } });
+  assert.equal(regionPut.status, 403);
+
+  const vic = await api('GET', '/api/org/head-office', org(H.vic.key));
+  assert.equal(vic.json.role, 'region'); assert.equal(vic.json.head_office.id, H.hq.id);
+  assert.equal(vic.json.policy.version, 1); assert.deepEqual(vic.json.policy.approved_suppliers, ['Bean & Co', 'Metro Dairy']);
+  const n = await api('GET', '/api/org/notifications', org(H.nsw.key));
+  assert.ok(n.json.notifications.some(x => x.type === 'group_policy'));
+  const standalone = await api('GET', '/api/org/head-office', org(H.other.key));
+  assert.deepEqual(standalone.json, { role: 'standalone', linked: false });
+});
+
+test('escalations: region raises, head office decides once, region sees the outcome; other orgs cannot touch it', async () => {
+  const e = await api('POST', '/api/org/head-office/escalations', { ...org(H.nsw.key), body: { subject: 'New dairy supplier', body: 'Metro Dairy short-shipped', amount_cents: 120000 } });
+  assert.equal(e.status, 201); const id = e.json.escalation.id;
+  const unlinked = await api('POST', '/api/org/head-office/escalations', { ...org(H.other.key), body: { subject: 'x' } });
+  assert.equal(unlinked.status, 409);
+
+  const list = await api('GET', '/api/org/escalations?status=awaiting_decision', org(H.hq.key));
+  assert.equal(list.json.escalations.length, 1); assert.equal(list.json.escalations[0].region_name, 'NSW');
+  const hqNotif = await api('GET', '/api/org/notifications', org(H.hq.key));
+  assert.ok(hqNotif.json.notifications.some(x => x.type === 'escalation' && x.subject.includes('New dairy supplier')));
+
+  const regionDecides = await api('POST', `/api/org/escalations/${id}/approve`, { ...org(H.nsw.key), body: {} });
+  assert.equal(regionDecides.status, 403);
+  const ok = await api('POST', `/api/org/escalations/${id}/approve`, { ...org(H.hq.key), body: { note: 'Add Harbour Dairy' } });
+  assert.equal(ok.status, 200); assert.equal(ok.json.escalation.status, 'approved');
+  const twice = await api('POST', `/api/org/escalations/${id}/decline`, { ...org(H.hq.key), body: {} });
+  assert.equal(twice.status, 409);
+  const withdrawLate = await api('POST', `/api/org/head-office/escalations/${id}/withdraw`, { ...org(H.nsw.key), body: {} });
+  assert.equal(withdrawLate.status, 409);
+
+  const nsw = await api('GET', '/api/org/head-office', org(H.nsw.key));
+  assert.equal(nsw.json.escalations[0].status, 'approved'); assert.equal(nsw.json.escalations[0].decision_note, 'Add Harbour Dairy');
+  const vic = await api('GET', '/api/org/head-office', org(H.vic.key));
+  assert.equal(vic.json.escalations.length, 0);   // regions only see their own
+});
+
+test('region requests: head office asks a region Ronin, only that region can answer, once', async () => {
+  const r = await api('POST', '/api/org/region-requests', { ...org(H.hq.key), body: { region_id: H.vic.id, intent: 'review_labour_roster', note: 'Labour is near the cap' } });
+  assert.equal(r.status, 201); const id = r.json.request.id;
+  const notRegion = await api('POST', '/api/org/region-requests', { ...org(H.hq.key), body: { region_id: H.other.id, intent: 'x' } });
+  assert.equal(notRegion.status, 404);
+  const badIntent = await api('POST', '/api/org/region-requests', { ...org(H.hq.key), body: { region_id: H.vic.id, intent: 'not snake case!' } });
+  assert.equal(badIntent.status, 400);
+
+  const inbox = await api('GET', '/api/org/head-office', org(H.vic.key));
+  assert.equal(inbox.json.requests[0].intent, 'review_labour_roster');
+  const wrongRegion = await api('POST', `/api/org/head-office/requests/${id}/answer`, { ...org(H.nsw.key), body: { response_text: 'no' } });
+  assert.equal(wrongRegion.status, 409);
+  const ans = await api('POST', `/api/org/head-office/requests/${id}/answer`, { ...org(H.vic.key), body: { response_text: 'Rostered one fewer barista on Mondays' } });
+  assert.equal(ans.status, 200);
+  const again = await api('POST', `/api/org/head-office/requests/${id}/answer`, { ...org(H.vic.key), body: { response_text: 'again' } });
+  assert.equal(again.status, 409);
+  const hq = await api('GET', '/api/org/region-requests', org(H.hq.key));
+  assert.equal(hq.json.requests[0].status, 'answered'); assert.equal(hq.json.requests[0].region_name, 'VIC');
+});
+
+test('PPcanopy tier change guards the head-office rules', async () => {
+  const auth = { headers: { Authorization: 'Bearer ' + S.sales } };
+  const withSites = await api('PATCH', `/api/pp/clients/${H.vic.id}`, { ...auth, body: { command_tier: 'head_office' } });
+  assert.equal(withSites.status, 409);
+  const hasRegions = await api('PATCH', `/api/pp/clients/${H.hq.id}`, { ...auth, body: { command_tier: 'multi_outlet' } });
+  assert.equal(hasRegions.status, 409);
+  const ok = await api('PATCH', `/api/pp/clients/${H.other.id}`, { ...auth, body: { command_tier: 'multi_outlet' } });
+  assert.equal(ok.status, 200); assert.equal(ok.json.command_tier, 'multi_outlet');
+  const bogus = await api('PATCH', `/api/pp/clients/${H.other.id}`, { ...auth, body: { command_tier: 'emperor' } });
+  assert.equal(bogus.status, 400);
+});

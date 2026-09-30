@@ -56,7 +56,7 @@ async function issueOrgLinkCode(orgId) {
   throw new Error('could not allocate a unique code');
 }
 
-const ClientBody = z.object({ name: z.string().min(1).max(200), sector: z.string().max(60).optional(), command_tier: z.enum(['compliance', 'multi_outlet']).optional() });
+const ClientBody = z.object({ name: z.string().min(1).max(200), sector: z.string().max(60).optional(), command_tier: z.enum(['compliance', 'multi_outlet', 'head_office']).optional() });
 pp.post('/api/pp/clients', requireStaff('Sales Manager'), idempotent, wrap(async (req, res) => {
   const b = ClientBody.parse(req.body);
   const { rows: [o] } = await q(`INSERT INTO orgs(name, sector, command_tier) VALUES ($1,$2,COALESCE($3,'compliance')) RETURNING id, name, sector, command_tier, created_at`,
@@ -110,6 +110,19 @@ pp.delete('/api/pp/clients/:id/planned-sites/:pid', requireStaff('Sales Manager'
   if (!rowCount) throw notFound('waiting site not found');
   res.json({ ok: true });
 }));
+// Change a client's PP Command tier. Guards the head-office invariants: a head office has no
+// sites and isn't a region; an org stops being a head office only once no regions point at it.
+pp.patch('/api/pp/clients/:id', requireStaff('Sales Manager'), wrap(async (req, res) => {
+  const b = z.object({ command_tier: z.enum(['compliance', 'multi_outlet', 'head_office']) }).parse(req.body || {});
+  const { rows: [o] } = await q(`SELECT o.*, (SELECT count(*)::int FROM sites s WHERE s.org_id=o.id) AS site_count,
+                                        (SELECT count(*)::int FROM orgs r WHERE r.parent_org_id=o.id) AS region_count FROM orgs o WHERE o.id=$1`, [req.params.id]);
+  if (!o) throw notFound('client not found');
+  if (b.command_tier === 'head_office' && o.site_count) throw conflict('this client has sites linked — a head office has no sites of its own');
+  if (b.command_tier === 'head_office' && o.parent_org_id) throw conflict('this client is a region of another head office');
+  if (b.command_tier !== 'head_office' && o.region_count) throw conflict('regions are linked to this head office');
+  const { rows: [u] } = await q('UPDATE orgs SET command_tier=$2 WHERE id=$1 RETURNING id, name, sector, command_tier', [o.id, b.command_tier]);
+  res.json(u);
+}));
 pp.post('/api/pp/clients/:id/rotate-key', requireStaff('Owner'), wrap(async (req, res) => {
   const key = orgApiKey();
   const { rowCount } = await q('UPDATE orgs SET api_key_hash=$2, api_key_hint=$3 WHERE id=$1', [req.params.id, await hash(key), key.slice(-4)]);
@@ -117,7 +130,7 @@ pp.post('/api/pp/clients/:id/rotate-key', requireStaff('Owner'), wrap(async (req
   res.json({ org: { id: req.params.id, api_key: key } });
 }));
 pp.get('/api/pp/clients', requireStaff('Sales Manager'), wrap(async (_req, res) => {
-  const { rows } = await q(`SELECT o.id, o.name, o.sector, o.command_tier, o.created_at, (o.api_key_hash IS NOT NULL) AS claimed,
+  const { rows } = await q(`SELECT o.id, o.name, o.sector, o.command_tier, o.created_at, (o.api_key_hash IS NOT NULL) AS claimed, o.parent_org_id, o.region_name,
                               (SELECT count(*)::int FROM sites s WHERE s.org_id=o.id) AS sites_linked,
                               (SELECT json_agg(json_build_object('id',s.id,'name',s.name,'tier',s.tier,'suburb',s.suburb,'state',s.state,
                                         'canopy_venue_id',(SELECT p.canopy_venue_id FROM planned_sites p WHERE p.site_id=s.id LIMIT 1)) ORDER BY s.linked_at)
