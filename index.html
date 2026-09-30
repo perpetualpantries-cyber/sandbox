@@ -44,6 +44,12 @@
   ol{margin:0;padding-left:20px;}
   ol li{margin-bottom:8px;}
   .note{font-size:13px;color:var(--muted);margin-top:12px;}
+  .cafes{display:grid;gap:8px;}
+  .cafe-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--paper-dim);border-radius:6px;padding:10px 12px;}
+  .cafe-row .nm{font-weight:600;flex:1;min-width:0;}
+  .cafe-row .meta{font-size:12.5px;color:var(--muted);}
+  .cafe-row a{color:var(--verdigris-dark);font-weight:500;}
+  .cafe-row a:focus-visible{outline:2px solid var(--verdigris-dark);outline-offset:2px;border-radius:2px;}
   footer{font-size:12px;color:var(--muted);text-align:center;padding:0 16px 30px;}
   @media (max-width:760px){ .apps{grid-template-columns:1fr;} h1{font-size:24px;} }
 </style>
@@ -84,6 +90,14 @@
     </div>
   </div>
 
+  <section class="card" id="cafes" aria-labelledby="cafes-h">
+    <h3 id="cafes-h">Cafés in this browser</h3>
+    <p style="margin:0 0 10px;">Each café has its own PP app and its own data. Set up a new one here, or reopen one you’ve already set up in this browser.</p>
+    <div id="cafe-list"></div>
+    <a class="open" href="/Perpetual_Pantries_v1.html?site=new" style="margin-top:12px">+ Set up a new café</a>
+    <p class="note">A new café opens blank, not connected to anything. In its Settings, enter the PP server URL below and the link code from PP Command → Sites.</p>
+  </section>
+
   <section class="card" aria-labelledby="connect-h">
     <h3 id="connect-h">Connecting the apps to the server</h3>
     <p style="margin:0;">Each app has a <strong>Settings</strong> section. Put this server address there:</p>
@@ -101,6 +115,24 @@
 </main>
 <footer>Perpetual Pantries</footer>
 <script>
+  // Cafés set up in this browser: the original PP data (no ?site) plus each ?site=… slot.
+  (function(){
+    const list = [];
+    const read = k => { try { return localStorage.getItem(k); } catch(e){ return null; } };
+    const info = pre => { let c = {}; try { c = JSON.parse(read(pre + 'oc_cafe') || '{}') || {}; } catch(e){}
+      return { name: (c.command_site_id && c.command_site_name) || c.name || '', org: c.command_org_name || '', linked: !!read(pre + 'pp_jwt') }; };
+    if (read('oc_cafe') || read('pp_jwt') || read('pp_api_url')) list.push({ href: '/Perpetual_Pantries_v1.html', ...info('') });
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const m = /^ppsite:([a-z0-9_-]+):pp_slot_seen$/i.exec(localStorage.key(i) || '');
+        if (m) list.push({ href: '/Perpetual_Pantries_v1.html?site=' + m[1], seen: read(localStorage.key(i)), ...info('ppsite:' + m[1] + ':') });
+      }
+    } catch(e){}
+    const esc = t => String(t).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+    document.getElementById('cafe-list').innerHTML = list.length
+      ? '<div class="cafes">' + list.map(c => `<div class="cafe-row"><span class="nm">${esc(c.name || 'Unnamed café')}</span><span class="meta">${c.linked ? 'Connected' + (c.org ? ' · ' + esc(c.org) : '') : 'Not connected yet'}</span><a href="${c.href}">Open</a></div>`).join('') + '</div>'
+      : '<p class="note" style="margin:0">None yet in this browser.</p>';
+  })();
   document.querySelectorAll('[data-copy]').forEach(btn => btn.addEventListener('click', () => {
     const text = document.getElementById(btn.dataset.copy).textContent.trim();
     const done = ok => { btn.textContent = ok ? 'Copied' : 'Select and copy'; setTimeout(() => { btn.textContent = 'Copy'; }, 1800); };

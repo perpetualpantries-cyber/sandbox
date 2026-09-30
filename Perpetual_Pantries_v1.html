@@ -2,6 +2,54 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script>
+// ── Café slots: one browser, several cafés ──────────────────────────────────
+// ?site=new opens a brand-new, unconnected PP; ?site=<id> reopens that café. Each slot keeps its
+// data under its own "ppsite:<id>:" prefix, so cafés never see each other's data. No ?site = the
+// original (unprefixed) data, unchanged. Runs before every other script so all reads/writes go
+// through the right slot.
+(function(){
+  var params = new URLSearchParams(location.search), site = params.get('site');
+  if (site === 'new') {
+    site = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    params.set('site', site);
+    history.replaceState(null, '', location.pathname + '?' + params.toString() + location.hash);
+    window.PP_SITE_SLOT_NEW = true;
+  }
+  if (!site || !/^[a-z0-9_-]{1,40}$/i.test(site)) return;
+  function slot(real, pre){
+    function keys(){ var out = []; for (var i = 0; i < real.length; i++){ var k = real.key(i); if (k && k.indexOf(pre) === 0) out.push(k.slice(pre.length)); } return out; }
+    var api = {
+      getItem: function(k){ return real.getItem(pre + k); },
+      setItem: function(k, v){ real.setItem(pre + k, String(v)); },
+      removeItem: function(k){ real.removeItem(pre + k); },
+      clear: function(){ keys().forEach(function(k){ real.removeItem(pre + k); }); },
+      key: function(i){ var ks = keys(); return i < ks.length ? ks[i] : null; },
+      get length(){ return keys().length; }
+    };
+    return new Proxy(api, {
+      get: function(t, prop){ if (prop in t) return t[prop]; if (typeof prop !== 'string') return undefined; var v = t.getItem(prop); return v == null ? undefined : v; },
+      set: function(t, prop, v){ t.setItem(prop, v); return true; },
+      deleteProperty: function(t, prop){ t.removeItem(prop); return true; },
+      has: function(t, prop){ return (prop in t) || t.getItem(prop) != null; },
+      ownKeys: function(){ return keys(); },
+      getOwnPropertyDescriptor: function(t, prop){ var v = t.getItem(prop); return v == null ? undefined : { value: v, enumerable: true, configurable: true, writable: true }; }
+    });
+  }
+  try {
+    var ls = slot(window.localStorage, 'ppsite:' + site + ':'), ss = slot(window.sessionStorage, 'ppsite:' + site + ':');
+    Object.defineProperty(window, 'localStorage', { value: ls, configurable: true });
+    Object.defineProperty(window, 'sessionStorage', { value: ss, configurable: true });
+    if (window.localStorage !== ls) throw new Error('storage could not be separated');
+    window.PP_SITE_SLOT = site;
+    ls.setItem('pp_slot_seen', new Date().toISOString());   // lets the apps page list this café
+  } catch (e) {
+    // Never fall through to another café's data.
+    document.documentElement.innerHTML = '<body style="font-family:sans-serif;padding:40px">This browser can’t keep a separate café here. Open PP on the café’s own device, or in a different browser.</body>';
+    throw e;
+  }
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Perpetual Pantries</title>
 <!-- PWA -->
@@ -71,6 +119,9 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;background:var(--cream);c
 .sb-venue.unset{all:unset;display:block;margin-top:5px;font-family:'DM Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#E0B57A;cursor:pointer}
 .sb-venue.unset:hover{text-decoration:underline}
 .sb-venue.unset:focus-visible{outline:2px solid #E0B57A;outline-offset:2px;border-radius:3px}
+.sb-switch{display:inline-block;margin-top:6px;font-family:'DM Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:rgba(255,255,255,.55);text-decoration:none;letter-spacing:0}
+.sb-switch:hover{color:#fff;text-decoration:underline}
+.sb-switch:focus-visible{outline:2px solid rgba(255,255,255,.6);outline-offset:2px;border-radius:2px}
 .sb-org{margin-top:1px;font-family:'DM Sans',system-ui,sans-serif;font-size:11px;font-weight:400;color:rgba(255,255,255,.5);letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sb-item{display:flex;align-items:center;gap:11px;width:100%;padding:9px 16px;border:none;background:none;color:rgba(255,255,255,.62);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;text-align:left;position:relative;transition:background .12s,color .12s;border-left:3px solid transparent}
 .sb-item:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.92)}
@@ -2760,6 +2811,7 @@ function renderSidebar() {
         ? `<div class="sb-venue">${escapeHtml(cafeDetails.command_org_name || 'Linked site')}</div>`
         : `<button type="button" class="sb-venue unset" onclick="showPage('admin')" title="Admin → Cafe Details → Trading Name">Add your venue name →</button>`;
   } catch(e) {}
+  _venueLine += '<a class="sb-switch" href="/#cafes" title="Other cafés set up in this browser, or set up a new one">Switch café</a>';
   let html = '<div class="sb-brand">🍽️ Perpetual Pantries' + _venueLine + '</div>';
 
   NAV_ITEMS.forEach(item => {
@@ -27440,6 +27492,15 @@ async function ppbGavinTool(input) {
 </div>
 
 <script>
+// A brand-new café slot: tell them how to get back to it.
+if (window.PP_SITE_SLOT_NEW) window.addEventListener('load', function(){
+  var b = document.createElement('div');
+  b.setAttribute('role', 'status');
+  b.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:9999;max-width:min(560px,calc(100vw - 32px));background:#1E293B;color:#fff;border-radius:8px;padding:12px 14px;font:13px/1.45 "DM Sans",sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.3);display:flex;gap:12px;align-items:flex-start';
+  b.innerHTML = '<div><b>New café app.</b> Bookmark this page, it’s this café’s own link. It’s also listed on the apps page under “Cafés in this browser”. To connect it: Settings → PP server URL and the link code from PP Command.</div><button type="button" style="all:unset;cursor:pointer;font-weight:600;padding:0 4px">✕</button>';
+  b.querySelector('button').onclick = function(){ b.remove(); };
+  document.body.appendChild(b);
+});
 // ── Schema migration (run before any UI code reads localStorage) ────────────
 // Bump CURRENT_SCHEMA_VERSION when you change the shape of stored data.
 // Add a function in MIGRATIONS keyed by the target version.
