@@ -67,6 +67,11 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;background:var(--cream);c
 }
 .sidebar::-webkit-scrollbar{width:4px}.sidebar::-webkit-scrollbar-track{background:transparent}.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:2px}
 .sb-brand{padding:14px 16px 12px;font-family:'Playfair Display',serif;font-weight:600;color:white;font-size:14.5px;letter-spacing:.2px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:6px}
+.sb-venue{display:block;margin-top:5px;font-family:'DM Sans',system-ui,sans-serif;font-size:13px;font-weight:600;color:rgba(255,255,255,.88);letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-venue.unset{all:unset;display:block;margin-top:5px;font-family:'DM Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#E0B57A;cursor:pointer}
+.sb-venue.unset:hover{text-decoration:underline}
+.sb-venue.unset:focus-visible{outline:2px solid #E0B57A;outline-offset:2px;border-radius:3px}
+.sb-org{margin-top:1px;font-family:'DM Sans',system-ui,sans-serif;font-size:11px;font-weight:400;color:rgba(255,255,255,.5);letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sb-item{display:flex;align-items:center;gap:11px;width:100%;padding:9px 16px;border:none;background:none;color:rgba(255,255,255,.62);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;text-align:left;position:relative;transition:background .12s,color .12s;border-left:3px solid transparent}
 .sb-item:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.92)}
 .sb-item.active{background:rgba(37,99,235,.16);color:white;border-left-color:var(--teal)}
@@ -2723,7 +2728,16 @@ function renderSidebar() {
   const wrap = document.getElementById('app-sidebar');
   if (!wrap) return;
 
-  let html = '<div class="sb-brand">🍽️ Perpetual Pantries</div>';
+  // Which venue this is, under the product name. Linked to PP Command → the org name too.
+  let _venueLine = '';
+  try {
+    const vName = (cafeDetails && cafeDetails.name || '').trim();
+    const org = (cafeDetails && cafeDetails.command_org_name) || '';
+    _venueLine = vName
+      ? `<div class="sb-venue" title="${escapeHtml(vName)}">${escapeHtml(vName)}</div>` + (org ? `<div class="sb-org">${escapeHtml(org)}</div>` : '')
+      : `<button type="button" class="sb-venue unset" onclick="showPage('admin')" title="Admin → Cafe Details → Trading Name">Add your venue name →</button>`;
+  } catch(e) {}
+  let html = '<div class="sb-brand">🍽️ Perpetual Pantries' + _venueLine + '</div>';
 
   NAV_ITEMS.forEach(item => {
     // Each item is built defensively — if a badge/lock calculation throws
@@ -5524,6 +5538,9 @@ function saveCafeDetails() {
   cafeDetails.sector = Array.from(document.querySelectorAll('.adm_sector_cb:checked')).map(cb => cb.value);
   localStorage.setItem('oc_cafe', JSON.stringify(cafeDetails));
   toast('Cafe details saved', 'ok');
+  try { renderSidebar(); } catch(e) {}
+  // Linked to PP Command: send the new name now so the org sees it straight away.
+  try { if (typeof PP_API !== 'undefined' && PP_API.isConfigured()) PP_API.pushSnapshot(); } catch(e) {}
   if (typeof ppRenderCompliance === 'function' && _rptMainTab === 'compliance') ppRenderCompliance();
 }
 
