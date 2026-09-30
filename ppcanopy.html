@@ -231,6 +231,9 @@
     .custom-line > :first-child{grid-column:1 / -1;}
   }
   .add-venue-row input{flex:1;}
+  .linkish{all:unset;cursor:pointer;color:var(--rust);text-decoration:underline;margin-left:6px;}
+  .linkish:focus-visible{outline:2px solid var(--rust);outline-offset:2px;border-radius:2px;}
+  .prospect-form{background:var(--paper-dim);border-radius:var(--r-md);padding:14px 16px;margin:4px 0 14px;}
   .add-venue-row input.needs-value{border-color:var(--amber, #C98A2E);box-shadow:0 0 0 3px rgba(201,138,46,.18);}
 
   .client-list-item{border:1px solid var(--rule);border-radius:var(--r-sm);padding:14px 16px;margin-bottom:10px;background:#fff;}
@@ -596,6 +599,25 @@
             <select id="q-term"><option value="monthly">Monthly</option><option value="yearly">Yearly (discounted)</option></select>
           </div>
         </div>
+        <div id="q-prospect-form" class="prospect-form" hidden>
+          <div class="section-sub" style="margin-top:0">New prospect</div>
+          <p class="helptext" style="margin-bottom:8px;">Someone you're quoting who isn't a client yet. They become a client when you accept the quote.</p>
+          <div class="row">
+            <div><label>Business name</label><input id="qp-name" placeholder="e.g. Bellbird Aged Care Group"></div>
+            <div><label>Sector</label><select id="qp-sector"></select></div>
+          </div>
+          <div class="row">
+            <div><label>Contact name</label><input id="qp-contact" placeholder="e.g. Sam Lee"></div>
+            <div><label>Contact email</label><input id="qp-email" type="email" placeholder="ops@client.com.au"></div>
+            <div><label>Phone</label><input id="qp-phone" type="tel" placeholder="04xx xxx xxx"></div>
+          </div>
+          <div class="row">
+            <div><label>ABN</label><input id="qp-abn" placeholder="11 digits"></div>
+            <div><label>Business address</label><input id="qp-address" placeholder="Street, suburb, state, postcode" autocomplete="off"></div>
+          </div>
+          <div class="btnbar" style="margin-top:4px"><button class="btn" id="qp-create">Start quote for this prospect</button></div>
+        </div>
+        <div id="q-prospect-note" class="helptext" hidden></div>
         <div class="row">
           <div><label>Assigned to</label><select id="q-owner"><option value="">Unassigned</option></select></div>
         </div>
@@ -625,6 +647,7 @@
           <button class="btn secondary" id="q-save-btn">Save quote</button>
           <button class="btn secondary" id="q-pdf-btn">Download PDF</button>
           <button class="btn" id="q-gmail-btn">Create Gmail draft</button>
+          <button class="btn accept" id="q-accept-btn">Accept quote</button>
         </div>
         <div id="q-status"></div>
       </div>
@@ -944,9 +967,9 @@ const SERVER = {
    Signed in to the PP server: every shared PPcanopy collection is read from and saved to the server,
    so all staff and devices see the same data. This browser keeps a copy (for offline use) and a
    queue of saves that haven't reached the server yet. Who is signed in on this device never syncs. */
-const CLOUD_KEYS = new Set(['clients','quotes','requests','salesRecords','meetings','escalations','invoices','invoiceSettings','canopy_ronin_asks',
+const CLOUD_KEYS = new Set(['clients','prospects','quotes','requests','salesRecords','meetings','escalations','invoices','invoiceSettings','canopy_ronin_asks',
   'pricing','pipelineStages','teamMembers','scheduleItems','orders','suppliers','nextPoNumber','hoursLog','internalComms']);
-const CLOUD_LABELS = { clients:'clients', quotes:'quotes', requests:'quote requests', invoices:'invoices', invoiceSettings:'business details', pricing:'pricing',
+const CLOUD_LABELS = { clients:'clients', prospects:'prospects', quotes:'quotes', requests:'quote requests', invoices:'invoices', invoiceSettings:'business details', pricing:'pricing',
   pipelineStages:'pipeline stages', teamMembers:'team', scheduleItems:'schedule', orders:'orders', suppliers:'suppliers', nextPoNumber:'PO numbering',
   hoursLog:'hours', internalComms:'internal comms', meetings:'meetings', escalations:'escalations', salesRecords:'sales records', canopy_ronin_asks:'Ronin asks' };
 const CLOUD = {
@@ -1277,6 +1300,9 @@ const DISCOUNT_AUTO_APPROVE_PCT = 5;      // ≤ this auto-approves
 const DISCOUNT_AUTO_EXECUTE_DAYS = 4;     // above the cap: auto-executes after this many days unless declined
 
 let clients = [];
+// Prospects: someone being quoted who isn't a client yet. Kept apart from clients (no billing, invoices,
+// counts or server org) until a quote is accepted, which turns the prospect into a client.
+let prospects = [];
 let pricing = null;
 let quotes = [];
 let requests = [];
@@ -1362,6 +1388,8 @@ async function loadAll(){
   if(!Array.isArray(pricing.ppTiers) || pricing.ppTiers.length===0) pricing.ppTiers = defaultPricing().ppTiers; // migrate pre-tier pricing records
   if(pricing.licensing && pricing.licensing.ppMonthly!==undefined) delete pricing.licensing.ppMonthly; // old flat-rate field, superseded by ppTiers
   clients.forEach(c=>c.venues.forEach(v=>{ if(!v.tier) v.tier = pricing.ppTiers[0].label; })); // migrate venues created before tiers existed
+  try{ const r = await STORE.get('prospects'); prospects = r ? JSON.parse(r.value) : []; }catch(e){ prospects = []; }
+  prospects.forEach(p=>{ if(!Array.isArray(p.venues)) p.venues = []; if(!Array.isArray(p.products)) p.products = []; p.venues.forEach(v=>{ if(!v.tier) v.tier = pricing.ppTiers[0].label; }); });
   try{ const r = await STORE.get('quotes'); quotes = r ? JSON.parse(r.value) : []; }catch(e){ quotes = []; }
   try{ const r = await STORE.get('requests'); requests = r ? JSON.parse(r.value) : []; }catch(e){ requests = []; }
   try{ const r = await STORE.get('salesRecords'); salesRecords = r ? JSON.parse(r.value) : []; }catch(e){ salesRecords = []; }
@@ -1383,6 +1411,7 @@ async function loadAll(){
 }
 async function saveClients(){ await STORE.set('clients', JSON.stringify(clients)); }
 async function savePricing(){ await STORE.set('pricing', JSON.stringify(pricing)); }
+async function saveProspects(){ await STORE.set('prospects', JSON.stringify(prospects)); }
 async function saveQuotes(){ await STORE.set('quotes', JSON.stringify(quotes)); }
 async function saveRequests(){ await STORE.set('requests', JSON.stringify(requests)); }
 async function saveSalesRecords(){ await STORE.set('salesRecords', JSON.stringify(salesRecords)); }
@@ -2294,7 +2323,12 @@ function matchBand(venueCount){
 }
 function renderQuoteBuilder(){
   const sel = document.getElementById('q-client');
-  sel.innerHTML = clients.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('') || '<option value="">No clients yet</option>';
+  const keep = sel.value;
+  sel.innerHTML = (clients.length ? `<optgroup label="Clients">${clients.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}</optgroup>` : '')
+    + (prospects.length ? `<optgroup label="Prospects (not clients yet)">${prospects.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}</optgroup>` : '')
+    + `<option value="__new">+ New prospect…</option>`;
+  if(quoteParty(keep)) sel.value = keep;
+  else if(!clients.length && !prospects.length) sel.value = '__new';
   const bandSel = document.getElementById('q-band');
   bandSel.innerHTML = pricing.sizeBands.map(b=>`<option value="${b.id}">${escapeHtml(b.label)} (${b.minVenues}–${b.maxVenues} venues)</option>`).join('');
   if(pendingPrefill){
@@ -2303,7 +2337,8 @@ function renderQuoteBuilder(){
     document.getElementById('q-pppay').checked = pendingPrefill.includePPpay;
     document.getElementById('q-pppayroll').checked = pendingPrefill.includePPpayroll;
   }
-  const client = clients.find(c=>c.id===sel.value);
+  const client = quoteParty(sel.value);
+  renderProspectForm();
   if(client){
     const band = matchBand(client.venues.length);
     if(band) bandSel.value = band.id;
@@ -2318,7 +2353,10 @@ function renderQuoteBuilder(){
 /* Sites on a quote. They are the client's own venues (one list everywhere), with
    address and site-contact details so every site is accounted for at deployment. */
 const SITE_TEXT_FIELDS = ['name','address','contactName','contactPhone','contactEmail'];
-function currentQuoteClient(){ return clients.find(c=>c.id===document.getElementById('q-client').value); }
+function quoteParty(id){ return clients.find(c=>c.id===id) || prospects.find(p=>p.id===id) || null; }
+function currentQuoteClient(){ return quoteParty(document.getElementById('q-client').value); }
+// Sites edited on a quote save back to whichever list the party is in.
+async function saveQuoteParty(party){ if(party && party.prospect) await saveProspects(); else await saveClients(); }
 function siteMissing(v){
   const has = k => !!String(v[k]||'').trim();
   const miss = [];
@@ -2362,7 +2400,7 @@ function renderQuoteSites(){
   renderQuoteSitesSummary();
 }
 let siteSaveTimer = null;
-function saveClientsSoon(){ clearTimeout(siteSaveTimer); siteSaveTimer = setTimeout(()=>saveClients(), 400); }
+function saveClientsSoon(){ clearTimeout(siteSaveTimer); const party = currentQuoteClient(); siteSaveTimer = setTimeout(()=>saveQuoteParty(party), 400); }
 function rematchBandForSites(client){
   const band = matchBand(Math.max(client.venues.length,1));
   if(band) document.getElementById('q-band').value = band.id;
@@ -2383,7 +2421,7 @@ document.getElementById('q-sites').addEventListener('change', async e=>{
   const client = currentQuoteClient();
   const v = client && client.venues.find(x=>x.id===e.target.closest('.site-card').dataset.vid); if(!v) return;
   v.tier = e.target.value;
-  await saveClients();
+  await saveQuoteParty(client);
   renderQuoteSitesSummary(); computeQuote();
 });
 document.getElementById('q-sites').addEventListener('click', async e=>{
@@ -2393,13 +2431,13 @@ document.getElementById('q-sites').addEventListener('click', async e=>{
   const hasDetails = ['address','contactName','contactPhone','contactEmail'].some(k=>String(v[k]||'').trim());
   if(hasDetails && !confirm(`Remove ${v.name||'this site'} and its details from ${client.name}?`)) return;
   client.venues = client.venues.filter(x=>x.id!==v.id);
-  await saveClients();
+  await saveQuoteParty(client);
   rematchBandForSites(client); renderQuoteSites(); computeQuote();
 });
 document.getElementById('q-add-site').addEventListener('click', async ()=>{
   const client = currentQuoteClient(); if(!client) return;
   client.venues.push({ id:uid(), name:'', tier: pricing.ppTiers[0] ? pricing.ppTiers[0].label : 'T1', address:'', contactName:'', contactPhone:'', contactEmail:'' });
-  await saveClients();
+  await saveQuoteParty(client);
   rematchBandForSites(client); renderQuoteSites(); computeQuote();
   const inputs = document.querySelectorAll('#q-sites .site-card:last-child [data-f="name"]');
   if(inputs.length) inputs[0].focus();
@@ -2444,7 +2482,8 @@ document.getElementById('q-add-custom').addEventListener('click', ()=>{
 ['q-client','q-band','q-term','q-pppay','q-pppayroll'].forEach(id=>{
   document.getElementById(id).addEventListener('change', ()=>{
     if(id==='q-client'){
-      const client = clients.find(c=>c.id===document.getElementById('q-client').value);
+      renderProspectForm();
+      const client = currentQuoteClient();
       if(client){
         const band = matchBand(client.venues.length); if(band) document.getElementById('q-band').value = band.id;
         if(client.ownerId) document.getElementById('q-owner').value = client.ownerId;
@@ -2579,7 +2618,7 @@ async function applyApprovedDiscount(clientName, pct, source){
   return { success:true, quoteId:q.id, client:client.name, discountPct:q.discountPct, listFirstYear:q.listTotals.firstYearTotal, firstYearTotal:q.totals.firstYearTotal };
 }
 function buildQuote(){
-  const client = clients.find(c=>c.id===document.getElementById('q-client').value);
+  const client = currentQuoteClient();
   const band = pricing.sizeBands.find(b=>b.id===document.getElementById('q-band').value);
   const term = document.getElementById('q-term').value;
   const includePPpay = document.getElementById('q-pppay').checked;
@@ -2594,7 +2633,7 @@ function computeQuote(){
   const table = document.getElementById('q-breakdown');
   const totalsBox = document.getElementById('q-totals');
   if(!q){
-    table.innerHTML=''; totalsBox.innerHTML = '<div class="empty-hint">Add a client first.</div>';
+    table.innerHTML=''; totalsBox.innerHTML = '<div class="empty-hint">Choose a client, or add a new prospect above.</div>';
     return;
   }
   // Standard lines (keyed) in their fixed order, hidden ones included so they can be ticked back on; then add-ons and custom lines.
@@ -2625,6 +2664,113 @@ function computeQuote(){
   return q;
 }
 
+/* Prospects in the quote builder: "+ New prospect…" shows a short form; a prospect's quote shows a note. */
+function renderProspectForm(){
+  const val = document.getElementById('q-client').value;
+  const form = document.getElementById('q-prospect-form'), note = document.getElementById('q-prospect-note');
+  const sec = document.getElementById('qp-sector');
+  if(!sec.options.length) sec.innerHTML = SECTORS.map(x=>`<option>${escapeHtml(x)}</option>`).join('');
+  form.hidden = val !== '__new';
+  const p = prospects.find(x=>x.id===val);
+  note.hidden = !p;
+  if(p) note.innerHTML = `<b>${escapeHtml(p.name)}</b> is a prospect, not a client yet. <b>Accept quote</b> makes them a client and starts billing. <button type="button" class="linkish" id="qp-remove">Remove prospect</button>`;
+  const acc = document.getElementById('q-accept-btn');
+  acc.textContent = p ? 'Accept quote & create client' : 'Accept quote';
+  acc.disabled = !quoteParty(val);
+  if(val === '__new') setTimeout(()=>document.getElementById('qp-name').focus(), 0);
+}
+document.getElementById('qp-create').addEventListener('click', async ()=>{
+  const name = document.getElementById('qp-name').value.trim();
+  if(!name){ document.getElementById('qp-name').focus(); return; }
+  const abnRaw = document.getElementById('qp-abn').value.trim();
+  if(abnRaw && !abnValid(abnRaw) && !confirm(`"${abnRaw}" doesn't pass the ABN check-digit test. Save it anyway?`)) return;
+  const p = { id: uid(), prospect: true, name, sector: document.getElementById('qp-sector').value,
+    abn: abnValid(abnRaw) ? formatAbn(abnRaw) : abnRaw,
+    contactName: document.getElementById('qp-contact').value.trim(), contactEmail: document.getElementById('qp-email').value.trim(),
+    contactPhone: document.getElementById('qp-phone').value.trim(), address: document.getElementById('qp-address').value.trim(),
+    ownerId: document.getElementById('q-owner').value || null, notes: '', venues: [], products: [], billing: defaultBilling(),
+    createdAt: new Date().toISOString() };
+  prospects.push(p);
+  await saveProspects();
+  ['qp-name','qp-contact','qp-email','qp-phone','qp-abn','qp-address'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('q-client').value = '';
+  renderQuoteBuilder();
+  document.getElementById('q-client').value = p.id;
+  document.getElementById('q-client').dispatchEvent(new Event('change'));
+});
+
+document.getElementById('q-prospect-note').addEventListener('click', async e=>{
+  if(e.target.id!=='qp-remove') return;
+  const p = currentQuoteClient(); if(!p || !p.prospect) return;
+  const n = quotes.filter(q=>q.clientId===p.id).length;
+  if(!confirm(`Remove prospect ${p.name}?` + (n ? ` Their ${n} saved quote${n===1?'':'s'} stay in history.` : ''))) return;
+  prospects = prospects.filter(x=>x.id!==p.id);
+  await saveProspects();
+  document.getElementById('q-client').value = '';
+  renderQuoteBuilder(); renderHistory();
+});
+// Turn a prospect into a client: same record and id (so its quotes still point at it), set up on the
+// PP server, and its sites put on PP Command's "Waiting to link" list.
+async function promoteProspect(p){
+  prospects = prospects.filter(x=>x.id!==p.id);
+  delete p.prospect;
+  p.notes = p.notes || 'Created from an accepted quote.';
+  clients.push(p);
+  let linkCode = null, serverError = null;
+  if(SERVER.on()){
+    try { linkCode = await serverCreateOrg(p); } catch(e){ serverError = e.message; }
+  }
+  await saveClients(); await saveProspects();
+  if(p.serverOrgId){ for(const v of p.venues){ if(String(v.name||'').trim()) await sendVenueToCommand(p, v); } }
+  return { linkCode, serverError };
+}
+// Accept a quote: prospect → client (if needed), mark it won, start billing.
+async function acceptQuote(q){
+  const party = quoteParty(q.clientId);
+  if(!party){ alert('This quote’s client no longer exists.'); return false; }
+  const next = billingFromQuote(q, party);
+  const named = party.venues.filter(v=>String(v.name||'').trim()).length;
+  const msg = (party.prospect
+      ? `Accept this quote and make ${party.name} a client?\n\n• Creates the client with its ${party.venues.length} site${party.venues.length===1?'':'s'}`
+        + (SERVER.on() ? `\n• Sets them up on the PP server and gives you their PP Command linking code` + (named ? `\n• Puts ${named} site${named===1?'':'s'} under “Waiting to link” in their PP Command` : '') : '')
+      : `Accept this quote for ${party.name}?\n`)
+    + `\n• Starts ${next.cycle==='yearly'?'yearly':'monthly'} billing: ${billingSummaryText(next)}. First invoice due today.`
+    + (party.billing && party.billing.active && party.billing.quoteId && party.billing.quoteId!==q.id ? `\n\nThis replaces billing already running from another quote.` : '');
+  if(!confirm(msg)) return false;
+  let made = null;
+  if(party.prospect) made = await promoteProspect(party);
+  await onQuoteAccepted(q, false);
+  q.status = 'won';
+  q.acceptedAt = new Date().toISOString();
+  await saveQuotes();
+  renderClients(); renderHistory(); renderDashboard(); renderQuoteBuilder();
+  if(made){
+    if(made.linkCode) showOrgLinkCodeOnce(party, made.linkCode);
+    else if(made.serverError) alert(`${party.name} is now a client, but it couldn't be set up on the PP server: ${made.serverError}\nGet their linking code later from Clients & Venues.`);
+  }
+  const miss = clientMissing(party);
+  document.getElementById('q-status').innerHTML = `<div class="status-msg ok">Quote accepted. ${escapeHtml(party.name)} is a client and billing has started.${miss.length ? ' Still to collect: ' + escapeHtml(miss.join(', ')) + '.' : ''}</div>`;
+  return true;
+}
+function quoteRecordFromBuilder(status){
+  const q = computeQuote(); if(!q) return null;
+  const hours = Number(document.getElementById('q-effort-hours').value)||0;
+  const rate = Number(document.getElementById('q-effort-rate').value)||0;
+  return {...q, id: uid(), date: new Date().toISOString(), status,
+    ownerId: document.getElementById('q-owner').value || null,
+    salesEffort: { hours, rate, cost: hours*rate, notes: document.getElementById('q-effort-notes').value.trim() } };
+}
+let lastSavedQuoteId = null;   // the quote this builder last saved, so Accept doesn't make a second copy of it
+document.getElementById('q-accept-btn').addEventListener('click', async ()=>{
+  const record = quoteRecordFromBuilder('draft'); if(!record) return;
+  const saved = quotes.find(x=>x.id===lastSavedQuoteId);
+  const same = saved && saved.status!=='won' && saved.clientId===record.clientId
+    && JSON.stringify([saved.items, saved.totals, saved.term]) === JSON.stringify([record.items, record.totals, record.term]);
+  if(same){ await acceptQuote(saved); return; }
+  quotes.unshift(record);
+  const ok = await acceptQuote(record);
+  if(!ok){ quotes.shift(); return; }   // cancelled: nothing saved
+});
 document.getElementById('q-save-btn').addEventListener('click', async ()=>{
   const q = computeQuote(); if(!q) return;
   const hours = Number(document.getElementById('q-effort-hours').value)||0;
@@ -2634,6 +2780,7 @@ document.getElementById('q-save-btn').addEventListener('click', async ()=>{
     salesEffort: { hours, rate, cost: hours*rate, notes: document.getElementById('q-effort-notes').value.trim() }
   };
   quotes.unshift(record);
+  lastSavedQuoteId = record.id;
   await saveQuotes();
   document.getElementById('q-status').innerHTML = '<div class="status-msg ok">Quote saved to history.</div>';
   setTimeout(()=>document.getElementById('q-status').innerHTML='',2500);
@@ -3488,7 +3635,7 @@ function renderHistory(){
       ${quotes.map(q=>`
         <tr data-id="${q.id}">
           <td>${new Date(q.date).toLocaleDateString('en-AU')}</td>
-          <td>${escapeHtml(q.clientName)}</td>
+          <td>${escapeHtml(q.clientName)}${prospects.some(p=>p.id===q.clientId) ? ' <span class="pill draft" title="Not a client yet. Set this quote to won to accept it and create the client.">prospect</span>' : ''}</td>
           <td>${escapeHtml((teamMembers.find(m=>m.id===q.ownerId)||{}).name||'—')}</td>
           <td>${escapeHtml(q.bandLabel)}</td>
           <td>${q.term}</td>
@@ -3566,6 +3713,10 @@ document.getElementById('history-list').addEventListener('change', async e=>{
     const tr = e.target.closest('tr[data-id]');
     const q = quotes.find(q=>q.id===tr.dataset.id);
     const prev = q.status, next = e.target.value;
+    if(next==='won' && prev!=='won' && prospects.some(p=>p.id===q.clientId)){
+      if(!(await acceptQuote(q))) e.target.value = prev;
+      return;   // acceptQuote saved the quote as won
+    }
     if(next==='won' && prev!=='won'){
       const r = await onQuoteAccepted(q, true);
       if(r.cancelled){ e.target.value = prev; return; }

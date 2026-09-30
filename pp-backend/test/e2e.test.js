@@ -594,6 +594,7 @@ test('PPcanopy store: versioned saves, conflicts, role rules', async () => {
   const got = await api('GET', '/api/pp/store', { headers: sales });
   assert.equal(got.json.items.clients.version, 2); assert.equal(got.json.items.clients.value[0].name, 'Bellbird Group'); assert.equal(got.json.items.clients.updated_by, 'Josh');
 
+  assert.equal((await api('PUT', '/api/pp/store/prospects', { headers: sales, body: { value: [{ id: 'p1', name: 'Bellbird', prospect: true }], version: 0 } })).status, 200);
   assert.equal((await api('PUT', '/api/pp/store/nonsense', { headers: sales, body: { value: 1, version: 0 } })).status, 400);
   assert.equal((await api('PUT', '/api/pp/store/clients', { headers: sales, body: { version: 2 } })).status, 400);         // value missing
   assert.equal((await api('PUT', '/api/pp/store/pricing', { headers: sales, body: { value: {}, version: 0 } })).status, 403); // Owner-only to change
