@@ -98,6 +98,13 @@ pp.post('/api/pp/clients/:id/planned-sites', requireStaff('Sales Manager'), wrap
     RETURNING id, name, tier, canopy_venue_id, status, site_id`, [o.id, b.name, tier, b.canopy_venue_id]);
   res.status(201).json(p);
 }));
+// Tiers are set in PPcanopy (billing) and pushed to the linked site so PP Command shows the same tier.
+pp.patch('/api/pp/clients/:id/sites/:sid', requireStaff('Sales Manager'), wrap(async (req, res) => {
+  const b = z.object({ tier: z.enum(['T1', 'T2', 'T3', 'T4']) }).parse(req.body || {});
+  const { rows: [s] } = await q('UPDATE sites SET tier=$3 WHERE id=$1 AND org_id=$2 RETURNING id, name, tier', [req.params.sid, req.params.id, b.tier]);
+  if (!s) throw notFound('site not found');
+  res.json(s);
+}));
 pp.delete('/api/pp/clients/:id/planned-sites/:pid', requireStaff('Sales Manager'), wrap(async (req, res) => {
   const { rowCount } = await q(`DELETE FROM planned_sites WHERE id=$1 AND org_id=$2 AND status<>'linked'`, [req.params.pid, req.params.id]);
   if (!rowCount) throw notFound('waiting site not found');

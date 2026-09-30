@@ -1124,6 +1124,8 @@ async function serverSyncClients(){
     });
   });
   if (renamed) await saveClients();
+  // Bring PP Command's tiers in line with the billing list.
+  clients.forEach(c => { if (c.serverOrgId && LINKED_SITES[c.serverOrgId]) (c.venues || []).forEach(v => pushVenueTier(c, v)); });
 }
 // Sites actually linked through PP Command, per server org (names are PP Command's). In memory only.
 const LINKED_SITES = {};
@@ -1156,6 +1158,15 @@ async function sendVenueToCommand(client, v){
     list.push({ id: r.data.id, name: r.data.name, canopy_venue_id: v.id });
     return true;
   } catch(e) { return false; }
+}
+// PPcanopy owns tiers (it bills on them); a linked venue's tier is pushed to its site so PP Command matches.
+async function pushVenueTier(client, v){
+  const site = (LINKED_SITES[client.serverOrgId] || []).find(x => venueForSite(client, x) === v);
+  if (!site || !SERVER.on() || !/^T[1-4]$/.test(v.tier || '') || site.tier === v.tier) return;
+  try {
+    const r = await SERVER.req('PATCH', `/api/pp/clients/${client.serverOrgId}/sites/${site.id}`, { tier: v.tier });
+    if (r.ok) site.tier = v.tier;
+  } catch(e){}
 }
 function isVenueLinked(c, v){
   const sites = c.serverOrgId && LINKED_SITES[c.serverOrgId];
@@ -2170,6 +2181,7 @@ document.getElementById('client-list').addEventListener('change', async e=>{
     venue.tier = e.target.value;
     await saveClients();
     if(isVenueWaiting(client, venue)) sendVenueToCommand(client, venue);
+    pushVenueTier(client, venue);
     renderDashboard(); // MRR depends on venue tiers, keep it current
   }
 });

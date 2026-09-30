@@ -364,6 +364,18 @@ test('planned sites: PPcanopy adds one, PP Command issues its code, redeeming li
   await pool.query('DELETE FROM sites WHERE id=$1', [r.json.site_id]);
 });
 
+test('PPcanopy sets a linked site tier; PP Command sees it', async () => {
+  const staff = { Authorization: 'Bearer ' + S.sales };
+  const r = await api('PATCH', `/api/pp/clients/${S.orgId}/sites/${S.siteId}`, { headers: staff, body: { tier: 'T4' } });
+  assert.equal(r.status, 200); assert.equal(r.json.tier, 'T4');
+  const seen = (await api('GET', '/api/org/sites', { headers: { 'X-Org-Key': S.orgKey } })).json.sites.find(x => x.id === S.siteId);
+  assert.equal(seen.tier, 'T4');
+  assert.equal((await api('PATCH', `/api/pp/clients/${S.orgId}/sites/${S.siteId}`, { headers: staff, body: { tier: 'Gold' } })).status, 400);
+  assert.equal((await api('PATCH', `/api/pp/clients/00000000-0000-0000-0000-000000000000/sites/${S.siteId}`, { headers: staff, body: { tier: 'T2' } })).status, 404);   // wrong client
+  assert.equal((await api('PATCH', `/api/pp/clients/${S.orgId}/sites/${S.siteId}`, { body: { tier: 'T2' } })).status, 401);
+  await api('PATCH', `/api/pp/clients/${S.orgId}/sites/${S.siteId}`, { headers: staff, body: { tier: 'T1' } });   // restore
+});
+
 test('org site tier patch: happy path, invalid enum, not found', async () => {
   const patched = await api('PATCH', `/api/org/sites/${S.siteId}`, { headers: { 'X-Org-Key': S.orgKey }, body: { tier: 'T3' } });
   assert.equal(patched.status, 200); assert.equal(patched.json.tier, 'T3');
