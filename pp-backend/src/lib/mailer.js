@@ -30,3 +30,25 @@ export async function sendPoEmail(po) {
   }
   return resp.json();
 }
+
+// General-purpose email for PPcanopy (approval notifications to staff, quotes to clients).
+// RESEND_API_URL only exists so tests can point at a local fake.
+export function emailConfigured() { return !!process.env.RESEND_API_KEY; }
+export async function sendEmail({ to, subject, text, attachments, replyTo }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error('email provider not configured (RESEND_API_KEY unset)');
+  const from = process.env.RESEND_FROM_EMAIL || 'orders@resend.dev';
+  const body = { from, to: Array.isArray(to) ? to : [to], subject, text };
+  if (replyTo) body.reply_to = replyTo;
+  if (attachments && attachments.length) body.attachments = attachments.map(a => ({ filename: a.filename, content: a.content_base64 }));
+  const resp = await fetch(process.env.RESEND_API_URL || 'https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    const t = await resp.text().catch(() => '');
+    throw new Error(`Resend API ${resp.status}: ${t.slice(0, 300)}`);
+  }
+  return resp.json();
+}

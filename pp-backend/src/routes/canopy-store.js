@@ -12,7 +12,7 @@ export const canopyStore = Router();
 // IT Staff only sees team, schedule, ordering, hours and comms; pricing is Owner-only to change.
 const RANK = { 'IT Staff': 1, 'Sales Manager': 2, 'Owner': 3 };
 const KEYS = {
-  clients: ['Sales Manager', 'Sales Manager'], prospects: ['Sales Manager', 'Sales Manager'], quotes: ['Sales Manager', 'Sales Manager'], requests: ['Sales Manager', 'Sales Manager'],
+  clients: ['Sales Manager', 'Sales Manager'], prospects: ['Sales Manager', 'Sales Manager'], approvals: ['Sales Manager', 'Sales Manager'], quotes: ['Sales Manager', 'Sales Manager'], requests: ['Sales Manager', 'Sales Manager'],
   salesRecords: ['Sales Manager', 'Sales Manager'], meetings: ['Sales Manager', 'Sales Manager'], escalations: ['Sales Manager', 'Sales Manager'],
   invoices: ['Sales Manager', 'Sales Manager'], invoiceSettings: ['Sales Manager', 'Sales Manager'], canopy_ronin_asks: ['Sales Manager', 'Sales Manager'],
   pricing: ['Sales Manager', 'Owner'], pipelineStages: ['Sales Manager', 'Owner'],

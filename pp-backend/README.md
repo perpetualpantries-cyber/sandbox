@@ -61,6 +61,8 @@ The Vercel project `pp-backend-staging` (served at `pp-backend-staging.vercel.ap
 | staff | `POST|GET /api/pp/clients`, `POST …/:id/link-code` (regenerate, pre-claim only), `POST …/:id/relink` (Owner: new org code for an already-claimed client; claiming it replaces the old PP Command key), `POST …/:id/rotate-key` (Owner) | client = org; `create` returns an org-level link code, not a key |
 | staff | `GET /api/pp/clients/:id/products|overview|sales-trend` | menu items and aggregates only |
 | staff | `POST|GET /api/pp/ronin-asks`, `POST …/:id/withdraw` | Canopy→Ronin queue |
+| staff | `GET /api/pp/notify/config`, `POST /api/pp/push/subscribe|unsubscribe` | push key (generated once, kept in `server_settings`) and whether email is set up; this device's push subscription |
+| staff (Sales Manager) | `POST /api/pp/notify`, `POST /api/pp/email` | tell the Owner and Sales Managers something needs approval (email via Resend + Web Push); email a client (e.g. a quote PDF) |
 | staff | `GET /api/pp/store`, `PUT /api/pp/store/:key` | PPcanopy's own collections (clients, quotes, invoices, pricing, team, …) as versioned JSON; a stale `version` → 409 with the current copy; per-collection role rules (IT Staff never sees client data, pricing is Owner-only to change) |
 
 Writes accept an `Idempotency-Key` header (24 h replay). All lists page with `?limit=&cursor=`.
