@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PP Command HQ — Ronin</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* The pass after service: warm charcoal-green surfaces from the Perpetual Pantries family,
+   a verdigris-teal accent, brass for the brand. Depth: tonal surfaces + quiet rgba borders. */
+:root{
+  --bg:      #131917;   /* canvas */
+  --sidebar: #0F1412;
+  --panel:   #1A211E;   /* raised */
+  --panel-2: #212A26;   /* raised again: headers, popovers */
+  --field:   #111714;   /* inset controls, darker than the panel they sit on */
+  --border:  rgba(236,233,225,.08);
+  --border-2:rgba(236,233,225,.15);
+  --text:    #ECE9E1;
+  --sub:     #A5ACA6;
+  --faint:   #808982;   /* meta; >= 4.5:1 on panel */
+  --teal:    #2F7F69;   /* actions (white text on it passes 4.5:1) */
+  --teal-hi: #6FC2A8;   /* accent lines, focus, links */
+  --brass:   #C9A25E;
+  --gold:    #C9A25E;
+  --green:   #72BC93;
+  --amber:   #E1AA4E;
+  --red:     #E36D58;
+  --focus:   0 0 0 3px rgba(111,194,168,.28);
+  --r-sm:6px; --r-md:10px; --r-lg:14px;
+  --ease:cubic-bezier(0.23, 1, 0.32, 1);
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+  --sans: 'DM Sans', sans-serif;
+  --serif: 'Playfair Display', serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+:focus-visible{outline:2px solid var(--teal-hi);outline-offset:2px}
+::placeholder{color:var(--faint);opacity:1}
+.app{display:grid;grid-template-columns:212px 1fr;height:100vh}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:4px}
+
+.sidebar{background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 0;overflow-y:auto}
+.brand{padding:4px 18px 18px;border-bottom:1px solid var(--border);margin-bottom:8px}
+.brand-word{font-family:var(--serif);font-weight:600;font-size:18px;letter-spacing:-.005em}
+.brand-word b{color:var(--brass);font-weight:600}
+.brand-sub{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.08em;margin-top:3px;text-transform:uppercase}
+.nav-group{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);padding:14px 18px 6px}
+.nav-item{all:unset;box-sizing:border-box;width:100%;display:flex;align-items:center;gap:10px;padding:9px 18px;color:var(--sub);cursor:pointer;border-left:3px solid transparent;font-size:13px;transition:background-color .15s var(--ease),color .15s var(--ease),border-color .15s var(--ease)}
+.nav-item:hover{color:var(--text);background:rgba(236,233,225,.04)}
+.nav-item:focus-visible{outline:2px solid var(--teal-hi);outline-offset:-2px}
+.nav-item.active{color:var(--text);font-weight:500;border-left-color:var(--teal-hi);background:rgba(111,194,168,.09)}
+.nav-icon{width:16px;text-align:center;font-size:13px;opacity:.85}
+.nav-badge{margin-left:auto;background:var(--red);color:#fff;font-family:var(--mono);font-size:9px;font-weight:600;border-radius:99px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.sidebar-foot{margin-top:auto;padding:10px 0 4px;border-top:1px solid var(--border)}
+.sidebar-foot .foot-label{padding:8px 18px 0;display:block}
+.live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);margin-right:6px;box-shadow:0 0 0 0 rgba(76,154,92,.6);animation:pulse 2s infinite}
+.live-dot.off{background:var(--amber);animation:none}
+@media (prefers-reduced-motion:reduce){.live-dot{animation:none}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(76,154,92,.45)}70%{box-shadow:0 0 0 6px rgba(76,154,92,0)}100%{box-shadow:0 0 0 0 rgba(76,154,92,0)}}
+.foot-label{font-family:var(--mono);font-size:10px;color:var(--sub)}
+.gear{cursor:pointer;color:var(--faint);font-size:12px;margin-top:8px;display:inline-block}
+.gear:hover{color:var(--text)}
+
+.main{overflow-y:auto;padding:26px 34px 60px}
+.page-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:20px}
+.page-title{font-family:var(--serif);font-size:28px;font-weight:600;letter-spacing:-.015em;line-height:1.15;text-wrap:balance}
+.page-sub{font-family:var(--mono);font-size:11px;color:var(--sub);margin-top:4px}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.tile{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-md);padding:16px 18px;min-width:0}
+.tile-label{font-family:var(--mono);font-size:10.5px;color:var(--sub);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}
+.tile-value{font-family:var(--mono);font-size:26px;font-weight:500;font-variant-numeric:tabular-nums;letter-spacing:-.01em;line-height:1.1}
+.tile-note{font-size:12px;color:var(--faint);margin-top:6px}
+/* Overview: the week's headline figures lead; everything else is a quieter tier. */
+.tiles.hero{grid-template-columns:2fr 1fr 1fr}
+.tiles.hero .tile:first-child .tile-value{font-size:40px;letter-spacing:-.02em}
+.tiles.minor .tile{padding:12px 14px;background:transparent}
+.tiles.minor .tile-value{font-size:18px}
+.section-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin:0 0 8px}
+.attention{display:grid;gap:8px;margin-bottom:24px}
+.attn{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--amber);border-radius:var(--r-md);padding:11px 16px;transition:background-color .15s var(--ease),transform .12s var(--ease)}
+.attn:hover{background:var(--panel-2)}
+.attn:active{transform:scale(.99)}
+.attn:focus-visible{outline:2px solid var(--teal-hi);outline-offset:2px}
+.attn.danger{border-left-color:var(--red)}
+.attn-num{font-family:var(--mono);font-size:22px;font-weight:500;min-width:2ch;font-variant-numeric:tabular-nums;color:var(--amber)}
+.attn.danger .attn-num{color:var(--red)}
+.attn-text{flex:1;font-size:13.5px}
+.attn-text small{display:block;font-size:12px;color:var(--sub);margin-top:1px}
+.attn-go{font-size:12.5px;font-weight:500;color:var(--teal-hi);white-space:nowrap}
+.attn-calm{font-size:13px;color:var(--sub);background:rgba(114,188,147,.08);border:1px solid rgba(114,188,147,.18);border-radius:var(--r-md);padding:11px 16px;margin-bottom:24px}
+.tile-value.warn{color:var(--amber)}
+.tile-value.danger{color:var(--red)}
+.tile-value.ok{color:var(--green)}
+
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-md);margin-bottom:20px;overflow:hidden}
+.panel-head{padding:12px 16px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;font-weight:500;color:var(--sub);text-transform:uppercase;letter-spacing:.1em;display:flex;justify-content:space-between;align-items:center;gap:10px;background:rgba(236,233,225,.015)}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-family:var(--mono);font-size:10.5px;font-weight:500;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;padding:9px 16px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px;font-variant-numeric:tabular-nums}
+tr:has(td):hover td{background:rgba(236,233,225,.025)}
+tr:last-child td{border-bottom:none}
+.mono{font-family:var(--mono)}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10.5px;font-family:var(--mono);font-weight:500;white-space:nowrap;line-height:1.5}
+.pill.ok{background:rgba(114,188,147,.14);color:var(--green)}
+.pill.warn{background:rgba(225,170,78,.14);color:var(--amber)}
+.pill.danger{background:rgba(227,109,88,.15);color:var(--red)}
+.pill.info{background:rgba(111,194,168,.13);color:var(--teal-hi)}
+.pill.muted{background:rgba(255,255,255,.06);color:var(--sub)}
+
+.log{font-family:var(--mono);font-size:12px;line-height:1.6}
+.log-entry{display:flex;flex-wrap:wrap;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);border-left:3px solid var(--faint);align-items:center}
+.log-entry.approval{border-left-color:var(--amber)}
+.log-entry.completed{border-left-color:var(--green)}
+.log-entry.declined{border-left-color:var(--red)}
+.log-time{color:var(--faint);flex-shrink:0;width:130px}
+.log-dir{flex-shrink:0;width:118px;color:var(--sub)}
+.log-body{flex:1;color:var(--text);min-width:220px}
+.log-body .tag{color:var(--amber)}
+.log-note{color:var(--sub);font-size:11px;margin-top:2px}
+
+.btn{background:var(--teal);color:#fff;border:1px solid transparent;padding:8px 14px;min-height:34px;border-radius:var(--r-sm);font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--sans);display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:background-color .15s var(--ease),border-color .15s var(--ease),color .15s var(--ease),transform .12s var(--ease)}
+.btn:hover{background:#358C74}
+.btn:active{transform:scale(.97)}
+.btn:focus-visible{outline:2px solid var(--teal-hi);outline-offset:2px}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.btn.ghost{background:transparent;border-color:var(--border-2);color:var(--text)}
+.btn.ghost:hover{background:rgba(236,233,225,.05);border-color:rgba(236,233,225,.24)}
+.btn.small{padding:5px 10px;min-height:28px;font-size:11.5px}
+.btn.danger{background:transparent;border-color:rgba(227,109,88,.45);color:var(--red)}
+.btn.danger:hover{background:rgba(227,109,88,.12)}
+input,select,textarea{background:var(--field);border:1px solid var(--border-2);color:var(--text);padding:8px 10px;border-radius:var(--r-sm);font-family:var(--sans);font-size:13.5px;width:100%;transition:border-color .15s var(--ease),box-shadow .15s var(--ease)}
+input:hover,select:hover,textarea:hover{border-color:rgba(236,233,225,.24)}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal-hi);box-shadow:var(--focus)}
+input[type="checkbox"],input[type="radio"]{width:auto;accent-color:var(--teal-hi)}
+label{font-family:var(--mono);font-size:10.5px;color:var(--sub);text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:6px}
+.field{margin-bottom:12px}
+.row{display:flex;gap:10px}
+.row > *{flex:1}
+
+.empty{padding:34px 16px;text-align:center;color:var(--faint);font-size:13px;text-wrap:pretty}
+.hidden{display:none !important}
+
+#settings-overlay,#request-overlay{position:fixed;inset:0;background:rgba(6,9,8,.62);display:none;align-items:center;justify-content:center;z-index:200;padding:16px}
+#settings-overlay.show,#request-overlay.show{display:flex;animation:fade-in .18s var(--ease)}
+.settings-card{background:var(--panel-2);border:1px solid var(--border-2);border-radius:var(--r-lg);padding:26px;width:440px;max-width:100%;max-height:calc(100vh - 32px);overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+.show > .settings-card{animation:rise-in .22s var(--ease)}
+@keyframes fade-in{from{opacity:0}to{opacity:1}}
+@keyframes rise-in{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){#settings-overlay.show,#request-overlay.show,.show > .settings-card{animation:none}.btn:active,.attn:active{transform:none}}
+.settings-title{font-family:var(--serif);font-size:19px;margin-bottom:4px}
+.settings-sub{font-size:12px;color:var(--sub);margin-bottom:18px}
+
+.hierarchy-note{font-family:var(--mono);font-size:10.5px;color:var(--faint);padding:10px 16px;border-top:1px solid var(--border)}
+
+/* ── Ronin floating launcher + widget (reachable from any tab) ── */
+#ronin-launcher{position:fixed;bottom:24px;right:24px;width:54px;height:54px;border-radius:50%;background:var(--teal);color:#fff;border:none;cursor:pointer;font-family:var(--serif);font-size:20px;box-shadow:0 6px 20px rgba(0,0,0,.4),0 0 0 1px rgba(111,194,168,.25);z-index:150;display:flex;align-items:center;justify-content:center;transition:background-color .15s var(--ease),transform .15s var(--ease)}
+#ronin-launcher:hover{background:#358C74;transform:scale(1.04)}
+#ronin-launcher:active{transform:scale(.97)}
+#ronin-launcher .launcher-badge{position:absolute;top:-3px;right:-3px;background:var(--red);color:#fff;font-family:var(--mono);font-size:9px;font-weight:600;border-radius:99px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--bg)}
+#ronin-widget{position:fixed;bottom:90px;right:24px;width:360px;max-width:calc(100vw - 32px);height:480px;max-height:calc(100vh - 130px);background:var(--panel);border:1px solid var(--border-2);border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.5);display:none;flex-direction:column;overflow:hidden;z-index:151}
+#ronin-widget.show{display:flex}
+.ronin-widget-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--panel-2)}
+.ronin-widget-title{font-family:var(--serif);font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+.ronin-widget-title .live-dot{margin-right:0}
+.ronin-widget-close{cursor:pointer;color:var(--faint);font-size:16px;background:none;border:none}
+.ronin-widget-close:hover{color:var(--text)}
+.ronin-widget-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.ronin-widget-foot{padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px}
+.ronin-widget-expand{font-family:var(--mono);font-size:10px;color:var(--sub);cursor:pointer}
+.ronin-widget-expand:hover{color:var(--text)}
+@media (max-width:820px){
+  #ronin-launcher{bottom:76px}
+  #ronin-widget{bottom:140px;right:12px}
+}
+
+@media (max-width:820px){
+  .app{grid-template-columns:1fr}
+  .sidebar{position:fixed;bottom:0;left:0;right:0;flex-direction:row;padding:6px 4px;z-index:100;overflow-x:auto}
+  .brand,.nav-group,.sidebar-foot .foot-label{display:none}
+  .sidebar-foot{margin:0;padding:0;border-top:none;display:flex}
+  .nav-item{position:relative}
+  .nav-badge{position:absolute;top:2px;right:4px;margin:0}
+  .nav-item{width:auto;flex:0 0 auto;flex-direction:column;gap:2px;padding:6px 10px;border-left:none;border-top:3px solid transparent;font-size:10px;white-space:nowrap}
+  .nav-item.active{border-top-color:var(--teal-hi);background:transparent}
+  .main{padding:18px 16px 90px}
+  .panel{overflow-x:auto}
+  .tiles.hero{grid-template-columns:1fr 1fr}
+  .tiles.hero .tile:first-child{grid-column:1 / -1}
+  .attn{flex-wrap:wrap;gap:4px 12px}
+  .attn-go{flex-basis:100%;padding-left:38px}
+  .page-head{flex-wrap:wrap;gap:10px}
+}
+.policy-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.banner{background:rgba(225,170,78,.1);border:1px solid rgba(225,170,78,.35);color:var(--text);border-radius:var(--r-md);padding:11px 16px;margin-bottom:20px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="sidebar">
+    <div class="brand">
+      <div class="brand-word">PP <b>Command</b> HQ</div>
+      <div class="brand-sub" id="org-name-label">loading…</div>
+    </div>
+    <div class="nav-group">Group</div>
+    <button type="button" class="nav-item active" data-tab="overview"><span class="nav-icon">◆</span>Group overview</button>
+    <button type="button" class="nav-item" data-tab="regions"><span class="nav-icon">▤</span>Regions</button>
+    <button type="button" class="nav-item" data-tab="regionviewer"><span class="nav-icon">◎</span>Region viewer</button>
+    <button type="button" class="nav-item" data-tab="policy"><span class="nav-icon">§</span>Group policy</button>
+    <div class="nav-group">Ronin</div>
+    <button type="button" class="nav-item" data-tab="chat"><span class="nav-icon">◈</span>Chat with Ronin</button>
+    <button type="button" class="nav-item" data-tab="escalations"><span class="nav-icon">▲</span>Escalations<span class="nav-badge hidden" id="esc-badge">0</span></button>
+    <button type="button" class="nav-item" data-tab="messages"><span class="nav-icon">≡</span>Region requests</button>
+    <button type="button" class="nav-item" data-tab="notifications"><span class="nav-icon">●</span>Notifications<span class="nav-badge hidden" id="notif-badge">0</span></button>
+    <div class="sidebar-foot">
+      <button type="button" class="nav-item" onclick="openSettings()"><span class="nav-icon">⚙</span>Settings</button>
+      <div class="foot-label"><span class="live-dot" id="live-dot"></span><span id="live-label">storage ready</span></div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div id="tier-banner" class="banner hidden"></div>
+
+    <!-- Group overview -->
+    <section id="tab-overview">
+      <div class="page-head">
+        <div><div class="page-title">Group overview</div><div class="page-sub" id="overview-sub">— regions reporting</div></div>
+        <button class="btn ghost" onclick="refreshAll()">↻ Refresh</button>
+      </div>
+      <div id="overview-tiles"></div>
+      <div class="panel">
+        <div class="panel-head">Per-region report</div>
+        <div id="overview-regions-table"></div>
+      </div>
+    </section>
+
+    <!-- Regions -->
+    <section id="tab-regions" class="hidden">
+      <div class="page-head"><div class="page-title">Regions</div></div>
+      <div class="panel">
+        <div class="panel-head">Link a regional PP Command</div>
+        <div style="padding:16px">
+          <div class="page-sub" style="margin-bottom:12px;line-height:1.6">Each region runs its own PP Command, with its own Ronin and its own cafés. Generate a one-time code here and enter it in that region's PP Command (Head office tab). From then on head office sees the region's headline figures — never its cafés' stock items, menus or staff.</div>
+          <div class="field"><label>Region name (optional hint)</label><input id="link-name-hint" placeholder="e.g. NSW — becomes the region's name here"></div>
+          <button class="btn" onclick="generateLinkCode()">Generate link code</button>
+        </div>
+      </div>
+      <div id="new-link-code-panel" class="panel hidden">
+        <div class="panel-head">New link code</div>
+        <div style="padding:16px">
+          <div class="row">
+            <input id="new-link-code-value" readonly class="mono" style="font-size:18px;text-align:center;letter-spacing:2px">
+            <button class="btn ghost small" onclick="copyLinkCode()">Copy</button>
+          </div>
+          <div class="page-sub" style="margin-top:8px">Single-use, expires in 24 hours.</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">Pending codes</div>
+        <div id="link-codes-table"></div>
+      </div>
+      <div class="panel"><div class="panel-head">Linked regions</div><div id="regions-table"></div></div>
+    </section>
+
+    <!-- Region viewer -->
+    <section id="tab-regionviewer" class="hidden">
+      <div class="page-head">
+        <div><div class="page-title">Region viewer</div><div class="page-sub">read-only — a region's headline figures. Head office can't change anything in a region.</div></div>
+      </div>
+      <div class="panel">
+        <div style="padding:16px">
+          <div class="row">
+            <div class="field"><label>Region</label><select id="viewer-region-select"></select></div>
+          </div>
+          <button class="btn" onclick="loadRegionViewer()">Load</button>
+        </div>
+      </div>
+      <div id="viewer-content"></div>
+    </section>
+
+    <!-- Group policy -->
+    <section id="tab-policy" class="hidden">
+      <div class="page-head">
+        <div><div class="page-title">Group policy</div><div class="page-sub" id="policy-sub">set here, inherited by every region</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">Targets and rules</div>
+        <div style="padding:16px">
+          <div class="policy-grid">
+            <div class="field"><label>GP% target (minimum)</label><input id="pol-gp" type="number" min="0" max="100"></div>
+            <div class="field"><label>Labour% cap (maximum)</label><input id="pol-labour" type="number" min="0" max="100"></div>
+            <div class="field"><label>Spend needing head-office approval ($ and above)</label><input id="pol-spend" type="number" min="0"></div>
+          </div>
+          <div class="field"><label>Approved suppliers (one per line)</label><textarea id="pol-suppliers" rows="4"></textarea></div>
+          <div class="field"><label>Notes to regions</label><textarea id="pol-notes" rows="3" placeholder="e.g. Spring menu goes live 1 Oct across all regions"></textarea></div>
+          <button class="btn" onclick="savePolicy()">Save and send to regions</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Chat with Ronin -->
+    <section id="tab-chat" class="hidden">
+      <div class="page-head">
+        <div><div class="page-title">Chat with Ronin</div><div class="page-sub">head-office Ronin — grounded in every region's figures, group policy, escalations and requests</div></div>
+      </div>
+      <div class="panel" style="display:flex;flex-direction:column;height:calc(100vh - 210px)">
+        <div id="chat-messages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px"></div>
+        <div id="chat-typing" class="hidden" style="padding:0 16px 10px;font-family:var(--mono);font-size:11.5px;color:var(--sub)">Ronin is thinking…</div>
+        <div style="padding:12px 14px;border-top:1px solid var(--border);display:flex;gap:8px">
+          <input id="chat-input" placeholder="Ask Ronin about your regions…" onkeydown="if(event.key==='Enter')sendChatMessage()">
+          <button class="btn" onclick="sendChatMessage()">Send</button>
+        </div>
+        <div class="hierarchy-note">Gavin (per café) → Ronin (regional PP Command) → <b style="color:var(--text)">Ronin</b> (head-office PP Command, this page)</div>
+      </div>
+    </section>
+
+    <!-- Escalations -->
+    <section id="tab-escalations" class="hidden">
+      <div class="page-head">
+        <div><div class="page-title">Escalations</div><div class="page-sub">raised by regions for a head-office decision — nothing here proceeds until you decide</div></div>
+      </div>
+      <div class="panel"><div class="log" id="escalations-log"></div></div>
+    </section>
+
+    <!-- Region requests -->
+    <section id="tab-messages" class="hidden">
+      <div class="page-head">
+        <div><div class="page-title">Region requests</div><div class="page-sub">what head office has asked each region's Ronin, and their answers</div></div>
+        <button class="btn" onclick="openSendRequest()">+ Send request</button>
+      </div>
+      <div class="panel"><div class="log" id="messages-log"></div></div>
+    </section>
+
+    <!-- Notifications -->
+    <section id="tab-notifications" class="hidden">
+      <div class="page-head"><div class="page-title">Notifications</div></div>
+      <div class="panel"><div id="notifications-list"></div></div>
+    </section>
+  </div>
+</div>
+
+<!-- Ronin floating launcher (reachable from every tab) -->
+<button id="ronin-launcher" onclick="toggleRoninWidget()" title="Chat with Ronin">◈<span class="launcher-badge hidden" id="ronin-launcher-badge">0</span></button>
+<div id="ronin-widget">
+  <div class="ronin-widget-head">
+    <div class="ronin-widget-title"><span class="live-dot"></span>Ronin · HQ</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="ronin-widget-expand" onclick="expandRoninWidget()">open full view</span>
+      <button class="ronin-widget-close" onclick="toggleRoninWidget()">✕</button>
+    </div>
+  </div>
+  <div class="ronin-widget-body" id="ronin-widget-messages"></div>
+  <div id="ronin-widget-typing" class="hidden" style="padding:0 14px 8px;font-family:var(--mono);font-size:11px;color:var(--sub)">Ronin is thinking…</div>
+  <div class="ronin-widget-foot">
+    <input id="ronin-widget-input" placeholder="Ask Ronin…" onkeydown="if(event.key==='Enter')sendChatMessage('widget')">
+    <button class="btn small" onclick="sendChatMessage('widget')">Send</button>
+  </div>
+</div>
+
+<!-- Send request -->
+<div id="request-overlay">
+  <div class="settings-card">
+    <div class="settings-title">Send a request to a region</div>
+    <div class="settings-sub">Goes to that region's Ronin. It decides what to do, including asking its cafés — head office never contacts a café directly.</div>
+    <div class="field"><label>Region</label><select id="req-region"></select></div>
+    <div class="field"><label>Intent (short, snake_case)</label><input id="req-intent" placeholder="e.g. review_labour_roster"></div>
+    <div class="field"><label>Request</label><input id="req-note" placeholder="One line describing what you need"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn ghost" onclick="closeRequestModal()">Cancel</button>
+      <button class="btn" onclick="submitRequestModal()">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div id="settings-overlay">
+  <div class="settings-card">
+    <div class="settings-title">Settings</div>
+    <div class="settings-sub">Head-office PP Command. Connect it to the PP server with the linking code Perpetual Pantries gave you for the head-office client.</div>
+    <div class="field"><label>Group name (demo mode)</label><input id="set-orgname" placeholder="e.g. Demo Café Group"></div>
+    <div class="field"><label>PP server URL</label><input id="set-server-url" placeholder="https://api.perpetualpantries.example" autocomplete="off"></div>
+    <div class="field"><label>Linking code (from PPcanopy — one-time, expires in 24h)</label><input id="set-org-key" placeholder="e.g. K4RT8QWX" autocomplete="off" style="text-transform:uppercase;letter-spacing:1px"></div>
+    <div class="page-sub" id="set-link-status" style="margin-top:-6px;margin-bottom:4px"></div>
+    <div class="field"><label>Anthropic API key (Ronin)</label><input id="set-apikey" type="password" placeholder="sk-ant-… — not needed inside a claude.ai artifact" autocomplete="off"></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="set-demomode"> Demo mode (simulated regions, reports and answers)</label></div>
+    <div class="page-sub" id="set-storage-note" style="margin-bottom:4px"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn ghost" onclick="closeSettings()">Cancel</button>
+      <button class="btn" onclick="saveSettings()">Save</button>
+    </div>
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+      <div class="page-sub" style="margin-bottom:8px">Wipe local data and reload the starter demo.</div>
+      <button class="btn danger" style="width:100%" onclick="resetDemoData()">Reset demo data</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+// Head-office PP Command. Same product as a regional PP Command, running for
+// an org with command_tier 'head_office' (set in PPcanopy). It has no cafés
+// of its own: regional PP Commands link in with a one-time code, and head
+// office reads their headline figures, sets group policy they inherit,
+// decides escalations they raise and sends requests to their Ronin.
+// It is not a mirror — it never holds a café's stock items, menu or staff.
+//
+// State uses the PP server's shapes (pp-backend/src/routes/group.js) in both
+// modes, so the demo can't drift from what the server really returns.
+// ══════════════════════════════════════════════════════════════════════════
+const STATE_KEY = 'ppcommand_hq_state_v1';
+const STALE_AFTER_DAYS = 8;
+const DEFAULT_POLICY = { gp_target_pct: 60, labour_cap_pct: 32, spend_approval_cents: 500000, approved_suppliers: [], notes: '', version: 0, updated_at: null };
+
+// Own localStorage keys: this page may share an origin with a regional pp-command-ronin.html,
+// and must never pick up (or overwrite) that console's org key.
+const LS = { url: 'pphq_api_url', key: 'pphq_org_key', apiKey: 'ppcommand_api_key' };
+const lsGet = k => { try { return localStorage.getItem(k) || ''; } catch(e){ return ''; } };
+const lsSet = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch(e){} };
+
+const SERVER = {
+  url(){ return lsGet(LS.url).replace(/\/+$/, ''); },
+  key(){ return lsGet(LS.key); },
+  on(){ return !!(this.url() && this.key()); },
+  async req(method, path, body){
+    const r = await fetch(this.url() + path, { method, headers: { 'Content-Type': 'application/json', 'X-Org-Key': this.key() }, body: body ? JSON.stringify(body) : undefined });
+    const data = await r.json().catch(() => ({}));
+    if (r.status === 401) toastMsg('PP server rejected the org key — check Settings.');
+    return { ok: r.ok, status: r.status, data };
+  },
+  async load(){
+    const org = await this.req('GET', '/api/org');
+    if (!org.ok) throw new Error(org.data.error || 'server error');
+    const prev = STATE || {};
+    const base = { orgName: org.data.name, orgId: org.data.id, commandTier: org.data.command_tier, serverMode: true, demoMode: false, chat: prev.chat || [] };
+    if (org.data.command_tier !== 'head_office') { STATE = { ...emptyState(), ...base }; return; }
+    const [regions, overview, codes, policy, esc, reqs, notifs] = await Promise.all([
+      this.req('GET', '/api/org/regions'), this.req('GET', '/api/org/group-overview'), this.req('GET', '/api/org/regions/link-codes'),
+      this.req('GET', '/api/org/group-policy'), this.req('GET', '/api/org/escalations'), this.req('GET', '/api/org/region-requests'),
+      this.req('GET', '/api/org/notifications'),
+    ]);
+    STATE = {
+      ...base,
+      regions: regions.data.regions || [], overview: overview.data, linkCodes: codes.data.codes || [],
+      policy: policy.ok ? policy.data : { ...DEFAULT_POLICY }, escalations: esc.data.escalations || [],
+      requests: reqs.data.requests || [], notifications: notifs.data.notifications || [],
+    };
+  },
+};
+async function refreshAll(){
+  if (SERVER.on()) { try { await SERVER.load(); await saveState(true); } catch(e){ toastMsg('Server refresh failed: ' + e.message); } }
+  renderAll(true);
+}
+
+// Storage adapter — claude.ai artifact storage when present, otherwise localStorage, otherwise memory.
+const _memStore = {};
+const STORE = {
+  backend: (typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function') ? 'artifact'
+          : (function(){ try { localStorage.setItem('__pp_t','1'); localStorage.removeItem('__pp_t'); return 'local'; } catch(e){ return 'memory'; } })(),
+  async get(key){
+    if (this.backend === 'artifact') { const r = await window.storage.get(key, false); return r ? r.value : null; }
+    if (this.backend === 'local') return localStorage.getItem(key);
+    return _memStore[key] ?? null;
+  },
+  async set(key, value){
+    if (this.backend === 'artifact') return window.storage.set(key, value, false);
+    if (this.backend === 'local') return localStorage.setItem(key, value);
+    _memStore[key] = value;
+  },
+};
+
+let STATE = null;
+function isDemoMode(){ return !!(STATE && STATE.demoMode); }
+function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2, 9); }
+function nowIso(){ return new Date().toISOString(); }
+function emptyState(){ return { orgName: 'Head office', commandTier: 'head_office', regions: [], overview: null, linkCodes: [], policy: { ...DEFAULT_POLICY }, escalations: [], requests: [], notifications: [], chat: [], demoMode: false }; }
+
+// ── Demo data, in the server's shapes ────────────────────────────────────
+const num = v => (v == null ? 0 : Number(v));
+// Mirrors regionReport() in pp-backend/src/routes/group.js.
+function buildRegion(id, name, sites, extra){
+  const rep = sites.filter(s => s.received_at);
+  const R = rep.reduce((a, s) => a + s.revenue_week, 0);
+  const sum = k => rep.reduce((a, s) => a + num(s[k]), 0);
+  const weighted = k => rep.length ? Math.round(R > 0 ? rep.reduce((a, s) => a + s[k] * s.revenue_week, 0) / R : sum(k) / rep.length) : 0;
+  const last = rep.reduce((a, s) => (!a || s.received_at > a ? s.received_at : a), null);
+  return {
+    id, name, org_name: name, linked_at: nowIso(), site_count: sites.length, reporting_sites: rep.length, last_snapshot_at: last,
+    stale: !last || (Date.now() - new Date(last).getTime()) > STALE_AFTER_DAYS * 86400000,
+    totals: { revenue_week: R, avg_gp_pct: weighted('gp_pct'), avg_labour_pct: weighted('labour_pct'), covers_week: sum('covers_week'), stock_out: sum('stock_out'), stock_low: sum('stock_low'), open_orders: sum('open_orders') },
+    sites, approvals_pending: 0, payroll: { sites_sharing: 0, gross_cents: 0 }, ...extra,
+  };
+}
+function randomSite(name){
+  return { name, revenue_week: Math.round(8000 + Math.random()*15000), gp_pct: Math.round(55 + Math.random()*15), labour_pct: Math.round(24 + Math.random()*14),
+           covers_week: Math.round(500 + Math.random()*900), stock_out: Math.random() < 0.3 ? 1 : 0, stock_low: Math.round(Math.random()*4), open_orders: Math.round(Math.random()*3), received_at: nowIso() };
+}
+function seedState(){
+  const vic = buildRegion(uid('region'), 'VIC', [
+    { name:'Fitzroy',   revenue_week:18420, gp_pct:64, labour_pct:29, covers_week:1240, stock_out:1, stock_low:3, open_orders:2, received_at: nowIso() },
+    { name:'Brunswick', revenue_week:14980, gp_pct:61, labour_pct:33, covers_week:980,  stock_out:0, stock_low:1, open_orders:1, received_at: nowIso() },
+  ], { payroll: { sites_sharing: 2, gross_cents: 1033700 } });
+  const nsw = buildRegion(uid('region'), 'NSW', [
+    { name:'Surry Hills', revenue_week:21300, gp_pct:58, labour_pct:35, covers_week:1410, stock_out:2, stock_low:2, open_orders:3, received_at: nowIso() },
+    { name:'Newtown',     revenue_week:12650, gp_pct:63, labour_pct:30, covers_week:870,  stock_out:0, stock_low:0, open_orders:1, received_at: nowIso() },
+    { name:'Manly',       revenue_week:16870, gp_pct:60, labour_pct:31, covers_week:1120, stock_out:0, stock_low:2, open_orders:0, received_at: nowIso() },
+  ], { approvals_pending: 1 });
+  return {
+    ...emptyState(), orgName: 'Demo Café Group', demoMode: true,
+    regions: [vic, nsw],
+    policy: { ...DEFAULT_POLICY, version: 1, updated_at: nowIso(), approved_suppliers: ['Bean & Co Roasters', 'Metro Dairy'] },
+    escalations: [
+      { id: uid('esc'), region_org_id: nsw.id, region_name: 'NSW', subject: 'New dairy supplier for Surry Hills', body: 'Metro Dairy short-shipped three weeks running. NSW asks to add Harbour Dairy Co to the approved supplier list.', amount_cents: null, status: 'awaiting_decision', created_at: nowIso() },
+    ],
+    notifications: [
+      { id: uid('notif'), type: 'escalation', subject: 'NSW escalated: New dairy supplier for Surry Hills', body: 'Awaiting a head-office decision.', status: 'unread', created_at: nowIso() },
+    ],
+  };
+}
+// Demo mirror of GET /api/org/group-overview.
+function demoOverview(){
+  const regions = STATE.regions;
+  const sites = regions.flatMap(r => r.sites.filter(s => s.received_at));
+  const R = sites.reduce((a, s) => a + s.revenue_week, 0);
+  const weighted = k => sites.length ? Math.round(R > 0 ? sites.reduce((a, s) => a + s[k] * s.revenue_week, 0) / R : sites.reduce((a, s) => a + s[k], 0) / sites.length) : 0;
+  const sum = k => regions.reduce((a, r) => a + num(r.totals[k]), 0);
+  return { region_count: regions.length, reporting_regions: regions.filter(r => r.reporting_sites).length, stale_regions: regions.filter(r => r.stale).map(r => r.name),
+           site_count: regions.reduce((a, r) => a + r.site_count, 0),
+           totals: { revenue_week: R, gp_pct: weighted('gp_pct'), labour_pct: weighted('labour_pct'), covers_week: sum('covers_week'), stock_out: sum('stock_out'), stock_low: sum('stock_low'), open_orders: sum('open_orders') } };
+}
+const overview = () => (SERVER.on() && STATE.overview) ? STATE.overview : demoOverview();
+
+async function loadState(){
+  try { const r = await STORE.get(STATE_KEY); STATE = r ? JSON.parse(r) : seedState(); }
+  catch (e) { STATE = seedState(); }
+  if (SERVER.on()) { try { await SERVER.load(); } catch(e){ console.warn('server load failed, using cache', e); STATE.serverMode = true; } }
+  else STATE.serverMode = false;
+  Object.entries(emptyState()).forEach(([k, v]) => { if (STATE[k] === undefined) STATE[k] = v; });
+  await saveState(true);
+}
+let saveTimer = null;
+async function saveState(immediate){
+  clearTimeout(saveTimer);
+  const doSave = async () => {
+    try {
+      if (STATE.chat.length > 200) STATE.chat = STATE.chat.slice(-200);
+      if (STATE.notifications.length > 500) STATE.notifications = STATE.notifications.slice(0, 500);
+      await STORE.set(STATE_KEY, JSON.stringify(STATE));
+    } catch (e) { console.error('Storage save failed (' + STORE.backend + ')', e); }
+  };
+  if (immediate) { await doSave(); return; }
+  saveTimer = setTimeout(doSave, 250);
+}
+async function resetDemoData(){
+  if (!confirm('This wipes this browser\'s head-office data and reloads the starter demo. Server data is not touched. Continue?')) return;
+  STATE = seedState();
+  await saveState(true);
+  closeSettings();
+  renderAll();
+}
+
+// ── Settings ─────────────────────────────────────────────────────────────
+function openSettings(){
+  document.getElementById('set-orgname').value = STATE.orgName || '';
+  document.getElementById('set-apikey').value = lsGet(LS.apiKey) ? 'sk-ant-…(saved)' : '';
+  document.getElementById('set-server-url').value = SERVER.url();
+  document.getElementById('set-org-key').value = '';
+  document.getElementById('set-link-status').textContent = SERVER.key() ? 'Already linked to the PP server — leave blank unless setting up on a new device.' : '';
+  document.getElementById('set-demomode').checked = !!STATE.demoMode;
+  document.getElementById('set-storage-note').textContent = (SERVER.on() ? 'Server mode · ' : 'Standalone · ') + 'Storage: ' + (STORE.backend === 'artifact' ? 'claude.ai artifact' : STORE.backend === 'local' ? 'this browser (localStorage)' : 'memory only — nothing persists');
+  document.getElementById('settings-overlay').classList.add('show');
+}
+function closeSettings(){ document.getElementById('settings-overlay').classList.remove('show'); }
+async function saveSettings(){
+  if (!SERVER.on()) STATE.orgName = document.getElementById('set-orgname').value.trim() || STATE.orgName;
+  STATE.demoMode = document.getElementById('set-demomode').checked;
+  const k = document.getElementById('set-apikey').value.trim();
+  if (!k.includes('(saved)')) lsSet(LS.apiKey, k);
+  const su = document.getElementById('set-server-url').value.trim().replace(/\/+$/, '');
+  const code = document.getElementById('set-org-key').value.trim();
+  lsSet(LS.url, su);
+  if (code) {
+    if (!su) { toastMsg('Set the PP server URL before entering a linking code.'); return; }
+    try {
+      const r = await fetch(su + '/api/org/link/claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { toastMsg('Linking code rejected: ' + (data.error || r.status)); return; }
+      lsSet(LS.key, data.api_key);
+    } catch(e){ toastMsg('Could not reach the PP server: ' + e.message); return; }
+  }
+  if (SERVER.on()) { try { await SERVER.load(); toastMsg('Connected to PP server as ' + STATE.orgName); } catch(e){ toastMsg('Could not reach server: ' + e.message); } }
+  await saveState(true);
+  closeSettings();
+  renderAll();
+}
+
+// ── Nav ──────────────────────────────────────────────────────────────────
+function showTab(tab){
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.tab === tab));
+  document.querySelectorAll('.main section').forEach(s => s.classList.add('hidden'));
+  document.getElementById('tab-' + tab).classList.remove('hidden');
+  if (tab === 'regionviewer') populateViewerRegionSelect();
+}
+document.querySelectorAll('.nav-item').forEach(el => el.addEventListener('click', () => { if (el.dataset.tab) showTab(el.dataset.tab); }));
+document.getElementById('overview-tiles').addEventListener('click', e => {
+  const b = e.target.closest('[data-goto]'); if (!b) return;
+  if (b.dataset.goto === 'overview-regions') { document.getElementById('overview-regions-table').scrollIntoView({ behavior:'smooth', block:'start' }); return; }
+  showTab(b.dataset.goto); window.scrollTo(0, 0);
+});
+
+function fmtMoney(cents){ return '$' + ((cents||0)/100).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}); }
+function fmtTime(t){ return t ? String(t).replace('T',' ').slice(0,16) : '—'; }
+function escapeHtml(s){ const d=document.createElement('div'); d.textContent = s==null?'':String(s); return d.innerHTML; }
+function regionName(id){ return (STATE.regions.find(r => r.id === id) || {}).name || 'unknown region'; }
+const plural = (n, one, many) => n === 1 ? one : many;
+const listNames = names => names.length > 3 ? names.slice(0,3).join(', ') + ` +${names.length-3} more` : names.join(', ');
+function toastMsg(text){
+  let el = document.getElementById('pp-toast');
+  if (!el) { el = document.createElement('div'); el.id = 'pp-toast'; el.style.cssText = 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--panel-2);color:var(--text);border:1px solid var(--border-2);padding:10px 16px;border-radius:8px;font-size:13px;z-index:300;box-shadow:0 6px 24px rgba(0,0,0,.35)'; document.body.appendChild(el); }
+  el.textContent = text; el.style.display = 'block';
+  clearTimeout(el._t); el._t = setTimeout(() => el.style.display = 'none', 3200);
+}
+// Server mode: call, then reload so every tab shows the server's view.
+async function serverDo(method, path, body, okMsg){
+  const r = await SERVER.req(method, path, body);
+  if (!r.ok) { toastMsg((r.data.error || ('HTTP ' + r.status))); return null; }
+  await refreshAll();
+  if (okMsg) toastMsg(okMsg);
+  return r.data;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Group overview
+// ══════════════════════════════════════════════════════════════════════════
+function policyBreaches(){
+  const p = STATE.policy || DEFAULT_POLICY;
+  const out = [];
+  STATE.regions.forEach(r => {
+    if (!r.reporting_sites) return;
+    if (r.totals.avg_gp_pct < p.gp_target_pct) out.push({ region: r.name, text: `GP ${r.totals.avg_gp_pct}% is under the ${p.gp_target_pct}% target` });
+    if (r.totals.avg_labour_pct > p.labour_cap_pct) out.push({ region: r.name, text: `Labour ${r.totals.avg_labour_pct}% is over the ${p.labour_cap_pct}% cap` });
+  });
+  return out;
+}
+function renderOverview(){
+  const g = overview();
+  const p = STATE.policy || DEFAULT_POLICY;
+  const t = g.totals;
+  document.getElementById('overview-sub').textContent = `${g.reporting_regions} of ${g.region_count} regions reporting · ${g.site_count} cafés · GP and labour weighted by revenue`;
+  const pendingEsc = STATE.escalations.filter(e => e.status === 'awaiting_decision');
+  const breaches = policyBreaches();
+  const stockRegions = STATE.regions.filter(r => r.totals.stock_out > 0).map(r => r.name);
+  const openReq = STATE.requests.filter(r => r.status === 'sent').length;
+  const attn = [];
+  if (pendingEsc.length) attn.push({ tone:'', n:pendingEsc.length, text:`${plural(pendingEsc.length,'escalation needs','escalations need')} your decision`, sub:listNames(pendingEsc.map(e => `${e.region_name}: ${e.subject}`)), tab:'escalations', go:'Open Escalations' });
+  if (g.stale_regions.length) attn.push({ tone:'danger', n:g.stale_regions.length, text:`${plural(g.stale_regions.length,'region hasn’t','regions haven’t')} reported in ${STALE_AFTER_DAYS} days`, sub:listNames(g.stale_regions), tab:'overview-regions', go:'See regions' });
+  if (breaches.length) attn.push({ tone:'', n:breaches.length, text:`${plural(breaches.length,'policy breach','policy breaches')}`, sub:listNames(breaches.map(b => `${b.region} ${b.text}`)), tab:'overview-regions', go:'See regions' });
+  if (t.stock_out) attn.push({ tone:'danger', n:t.stock_out, text:`${plural(t.stock_out,'item','items')} out of stock across the group`, sub:listNames(stockRegions), tab:'overview-regions', go:'See regions' });
+  if (openReq) attn.push({ tone:'', n:openReq, text:`${plural(openReq,'request is','requests are')} waiting on a region`, sub:'', tab:'messages', go:'Open requests' });
+  const attnHtml = attn.length
+    ? `<div class="attention">${attn.map(a => `<button type="button" class="attn ${a.tone}" data-goto="${a.tab}">
+        <span class="attn-num">${a.n}</span>
+        <span class="attn-text">${escapeHtml(a.text)}${a.sub ? `<small>${escapeHtml(a.sub)}</small>` : ''}</span>
+        <span class="attn-go">${a.go} →</span></button>`).join('')}</div>`
+    : `<div class="attn-calm">${STATE.regions.length ? 'Nothing needs you right now. Every region is reporting and within policy.' : 'No regions linked yet. Go to Regions to generate a code for your first regional PP Command.'}</div>`;
+  document.getElementById('overview-tiles').innerHTML = `
+    <div class="section-label">Needs attention</div>
+    ${attnHtml}
+    <div class="section-label">This week, whole group</div>
+    <div class="tiles hero">
+      <div class="tile"><div class="tile-label">Revenue (7d)</div><div class="tile-value">${fmtMoney(t.revenue_week*100)}</div><div class="tile-note">Across ${g.site_count} ${plural(g.site_count,'café','cafés')} in ${g.region_count} ${plural(g.region_count,'region','regions')}</div></div>
+      <div class="tile"><div class="tile-label">Group GP%</div><div class="tile-value ${t.gp_pct<p.gp_target_pct?'warn':'ok'}">${t.gp_pct}%</div><div class="tile-note">Group target ${p.gp_target_pct}% or more</div></div>
+      <div class="tile"><div class="tile-label">Group labour%</div><div class="tile-value ${t.labour_pct>p.labour_cap_pct?'warn':'ok'}">${t.labour_pct}%</div><div class="tile-note">Group cap ${p.labour_cap_pct}%</div></div>
+    </div>
+    <div class="tiles minor">
+      <div class="tile"><div class="tile-label">Covers (7d)</div><div class="tile-value">${(t.covers_week||0).toLocaleString()}</div></div>
+      <div class="tile"><div class="tile-label">Stock out</div><div class="tile-value ${t.stock_out?'danger':''}">${t.stock_out}</div></div>
+      <div class="tile"><div class="tile-label">Stock low</div><div class="tile-value">${t.stock_low}</div></div>
+      <div class="tile"><div class="tile-label">Open orders</div><div class="tile-value">${t.open_orders}</div></div>
+    </div>`;
+  const rows = STATE.regions.map(r => {
+    if (!r.reporting_sites) return `<tr><td>${escapeHtml(r.name)}</td><td class="mono">0/${r.site_count}</td><td colspan="5" class="mono" style="color:var(--faint)">no café has sent a snapshot yet</td></tr>`;
+    const rt = r.totals;
+    return `<tr>
+      <td>${escapeHtml(r.name)}</td>
+      <td class="mono">${r.reporting_sites}/${r.site_count}</td>
+      <td class="mono">${fmtMoney(rt.revenue_week*100)}</td>
+      <td class="mono" style="color:${rt.avg_gp_pct<p.gp_target_pct?'var(--amber)':'inherit'}">${rt.avg_gp_pct}%</td>
+      <td class="mono" style="color:${rt.avg_labour_pct>p.labour_cap_pct?'var(--amber)':'inherit'}">${rt.avg_labour_pct}%</td>
+      <td>${rt.stock_out>0?`<span class="pill danger">${rt.stock_out} out</span>`:'<span class="pill ok">ok</span>'}</td>
+      <td class="mono" style="color:var(--faint)">${fmtTime(r.last_snapshot_at)}${r.stale?' <span class="pill danger">stale</span>':''}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('overview-regions-table').innerHTML = STATE.regions.length
+    ? `<table><tr><th>Region</th><th>Cafés</th><th>Revenue</th><th>GP%</th><th>Labour%</th><th>Stock</th><th>Latest snapshot</th></tr>${rows}</table>`
+    : `<div class="empty">No regions linked yet.</div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Regions / link codes
+// ══════════════════════════════════════════════════════════════════════════
+function linkCodeIsLive(c){ return c.status === 'pending' && (!c.expires_at || new Date(c.expires_at) > new Date()); }
+function renderRegions(){
+  document.getElementById('regions-table').innerHTML = STATE.regions.length
+    ? `<table><tr><th>Region</th><th>PP Command</th><th>Cafés</th><th>Linked</th>${isDemoMode() && !SERVER.on() ? '<th></th>' : ''}</tr>${STATE.regions.map(r => `<tr>
+        <td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.org_name || r.name)}</td><td class="mono">${r.site_count}</td>
+        <td class="mono" style="color:var(--faint)">${fmtTime(r.linked_at)}</td>
+        ${isDemoMode() && !SERVER.on() ? `<td><button class="btn small ghost" onclick="simulateRegionReport('${r.id}')">Simulate new week</button></td>` : ''}
+      </tr>`).join('')}</table>`
+    : `<div class="empty">No regions linked yet — generate a code above and enter it in a regional PP Command.</div>`;
+  const pending = STATE.linkCodes.filter(linkCodeIsLive);
+  document.getElementById('link-codes-table').innerHTML = pending.length
+    ? `<table><tr><th>Code</th><th>Hint</th><th>Expires</th><th></th></tr>${pending.map(c => `<tr>
+        <td class="mono">${escapeHtml(c.code)}</td><td>${escapeHtml(c.hint || '—')}</td>
+        <td class="mono" style="color:var(--faint)">${fmtTime(c.expires_at)}</td>
+        <td style="display:flex;gap:6px">
+          ${isDemoMode() && !SERVER.on() ? `<button class="btn small" onclick="simulateLinking('${c.id}')">Simulate region linking</button>` : ''}
+          <button class="btn small ghost" onclick="revokeLinkCode('${c.id}')">Revoke</button>
+        </td></tr>`).join('')}</table>`
+    : `<div class="empty">No pending codes.</div>`;
+}
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function demoCode(){ const b = new Uint8Array(8); crypto.getRandomValues(b); return Array.from(b, x => CODE_ALPHABET[x % CODE_ALPHABET.length]).join(''); }
+async function generateLinkCode(){
+  const hint = document.getElementById('link-name-hint').value.trim();
+  let code;
+  if (SERVER.on()) {
+    const c = await serverDo('POST', '/api/org/regions/link-codes', { hint });
+    if (!c) return; code = c.code;
+  } else {
+    if (!isDemoMode()) { toastMsg('Connect to the PP server first — codes made offline won’t work for a real region.'); openSettings(); return; }
+    code = demoCode();
+    STATE.linkCodes.push({ id: uid('code'), code, hint, status: 'pending', created_at: nowIso(), expires_at: new Date(Date.now() + 86400000).toISOString() });
+    await saveState(true);
+  }
+  document.getElementById('link-name-hint').value = '';
+  document.getElementById('new-link-code-panel').classList.remove('hidden');
+  document.getElementById('new-link-code-value').value = code;
+  renderRegions();
+}
+function copyLinkCode(){ const el = document.getElementById('new-link-code-value'); el.select(); navigator.clipboard?.writeText(el.value); }
+async function revokeLinkCode(id){
+  if (SERVER.on()) return serverDo('DELETE', '/api/org/regions/link-codes/' + id);
+  STATE.linkCodes = STATE.linkCodes.filter(c => c.id !== id);
+  await saveState(true); renderRegions();
+}
+// Demo only: act out a region entering the code in its own PP Command.
+async function simulateLinking(codeId){
+  const code = STATE.linkCodes.find(c => c.id === codeId);
+  if (!code) return;
+  const name = code.hint || prompt('Region name?') || 'New region';
+  const n = 1 + Math.floor(Math.random()*3);
+  STATE.regions.push(buildRegion(uid('region'), name, Array.from({ length: n }, (_, i) => randomSite(`${name} café ${i+1}`))));
+  code.status = 'used'; code.used_at = nowIso();
+  STATE.notifications.unshift({ id: uid('notif'), type: 'region_linked', subject: `${name} linked to head office`, body: null, status: 'unread', created_at: nowIso() });
+  await saveState(true); renderAll();
+}
+async function simulateRegionReport(regionId){
+  const i = STATE.regions.findIndex(r => r.id === regionId);
+  if (i < 0) return;
+  const r = STATE.regions[i];
+  STATE.regions[i] = buildRegion(r.id, r.name, r.sites.map(s => randomSite(s.name)), { linked_at: r.linked_at, payroll: r.payroll });
+  await saveState(true); renderAll();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Region viewer — read-only
+// ══════════════════════════════════════════════════════════════════════════
+function populateViewerRegionSelect(){
+  const sel = document.getElementById('viewer-region-select');
+  const cur = sel.value;
+  sel.innerHTML = STATE.regions.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+  if (cur) sel.value = cur;
+}
+function loadRegionViewer(){
+  const r = STATE.regions.find(x => x.id === document.getElementById('viewer-region-select').value);
+  const el = document.getElementById('viewer-content');
+  if (!r) { el.innerHTML = `<div class="panel"><div class="empty">Link a region first.</div></div>`; return; }
+  const t = r.totals;
+  el.innerHTML = `
+    <div class="tiles">
+      <div class="tile"><div class="tile-label">Revenue (7d)</div><div class="tile-value">${fmtMoney(t.revenue_week*100)}</div></div>
+      <div class="tile"><div class="tile-label">GP%</div><div class="tile-value">${t.avg_gp_pct}%</div></div>
+      <div class="tile"><div class="tile-label">Labour%</div><div class="tile-value">${t.avg_labour_pct}%</div></div>
+      <div class="tile"><div class="tile-label">Café approvals pending</div><div class="tile-value ${r.approvals_pending?'warn':''}">${r.approvals_pending}</div></div>
+      <div class="tile"><div class="tile-label">Shared labour (period)</div><div class="tile-value">${fmtMoney(r.payroll.gross_cents)}</div><div class="tile-note">${r.payroll.sites_sharing} of ${r.site_count} ${plural(r.site_count,'café shares','cafés share')} hours</div></div>
+    </div>
+    <div class="panel"><div class="panel-head">Per-café headline figures</div>${
+      r.sites.length ? `<table><tr><th>Café</th><th>Revenue</th><th>GP%</th><th>Labour%</th><th>Covers</th><th>Stock out</th><th>Stock low</th><th>Snapshot</th></tr>${r.sites.map(s => s.received_at ? `<tr>
+        <td>${escapeHtml(s.name)}</td><td class="mono">${fmtMoney(s.revenue_week*100)}</td><td class="mono">${s.gp_pct}%</td><td class="mono">${s.labour_pct}%</td>
+        <td class="mono">${s.covers_week}</td><td class="mono">${s.stock_out}</td><td class="mono">${s.stock_low}</td><td class="mono" style="color:var(--faint)">${fmtTime(s.received_at)}</td></tr>`
+        : `<tr><td>${escapeHtml(s.name)}</td><td colspan="7" class="mono" style="color:var(--faint)">no snapshot yet</td></tr>`).join('')}</table>`
+      : `<div class="empty">No cafés in this region yet.</div>`}</div>
+    <div class="page-sub">Which items are out of stock, menus and staff stay in the regional PP Command — ask the region if you need them.</div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Group policy
+// ══════════════════════════════════════════════════════════════════════════
+function renderPolicy(){
+  const p = STATE.policy || DEFAULT_POLICY;
+  document.getElementById('policy-sub').textContent = p.version ? `version ${p.version} · updated ${fmtTime(p.updated_at)} · inherited by every region` : 'not set yet — the defaults below apply until you save';
+  document.getElementById('pol-gp').value = p.gp_target_pct;
+  document.getElementById('pol-labour').value = p.labour_cap_pct;
+  document.getElementById('pol-spend').value = Math.round(p.spend_approval_cents / 100);
+  document.getElementById('pol-suppliers').value = (p.approved_suppliers || []).join('\n');
+  document.getElementById('pol-notes').value = p.notes || '';
+}
+async function savePolicy(){
+  const val = id => document.getElementById(id).value;
+  const gp = Number(val('pol-gp')), labour = Number(val('pol-labour')), spend = Number(val('pol-spend'));
+  if (!(gp >= 0 && gp <= 100) || !(labour >= 0 && labour <= 100) || !(spend >= 0)) return toastMsg('GP and labour must be 0–100, and the spend threshold 0 or more.');
+  const policy = { gp_target_pct: gp, labour_cap_pct: labour, spend_approval_cents: Math.round(spend * 100),
+    approved_suppliers: val('pol-suppliers').split('\n').map(s => s.trim()).filter(Boolean), notes: val('pol-notes').trim() };
+  if (SERVER.on()) {
+    const r = await SERVER.req('PUT', '/api/org/group-policy', { policy, version: (STATE.policy || DEFAULT_POLICY).version });
+    if (r.status === 409) { STATE.policy = r.data.current; renderPolicy(); return toastMsg('Someone else changed the policy — reloaded their version. Make your change again.'); }
+    if (!r.ok) return toastMsg(r.data.error || ('HTTP ' + r.status));
+    await refreshAll();
+  } else {
+    STATE.policy = { ...policy, version: (STATE.policy.version || 0) + 1, updated_at: nowIso() };
+    await saveState(true); renderAll();
+  }
+  toastMsg(`Group policy v${STATE.policy.version} saved and sent to ${STATE.regions.length} ${plural(STATE.regions.length,'region','regions')}.`);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Escalations — raised by regions, decided here by a person
+// ══════════════════════════════════════════════════════════════════════════
+function renderEscalations(){
+  const open = e => e.status === 'awaiting_decision';
+  const list = [...STATE.escalations].sort((a, b) => (open(b) - open(a)) || (new Date(b.created_at) - new Date(a.created_at)));
+  const pending = list.filter(open).length;
+  document.getElementById('esc-badge').textContent = pending;
+  document.getElementById('esc-badge').classList.toggle('hidden', pending === 0);
+  document.getElementById('escalations-log').innerHTML = list.length ? list.map(e => {
+    const cls = open(e) ? 'approval' : e.status === 'approved' ? 'completed' : 'declined';
+    return `<div class="log-entry ${cls}">
+      <div class="log-time">${fmtTime(e.created_at)}</div>
+      <div class="log-dir">${escapeHtml(e.region_name)}</div>
+      <div class="log-body">
+        <span class="tag">${escapeHtml(e.subject)}</span>
+        ${e.amount_cents ? ` <span class="pill info">${fmtMoney(e.amount_cents)}</span>` : ''}
+        <span class="pill muted">${e.status.replace('_', ' ')}</span>
+        ${e.body ? `<div class="log-note">${escapeHtml(e.body)}</div>` : ''}
+        ${e.decision_note ? `<div class="log-note">Decision: ${escapeHtml(e.decision_note)}</div>` : ''}
+        ${open(e) ? `<div style="display:flex;gap:6px;margin-top:6px">
+          <button class="btn small" onclick="decideEscalation('${e.id}','approved')">Approve</button>
+          <button class="btn small ghost" onclick="decideEscalation('${e.id}','declined')">Decline</button></div>` : ''}
+      </div></div>`;
+  }).join('') : `<div class="empty">No escalations yet.</div>`;
+}
+async function decideEscalation(id, decision){
+  const note = prompt(`${decision === 'approved' ? 'Approve' : 'Decline'} — note for the region (optional):`);
+  if (note === null) return;
+  if (SERVER.on()) return serverDo('POST', `/api/org/escalations/${id}/${decision === 'approved' ? 'approve' : 'decline'}`, { note: note.trim() || undefined }, 'Decision sent to the region.');
+  const e = STATE.escalations.find(x => x.id === id);
+  if (!e || e.status !== 'awaiting_decision') return;
+  Object.assign(e, { status: decision, decision_note: note.trim() || null, decided_at: nowIso() });
+  await saveState(true); renderAll();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Region requests — head office → a region's Ronin (never a café's Gavin)
+// ══════════════════════════════════════════════════════════════════════════
+function renderMessages(){
+  const list = [...STATE.requests].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  document.getElementById('messages-log').innerHTML = list.length ? list.map(r => `
+    <div class="log-entry ${r.status === 'answered' ? 'completed' : 'approval'}">
+      <div class="log-time">${fmtTime(r.created_at)}</div>
+      <div class="log-dir">hq → ${escapeHtml(r.region_name)}</div>
+      <div class="log-body">
+        <span class="tag">${escapeHtml(r.intent)}</span> <span class="pill muted">${r.status === 'sent' ? 'waiting on region' : 'answered'}</span>
+        ${r.note ? `<div class="log-note">${escapeHtml(r.note)}</div>` : ''}
+        ${r.response_text ? `<div class="log-note" style="color:var(--text)">↳ ${escapeHtml(r.response_text)}</div>` : ''}
+        ${r.status === 'sent' && isDemoMode() && !SERVER.on() ? `<div style="margin-top:6px"><button class="btn small ghost" onclick="simulateRegionAnswer('${r.id}')">Simulate region answer</button></div>` : ''}
+      </div></div>`).join('') : `<div class="empty">No requests yet.</div>`;
+}
+async function createRegionRequest(region_id, intent, note){
+  intent = String(intent || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  if (!intent) return { error: 'intent required' };
+  if (SERVER.on()) {
+    const r = await SERVER.req('POST', '/api/org/region-requests', { region_id, intent, note });
+    if (!r.ok) return { error: r.data.error || ('HTTP ' + r.status) };
+    await refreshAll();
+    return { ok: true, request: r.data.request };
+  }
+  const region = STATE.regions.find(x => x.id === region_id);
+  if (!region) return { error: 'region not found for this head office' };
+  const req = { id: uid('req'), region_org_id: region.id, region_name: region.name, intent, note: note || null, status: 'sent', created_at: nowIso() };
+  STATE.requests.push(req);
+  await saveState(true); renderAll();
+  return { ok: true, request: req };
+}
+async function simulateRegionAnswer(id){
+  const r = STATE.requests.find(x => x.id === id);
+  if (!r) return;
+  Object.assign(r, { status: 'answered', response_text: 'Looked into it — done (simulated answer).', answered_at: nowIso() });
+  await saveState(true); renderAll();
+}
+function openSendRequest(){
+  if (!STATE.regions.length) return toastMsg('Link a region first.');
+  document.getElementById('req-region').innerHTML = STATE.regions.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+  document.getElementById('req-intent').value = ''; document.getElementById('req-note').value = '';
+  document.getElementById('request-overlay').classList.add('show');
+}
+function closeRequestModal(){ document.getElementById('request-overlay').classList.remove('show'); }
+async function submitRequestModal(){
+  const out = await createRegionRequest(document.getElementById('req-region').value, document.getElementById('req-intent').value, document.getElementById('req-note').value.trim());
+  if (out.error) return toastMsg(out.error);
+  closeRequestModal(); toastMsg('Sent to the region’s Ronin.');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Notifications
+// ══════════════════════════════════════════════════════════════════════════
+function renderNotifications(){
+  const list = [...STATE.notifications].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const unread = list.filter(n => n.status === 'unread').length;
+  document.getElementById('notif-badge').textContent = unread;
+  document.getElementById('notif-badge').classList.toggle('hidden', unread === 0);
+  const label = { escalation: ['warn', 'escalation'], region_linked: ['ok', 'region linked'], region_answer: ['info', 'answer'] };
+  document.getElementById('notifications-list').innerHTML = list.length
+    ? `<table><tr><th>Type</th><th>Subject</th><th>Status</th><th>When</th><th></th></tr>${list.map(n => { const [cls, txt] = label[n.type] || ['muted', n.type]; return `<tr>
+        <td><span class="pill ${cls}">${escapeHtml(txt)}</span></td>
+        <td>${escapeHtml(n.subject)}${n.body ? `<div class="page-sub" style="margin-top:2px">${escapeHtml(n.body)}</div>` : ''}</td>
+        <td><span class="pill ${n.status === 'unread' ? 'danger' : 'muted'}">${n.status}</span></td>
+        <td class="mono" style="color:var(--faint)">${fmtTime(n.created_at)}</td>
+        <td>${n.status === 'unread' ? `<button class="btn small ghost" onclick="markRead('${n.id}')">Mark read</button>` : ''}</td></tr>`; }).join('')}</table>`
+    : `<div class="empty">No notifications.</div>`;
+}
+async function markRead(id){
+  if (SERVER.on()) return serverDo('POST', `/api/org/notifications/${id}/read`);
+  const n = STATE.notifications.find(n => n.id === id);
+  if (n) n.status = 'read';
+  await saveState(true); renderAll();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Chat with Ronin — head-office Ronin, scoped to this group only.
+// ══════════════════════════════════════════════════════════════════════════
+const RONIN_API_URL = 'https://api.anthropic.com/v1/messages';
+function roninHeaders(){
+  const h = { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01' };
+  const k = lsGet(LS.apiKey);
+  if (k) { h['x-api-key'] = k; h['anthropic-dangerous-direct-browser-access'] = 'true'; }
+  else if (STORE.backend !== 'artifact') throw new Error('No API key set — open Settings and paste an Anthropic API key.');
+  return h;
+}
+const RONIN_TOOLS = [
+  { name: 'get_group_overview', description: 'Totals across every region: weekly revenue, revenue-weighted GP% and labour%, covers, stock-out/low counts, open orders, and which regions have stopped reporting.', input_schema: { type: 'object', properties: {} } },
+  { name: 'list_regions', description: 'Every regional PP Command linked to this head office, with id, name, café count and headline totals.', input_schema: { type: 'object', properties: {} } },
+  { name: 'get_region_report', description: "One region's headline figures, per café. Head office has nothing deeper than this — no stock item names, menus or staff.", input_schema: { type: 'object', properties: { region_id: { type: 'string', description: 'from list_regions' } }, required: ['region_id'] } },
+  { name: 'get_group_policy', description: 'The group policy every region inherits (GP target, labour cap, spend approval threshold, approved suppliers, notes) and where regions currently breach it.', input_schema: { type: 'object', properties: {} } },
+  { name: 'get_escalations', description: 'Escalations raised by regions, optionally by status. Ronin cannot approve or decline them — a person does, in the Escalations tab.', input_schema: { type: 'object', properties: { status: { type: 'string', enum: ['awaiting_decision', 'approved', 'declined', 'withdrawn'] } } } },
+  { name: 'get_region_requests', description: 'Requests head office has sent to regions, with their answers.', input_schema: { type: 'object', properties: { region_id: { type: 'string', description: 'optional — one region' } } } },
+  { name: 'send_region_request', description: "Send a request to one region's Ronin — to look into something, report back, or act within that region. That region handles it under its own rules, including any café manager approval. Head office never contacts a café directly.",
+    input_schema: { type: 'object', properties: { region_id: { type: 'string' }, intent: { type: 'string', description: 'short snake_case, e.g. review_labour_roster' }, note: { type: 'string', description: 'one plain-English sentence' } }, required: ['region_id', 'intent', 'note'] } },
+];
+async function executeRoninTool(name, input, actionsTaken){
+  try {
+    switch (name) {
+      case 'get_group_overview': return overview();
+      case 'list_regions': return { regions: STATE.regions.map(r => ({ id: r.id, name: r.name, cafe_count: r.site_count, reporting: r.reporting_sites, stale: r.stale, totals: r.totals })) };
+      case 'get_region_report': { const r = STATE.regions.find(x => x.id === input.region_id); return r || { error: 'region not found' }; }
+      case 'get_group_policy': return { policy: STATE.policy, breaches: policyBreaches() };
+      case 'get_escalations': return { escalations: STATE.escalations.filter(e => !input.status || e.status === input.status) };
+      case 'get_region_requests': return { requests: STATE.requests.filter(r => !input.region_id || r.region_org_id === input.region_id) };
+      case 'send_region_request': {
+        const out = await createRegionRequest(input.region_id, input.intent, input.note);
+        if (out.ok && actionsTaken) actionsTaken.push({ region: out.request.region_name, intent: out.request.intent });
+        return out.ok ? { ok: true, request_id: out.request.id, status: out.request.status } : out;
+      }
+      default: return { error: 'unknown tool ' + name };
+    }
+  } catch (e) { return { error: e.message }; }
+}
+
+function chatBubble(role, content){
+  const isUser = role === 'user';
+  return `<div style="align-self:${isUser?'flex-end':'flex-start'};max-width:75%">
+    <div style="font-family:var(--mono);font-size:10px;color:var(--faint);margin-bottom:3px;text-align:${isUser?'right':'left'}">${isUser?'you':'ronin'}</div>
+    <div style="background:${isUser?'var(--teal)':'var(--panel-2)'};color:${isUser?'#fff':'var(--text)'};padding:10px 13px;border-radius:8px;white-space:pre-wrap;font-size:13px;line-height:1.5">${escapeHtml(content)}</div>
+  </div>`;
+}
+const CHAT_SURFACES = [
+  { messages: 'chat-messages', typing: 'chat-typing' },
+  { messages: 'ronin-widget-messages', typing: 'ronin-widget-typing' },
+];
+function renderChat(){
+  CHAT_SURFACES.forEach(s => {
+    const el = document.getElementById(s.messages);
+    el.innerHTML = STATE.chat.length ? STATE.chat.map(m => chatBubble(m.role, m.content)).join('') : `<div class="empty">No conversation yet — ask Ronin about your regions below.</div>`;
+    el.scrollTop = el.scrollHeight;
+  });
+}
+function setTyping(on){ CHAT_SURFACES.forEach(s => document.getElementById(s.typing).classList.toggle('hidden', !on)); }
+function appendActionLine(a){
+  const html = `<div style="align-self:flex-start;font-family:var(--mono);font-size:11px;color:var(--amber);border-left:2px solid var(--amber);padding-left:8px">→ sent to ${escapeHtml(a.region)} Ronin: ${escapeHtml(a.intent)} (see Region requests)</div>`;
+  CHAT_SURFACES.forEach(s => { const el = document.getElementById(s.messages); el.insertAdjacentHTML('beforeend', html); el.scrollTop = el.scrollHeight; });
+}
+function toggleRoninWidget(){
+  const w = document.getElementById('ronin-widget');
+  const opening = !w.classList.contains('show');
+  w.classList.toggle('show');
+  if (opening) { renderChat(); document.getElementById('ronin-launcher-badge').classList.add('hidden'); setTimeout(() => document.getElementById('ronin-widget-input').focus(), 50); }
+}
+function expandRoninWidget(){ document.getElementById('ronin-widget').classList.remove('show'); showTab('chat'); }
+
+async function sendChatMessage(source){
+  const input = document.getElementById(source === 'widget' ? 'ronin-widget-input' : 'chat-input');
+  const message = input.value.trim();
+  if (!message) return;
+  input.value = '';
+  STATE.chat.push({ role: 'user', content: message });
+  await saveState(true);
+  renderChat(); setTyping(true);
+  try {
+    const actionsTaken = [];
+    const sys = `You are Ronin, the AI operations assistant for the head office of "${STATE.orgName}" inside PP Command. This is the head-office PP Command: it has no cafés of its own. Each region runs its own PP Command with its own Ronin, and each café has its own Gavin. You oversee every region through the headline figures they share — you do not have café-level detail such as which items are out of stock, menus or staff, so if asked for it, say it lives in the regional PP Command and offer to request it with send_region_request. You talk only to regional Ronins, never to a café's Gavin. Group policy is set by head-office staff and inherited by every region; you can report on it and on breaches but cannot change it. Escalations from regions are decided by a person in the Escalations tab — you can summarise and recommend, never approve or decline. Use your tools to ground every answer in this group's real data rather than guessing. Keep replies concise and operational. When you send a request to a region, say plainly what you asked.`;
+    const history = STATE.chat.slice(-11, -1).filter(m => m.content && !/^Error/.test(m.content)).map(m => ({ role: m.role, content: m.content }));
+    const working = [...history, { role: 'user', content: message }];
+    let finalText = '';
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45000);
+    for (let i = 0; i < 6; i++) {
+      const resp = await fetch(RONIN_API_URL, { method: 'POST', headers: roninHeaders(), signal: controller.signal,
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, system: sys, tools: RONIN_TOOLS, messages: working }) });
+      const data = await resp.json();
+      if (data.error) { finalText = 'Error: ' + data.error.message; break; }
+      const content = data.content || [];
+      const toolUses = content.filter(b => b.type === 'tool_use');
+      const texts = content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+      if (texts) finalText += (finalText ? '\n' : '') + texts;
+      if (!toolUses.length) break;
+      working.push({ role: 'assistant', content });
+      const results = [];
+      for (const tu of toolUses) results.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(await executeRoninTool(tu.name, tu.input, actionsTaken)) });
+      working.push({ role: 'user', content: results });
+    }
+    clearTimeout(timer);
+    STATE.chat.push({ role: 'assistant', content: finalText || '(no response)' });
+    await saveState(true);
+    setTyping(false); renderChat();
+    actionsTaken.forEach(appendActionLine);
+    const widgetOpen = document.getElementById('ronin-widget').classList.contains('show');
+    const tabActive = !document.getElementById('tab-chat').classList.contains('hidden');
+    if (!widgetOpen && !tabActive) { const b = document.getElementById('ronin-launcher-badge'); b.textContent = '1'; b.classList.remove('hidden'); }
+    renderAll(true);
+  } catch (e) {
+    setTyping(false);
+    STATE.chat.push({ role: 'assistant', content: 'Error reaching Ronin: ' + (e.name === 'AbortError' ? 'timed out after 45s' : e.message) });
+    await saveState(true); renderChat();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Render everything
+// ══════════════════════════════════════════════════════════════════════════
+function renderConnection(){
+  const on = SERVER.on();
+  document.getElementById('live-label').textContent = on ? 'Connected to PP server' : isDemoMode() ? 'Demo · this browser only' : 'Not connected · this browser only';
+  document.getElementById('live-dot').classList.toggle('off', !on);
+  const banner = document.getElementById('tier-banner');
+  const wrongTier = on && STATE.commandTier && STATE.commandTier !== 'head_office';
+  banner.classList.toggle('hidden', !wrongTier);
+  if (wrongTier) banner.textContent = `${STATE.orgName} is set up as a standard PP Command, not a head office. Use pp-command-ronin.html for it, or ask Perpetual Pantries to change its PP Command type to Head office in PPcanopy.`;
+}
+function renderAll(skipChat){
+  document.getElementById('org-name-label').textContent = (STATE.orgName || 'group') + ' · head office';
+  renderConnection();
+  renderOverview();
+  renderRegions();
+  populateViewerRegionSelect();
+  renderPolicy();
+  renderEscalations();
+  renderMessages();
+  renderNotifications();
+  if (!skipChat) renderChat();
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeRequestModal(); closeSettings(); }
+});
+(async function init(){
+  await loadState();
+  renderAll();
+  if (SERVER.on()) setInterval(refreshAll, 60 * 1000);
+})();
+</script>
+</body>
+</html>

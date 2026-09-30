@@ -474,7 +474,14 @@
         <div class="row">
           <div><label>ABN</label><input id="c-abn" placeholder="11 digits" inputmode="numeric"></div>
           <div><label>Account owner</label><select id="c-owner"><option value="">Unassigned</option></select></div>
+          <div><label>PP Command</label>
+            <select id="c-command">
+              <option value="standard">Standard — the client's sites link to it</option>
+              <option value="head_office">Head office — the client's regional PP Commands link to it</option>
+            </select>
+          </div>
         </div>
+        <p class="helptext">A client with several regions and one head office gets one PP Command per region (each added as its own client) plus one head-office client. Regions link to the head office from their own PP Command.</p>
         <div class="row">
           <div><label>Contact name</label><input id="c-contact" placeholder="e.g. Sam Lee"></div>
           <div><label>Contact email</label><input id="c-email" placeholder="ops@client.com.au"></div>
@@ -1124,7 +1131,7 @@ setInterval(()=>{ if(document.visibilityState==='visible' && Date.now()-CLOUD.la
 // Create the org on the server for a local client record; returns a one-time,
 // 24h org-level link code (not a raw key — PP Command claims it itself).
 async function serverCreateOrg(client){
-  const r = await SERVER.req('POST', '/api/pp/clients', { name: client.name, sector: client.sector });
+  const r = await SERVER.req('POST', '/api/pp/clients', { name: client.name, sector: client.sector, ...(client.commandTier === 'head_office' ? { command_tier: 'head_office' } : {}) });
   if (!r.ok) throw new Error(r.data.error || ('HTTP ' + r.status));
   client.serverOrgId = r.data.client.id;
   return r.data.linkCode;
@@ -1153,6 +1160,9 @@ async function serverSyncClients(){
     if (!s) return;
     c.serverClaimed = s.claimed;
     c.serverSitesLinked = s.sites_linked;
+    c.commandTier = s.command_tier === 'head_office' ? 'head_office' : 'standard';
+    c.serverParentOrgId = s.parent_org_id || null;
+    c.serverRegionName = s.region_name || null;
     LINKED_SITES[c.serverOrgId] = s.venues || [];
     PLANNED_SITES[c.serverOrgId] = s.planned || [];
     // A site linked from a code PP Command made for one of our venues ties to that venue.
@@ -1304,7 +1314,7 @@ function showOrgLinkCodeOnce(client, linkCode){
   // instead, whose input field is selectable, and pre-fill it with the code so
   // Ctrl/Cmd+A, Ctrl/Cmd+C works even if the clipboard write above silently failed.
   prompt(
-    `Linking code for ${client.name} — expires ${expires}, single-use.${copied ? ' (Already copied to your clipboard — this is just a backup.)' : ' Select the text below and copy it (clipboard write failed).'}\n\nGive it to that client's PP Command console (Settings → Linking code). Nothing to lose if you close this without copying — just generate a new one from the client's profile.`,
+    `Linking code for ${client.name} — expires ${expires}, single-use.${copied ? ' (Already copied to your clipboard — this is just a backup.)' : ' Select the text below and copy it (clipboard write failed).'}\n\nGive it to that client's ${client.commandTier === 'head_office' ? 'head-office PP Command (pp-command-hq.html)' : 'PP Command console'} (Settings → Linking code). Nothing to lose if you close this without copying — just generate a new one from the client's profile.`,
     linkCode.code
   );
 }
@@ -2058,6 +2068,7 @@ document.getElementById('add-client-btn').addEventListener('click', async ()=>{
     contactEmail: document.getElementById('c-email').value.trim(),
     ownerId: document.getElementById('c-owner').value || null,
     notes: document.getElementById('c-notes').value.trim(),
+    commandTier: document.getElementById('c-command').value === 'head_office' ? 'head_office' : 'standard',
     venues: [],
     products: [],
     billing: defaultBilling()
@@ -2065,8 +2076,22 @@ document.getElementById('add-client-btn').addEventListener('click', async ()=>{
   if (SERVER.on()) { try { const c = clients[clients.length-1]; const linkCode = await serverCreateOrg(c); showOrgLinkCodeOnce(c, linkCode); } catch(e){ alert('Client saved locally, but the server org could not be created: ' + e.message); } }
   await saveClients();
   ['c-name','c-email','c-notes','c-abn','c-contact','c-phone','c-address'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('c-command').value = 'standard';
   renderClients();
 });
+
+// Head office / region relationship, from the server (a region links itself from its own PP Command).
+function commandRolePill(c){
+  if (c.commandTier === 'head_office') {
+    const n = c.serverOrgId ? clients.filter(x => x.serverParentOrgId === c.serverOrgId).length : 0;
+    return ` <span class="pill sent" title="Head-office PP Command: its regions' PP Commands link to it">🏢 Head office · ${n} region${n===1?'':'s'}</span>`;
+  }
+  if (c.serverParentOrgId) {
+    const hq = clients.find(x => x.serverOrgId === c.serverParentOrgId);
+    return ` <span class="pill sent" title="This client's PP Command reports to a head office">Region${c.serverRegionName ? ' ' + escapeHtml(c.serverRegionName) : ''} of ${escapeHtml(hq ? hq.name : 'a head office')}</span>`;
+  }
+  return '';
+}
 
 let editingClientId = null;
 function renderClients(){
@@ -2094,6 +2119,12 @@ function renderClients(){
         </div>
         <div class="row">
           <div><label>Contact email</label><input data-f="contactEmail" value="${escapeAttr(c.contactEmail||'')}"></div>
+          <div><label>PP Command</label>
+            <select data-f="commandTier">
+              <option value="standard">Standard — the client's sites link to it</option>
+              <option value="head_office" ${c.commandTier==='head_office'?'selected':''}>Head office — the client's regional PP Commands link to it</option>
+            </select>
+          </div>
           <div><label>Account owner</label>
             <select data-f="ownerId">
               <option value="">Unassigned</option>
@@ -2114,7 +2145,7 @@ function renderClients(){
     <div class="client-list-item" data-id="${c.id}">
       <div class="head">
         <div>
-          <div class="title">${escapeHtml(c.name)} <span class="pill ${computeBillingStatus(c).cls}">${computeBillingStatus(c).label}</span>${c.serverOrgId ? ` <span class="pill ${c.serverClaimed?'won':'draft'}">${c.serverClaimed?'🔗 Linked':'⏳ Not linked yet'}</span>` : ''}</div>
+          <div class="title">${escapeHtml(c.name)} <span class="pill ${computeBillingStatus(c).cls}">${computeBillingStatus(c).label}</span>${c.serverOrgId ? ` <span class="pill ${c.serverClaimed?'won':'draft'}">${c.serverClaimed?'🔗 Linked':'⏳ Not linked yet'}</span>` : ''}${commandRolePill(c)}</div>
           <div class="meta">${(()=>{ const miss = clientMissing(c); return miss.length ? `<span class="pill draft" title="Still to collect: ${escapeAttr(miss.join(', '))}">Missing: ${escapeHtml(miss.join(', '))}</span> ` : '<span class="pill won">Details complete</span> '; })()}${c.abn?('ABN '+escapeHtml(c.abn)+' · '):''}${escapeHtml(c.sector)} · ${c.serverOrgId ? (c.serverSitesLinked ?? c.venues.length) : c.venues.length} venue${(c.serverOrgId ? (c.serverSitesLinked ?? c.venues.length) : c.venues.length)===1?'':'s'} ${c.contactEmail?('· '+escapeHtml(c.contactEmail)):''}${c.ownerId ? (' · owner: '+escapeHtml((teamMembers.find(m=>m.id===c.ownerId)||{}).name||'—')) : ' · unassigned'}</div>
         </div>
         <div style="display:flex;gap:6px;">
@@ -2180,6 +2211,15 @@ document.getElementById('client-list').addEventListener('click', async e=>{
     client.contactEmail = item.querySelector('[data-f="contactEmail"]').value.trim();
     client.ownerId = item.querySelector('[data-f="ownerId"]').value || null;
     client.notes = item.querySelector('[data-f="notes"]').value.trim();
+    const tier = item.querySelector('[data-f="commandTier"]').value === 'head_office' ? 'head_office' : 'standard';
+    if (tier !== (client.commandTier || 'standard')) {
+      if (client.serverOrgId && SERVER.on()) {
+        // The server guards the rules (a head office has no sites; it can't stop being one while regions are linked).
+        const r = await SERVER.req('PATCH', `/api/pp/clients/${client.serverOrgId}`, { command_tier: tier === 'head_office' ? 'head_office' : 'compliance' });
+        if (!r.ok) { alert('PP Command type not changed: ' + (r.data.error || ('HTTP ' + r.status))); return; }
+      }
+      client.commandTier = tier;
+    }
     editingClientId = null;
     await saveClients();
     renderClients();

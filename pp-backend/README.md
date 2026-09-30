@@ -5,6 +5,7 @@ The service that connects the three Perpetual Pantries apps so their agents can 
 - **PP** (a café's app, Gavin) → links to an org with a code, pushes a promoted weekly snapshot, receives Ronin's requests in an inbox, acks them.
 - **PP Command** (an org's console, Ronin) → issues link codes, reads promoted site data, sends requests to sites (approval-gated), answers requests from Canopy.
 - **PPcanopy** (PP's own console, Canopy) → creates clients (= orgs) and a one-time org-level link code, reads menu items and org aggregates, queues operator-gated asks to a client's Ronin.
+- **PP Command HQ** (`../pp-command-hq.html`, a client group's head office) → for a client with several regions: each region runs its own PP Command (its own org), and the head office is an org with PP Command type *head office* (`command_tier = 'head_office'`, chosen in PPcanopy) that has no cafés of its own. Regions link to it with a one-time code; head office reads their headline figures, sets group policy, decides escalations and sends requests to a region's Ronin.
 
 Implements steps 1–4 of `PP_Backend_API_Spec.md` (the "agents talking" milestone) plus staff auth and the encrypted site backup. The data boundary is enforced **server-side**: the snapshot endpoint rejects any key that isn't promoted, the Command serializer whitelists what Ronin can see, and site backups are AES-GCM encrypted per site and never readable by any org or PP route.
 
@@ -28,8 +29,9 @@ First run: create the Owner once — `POST /api/pp/staff/bootstrap { name, email
 | PPcanopy | Settings (this device) → PP server URL + staff email/password | logs in; `add_client` then shows the client's **one-time, 24h org-level link code** (not a raw key — nothing to leak if the screen is closed before it's copied, just regenerate) |
 | PP Command | Settings → PP server URL + link code | code from PPcanopy → claims it once via `POST /api/org/link/claim`, gets back the org key, stores it and switches to server mode — same as before from here on |
 | PP | Settings → PP Server URL + link code | code from PP Command → Sites → Generate link code; "Share staff hours" is the opt-in for org-level labour |
+| PP Command HQ | Settings → PP server URL + link code | the org-level code PPcanopy shows for a client whose PP Command type is *Head office*. Then Regions → Generate link code, and each region enters it in its own PP Command → Head office tab |
 
-Both tiers work the same way: an 8-char, single-use, 24h-expiry code minted by the parent, redeemed once by the child to get its real credential. Once claimed, a link is permanent — there is deliberately no unlink/revoke. If a code is lost or expires before anyone claims it, regenerate a new one (`POST /api/pp/clients/:id/link-code` for org-level, `POST /api/org/link-codes` for site-level); regenerating only works pre-claim — once a link exists, that endpoint refuses rather than silently invalidating a live console.
+All three links work the same way (region codes are `link_codes.kind = 'region'`): an 8-char, single-use, 24h-expiry code minted by the parent, redeemed once by the child to get its real credential. Once claimed, a link is permanent — there is deliberately no unlink/revoke. If a code is lost or expires before anyone claims it, regenerate a new one (`POST /api/pp/clients/:id/link-code` for org-level, `POST /api/org/link-codes` for site-level); regenerating only works pre-claim — once a link exists, that endpoint refuses rather than silently invalidating a live console.
 
 The three HTML files in this repo (`../Perpetual_Pantries_v1.html`, `../pp-command-ronin.html`, `../ppcanopy.html`) are already wired; each falls back to standalone/local behaviour when no server is configured.
 
@@ -63,6 +65,13 @@ The Vercel project `pp-backend-staging` (served at `pp-backend-staging.vercel.ap
 | staff | `POST|GET /api/pp/ronin-asks`, `POST …/:id/withdraw` | Canopy→Ronin queue |
 | staff | `GET /api/pp/notify/config`, `POST /api/pp/push/subscribe|unsubscribe` | push key (generated once, kept in `server_settings`) and whether email is set up; this device's push subscription |
 | staff (Sales Manager) | `POST /api/pp/notify`, `POST /api/pp/email` | tell the Owner and Sales Managers something needs approval (email via Resend + Web Push); email a client (e.g. a quote PDF) |
+| org (head office) | `POST|GET|DELETE /api/org/regions/link-codes` | one-time region codes; only for `command_tier = 'head_office'`, which can't issue site codes |
+| org (head office) | `GET /api/org/regions`, `/regions/:id`, `/group-overview` | each region's headline figures per café (revenue, GP%, labour%, covers, stock-out/low counts, open orders) and revenue-weighted group totals — never item names, menus or pay lines |
+| org (head office) | `GET|PUT /api/org/group-policy` | GP target, labour cap, spend approval threshold, approved suppliers, notes; a stale `version` → 409 with the current copy; regions are notified |
+| org (head office) | `GET /api/org/escalations`, `POST …/:id/approve|decline`; `POST|GET /api/org/region-requests` | decide what regions escalate; ask a region's Ronin something |
+| org (region) | `POST /api/org/head-office/claim`, `GET /api/org/head-office` | link to a head office (permanent); the policy it follows, its escalations, requests from head office, and exactly what head office can see of it |
+| org (region) | `POST /api/org/head-office/escalations`, `…/:id/withdraw`, `POST /api/org/head-office/requests/:id/answer` | escalate to head office; answer its requests |
+| staff | `PATCH /api/pp/clients/:id` | change a client's PP Command type (`compliance`, `multi_outlet`, `head_office`); refuses a head office with cafés, or un-heading one with regions linked |
 | staff | `GET /api/pp/store`, `PUT /api/pp/store/:key` | PPcanopy's own collections (clients, quotes, invoices, pricing, team, …) as versioned JSON; a stale `version` → 409 with the current copy; per-collection role rules (IT Staff never sees client data, pricing is Owner-only to change) |
 
 Writes accept an `Idempotency-Key` header (24 h replay). All lists page with `?limit=&cursor=`.
