@@ -328,6 +328,42 @@ test('site names belong to PP Command: link hint names the site, snapshots never
   assert.equal((await api('GET', '/api/venue/me')).status, 401);
 });
 
+test('planned sites: PPcanopy adds one, PP Command issues its code, redeeming links it and ties back to the billing venue', async () => {
+  const staff = { Authorization: 'Bearer ' + S.sales }, org = { 'X-Org-Key': S.orgKey };
+  const add = await api('POST', `/api/pp/clients/${S.orgId}/planned-sites`, { headers: staff, body: { name: 'Dock Kiosk', tier: 'T3', canopy_venue_id: 'cv_dock' } });
+  assert.equal(add.status, 201); assert.equal(add.json.status, 'waiting');
+  const again = await api('POST', `/api/pp/clients/${S.orgId}/planned-sites`, { headers: staff, body: { name: 'Dock Kiosk East', tier: 'Premium', canopy_venue_id: 'cv_dock' } });
+  assert.equal(again.json.id, add.json.id); assert.equal(again.json.name, 'Dock Kiosk East'); assert.equal(again.json.tier, null);   // upsert; non-T1..T4 tier ignored
+  await api('POST', `/api/pp/clients/${S.orgId}/planned-sites`, { headers: staff, body: { name: 'Dock Kiosk East', tier: 'T3', canopy_venue_id: 'cv_dock' } });
+  const junk = await api('POST', `/api/pp/clients/${S.orgId}/planned-sites`, { headers: staff, body: { name: 'Never mind', canopy_venue_id: 'cv_junk' } });
+  assert.equal((await api('DELETE', `/api/pp/clients/${S.orgId}/planned-sites/${junk.json.id}`, { headers: staff })).status, 200);
+
+  const waiting = await api('GET', '/api/org/planned-sites', { headers: org });
+  assert.equal(waiting.status, 200); assert.deepEqual(waiting.json.planned_sites.map(p => p.name), ['Dock Kiosk East']); assert.equal(waiting.json.planned_sites[0].code, null);
+  const c1 = await api('POST', `/api/org/planned-sites/${add.json.id}/link-code`, { headers: org });
+  const c2 = await api('POST', `/api/org/planned-sites/${add.json.id}/link-code`, { headers: org });
+  assert.equal(c2.status, 201); assert.equal(c2.json.hint, 'Dock Kiosk East');
+  assert.equal((await api('GET', '/api/org/planned-sites', { headers: org })).json.planned_sites[0].code, c2.json.code);
+  assert.equal((await api('POST', '/api/link/redeem', { body: { code: c1.json.code, venue: { venue_id: 'venue_dock', cafe_name: 'Café' } } })).status, 409);   // superseded code is revoked
+  const r = await api('POST', '/api/link/redeem', { body: { code: c2.json.code, venue: { venue_id: 'venue_dock', cafe_name: 'Café' } } });
+  assert.equal(r.status, 200); assert.equal(r.json.venue.name, 'Dock Kiosk East');
+
+  assert.equal((await api('GET', '/api/org/planned-sites', { headers: org })).json.planned_sites.length, 0);
+  const cl = (await api('GET', '/api/pp/clients', { headers: staff })).json.clients.find(c => c.id === S.orgId);
+  const v = cl.venues.find(x => x.id === r.json.site_id);
+  assert.equal(v.canopy_venue_id, 'cv_dock'); assert.equal(v.tier, 'T3'); assert.equal(cl.planned.length, 0);
+  assert.equal((await api('DELETE', `/api/pp/clients/${S.orgId}/planned-sites/${add.json.id}`, { headers: staff })).status, 404);   // linked ones stay
+  assert.equal((await api('POST', `/api/org/planned-sites/${add.json.id}/link-code`, { headers: org })).status, 404);
+
+  const d = await api('POST', `/api/pp/clients/${S.orgId}/planned-sites`, { headers: staff, body: { name: 'Pop-up', canopy_venue_id: 'cv_pop' } });
+  assert.equal((await api('POST', `/api/org/planned-sites/${d.json.id}/dismiss`, { headers: org })).status, 200);
+  assert.equal((await api('GET', '/api/org/planned-sites', { headers: org })).json.planned_sites.length, 0);
+  assert.equal((await api('GET', '/api/org/planned-sites', { headers: { 'X-Org-Key': 'nope' } })).status, 401);
+  // clean up so later org-wide assertions (site counts, aggregates) are unchanged
+  await pool.query('UPDATE link_codes SET site_id=NULL WHERE site_id=$1', [r.json.site_id]);
+  await pool.query('DELETE FROM sites WHERE id=$1', [r.json.site_id]);
+});
+
 test('org site tier patch: happy path, invalid enum, not found', async () => {
   const patched = await api('PATCH', `/api/org/sites/${S.siteId}`, { headers: { 'X-Org-Key': S.orgKey }, body: { tier: 'T3' } });
   assert.equal(patched.status, 200); assert.equal(patched.json.tier, 'T3');

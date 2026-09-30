@@ -84,6 +84,25 @@ pp.post('/api/pp/clients/:id/relink', requireStaff('Owner'), wrap(async (req, re
   await q(`UPDATE link_codes SET status='expired' WHERE org_id=$1 AND kind='org' AND status='pending'`, [o.id]);
   res.status(201).json(await issueOrgLinkCode(o.id));
 }));
+// A billing venue PPcanopy added for this client → "Waiting to link" in PP Command.
+// Upserts by PPcanopy's venue id, so re-sending just updates the name/tier.
+const PlannedBody = z.object({ name: z.string().trim().min(1).max(200), tier: z.string().max(40).optional(), canopy_venue_id: z.string().min(1).max(120) });
+pp.post('/api/pp/clients/:id/planned-sites', requireStaff('Sales Manager'), wrap(async (req, res) => {
+  const b = PlannedBody.parse(req.body || {});
+  const { rows: [o] } = await q('SELECT id FROM orgs WHERE id=$1', [req.params.id]);
+  if (!o) throw notFound('client not found');
+  const tier = /^T[1-4]$/.test(b.tier || '') ? b.tier : null;
+  const { rows: [p] } = await q(`
+    INSERT INTO planned_sites(org_id, name, tier, canopy_venue_id) VALUES ($1,$2,$3,$4)
+    ON CONFLICT (org_id, canopy_venue_id) DO UPDATE SET name=EXCLUDED.name, tier=EXCLUDED.tier
+    RETURNING id, name, tier, canopy_venue_id, status, site_id`, [o.id, b.name, tier, b.canopy_venue_id]);
+  res.status(201).json(p);
+}));
+pp.delete('/api/pp/clients/:id/planned-sites/:pid', requireStaff('Sales Manager'), wrap(async (req, res) => {
+  const { rowCount } = await q(`DELETE FROM planned_sites WHERE id=$1 AND org_id=$2 AND status<>'linked'`, [req.params.pid, req.params.id]);
+  if (!rowCount) throw notFound('waiting site not found');
+  res.json({ ok: true });
+}));
 pp.post('/api/pp/clients/:id/rotate-key', requireStaff('Owner'), wrap(async (req, res) => {
   const key = orgApiKey();
   const { rowCount } = await q('UPDATE orgs SET api_key_hash=$2, api_key_hint=$3 WHERE id=$1', [req.params.id, await hash(key), key.slice(-4)]);
@@ -93,9 +112,13 @@ pp.post('/api/pp/clients/:id/rotate-key', requireStaff('Owner'), wrap(async (req
 pp.get('/api/pp/clients', requireStaff('Sales Manager'), wrap(async (_req, res) => {
   const { rows } = await q(`SELECT o.id, o.name, o.sector, o.command_tier, o.created_at, (o.api_key_hash IS NOT NULL) AS claimed,
                               (SELECT count(*)::int FROM sites s WHERE s.org_id=o.id) AS sites_linked,
-                              (SELECT json_agg(json_build_object('id',s.id,'name',s.name,'tier',s.tier,'suburb',s.suburb,'state',s.state) ORDER BY s.linked_at) FROM sites s WHERE s.org_id=o.id) AS venues
+                              (SELECT json_agg(json_build_object('id',s.id,'name',s.name,'tier',s.tier,'suburb',s.suburb,'state',s.state,
+                                        'canopy_venue_id',(SELECT p.canopy_venue_id FROM planned_sites p WHERE p.site_id=s.id LIMIT 1)) ORDER BY s.linked_at)
+                                 FROM sites s WHERE s.org_id=o.id) AS venues,
+                              (SELECT json_agg(json_build_object('id',p.id,'name',p.name,'canopy_venue_id',p.canopy_venue_id) ORDER BY p.created_at)
+                                 FROM planned_sites p WHERE p.org_id=o.id AND p.status='waiting') AS planned
                             FROM orgs o ORDER BY o.created_at`);
-  res.json({ clients: rows.map(r => ({ ...r, venues: r.venues || [] })) });
+  res.json({ clients: rows.map(r => ({ ...r, venues: r.venues || [], planned: r.planned || [] })) });
 }));
 
 // ── 5.2 Products (menu items only — the boundary) ──────────────────────────

@@ -194,6 +194,9 @@
 
   .venue-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
   .vtag.linked{box-shadow:inset 0 0 0 1px var(--verdigris);}
+  .vstate{font-size:11px;color:var(--amber-ink);white-space:nowrap;margin-left:2px;}
+  .vtag button.vsend{all:unset;cursor:pointer;font-size:11px;font-weight:600;color:var(--verdigris-dark);text-decoration:underline;white-space:nowrap;width:auto;height:auto;padding:0 2px;}
+  .vtag button.vsend:hover{background:transparent;color:var(--verdigris);}
   .linked-sites{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;font-size:12.5px;}
   .ls-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-quiet);margin-right:2px;}
   .ls-empty{color:var(--ink-quiet);}
@@ -1102,6 +1105,12 @@ async function serverSyncClients(){
     c.serverClaimed = s.claimed;
     c.serverSitesLinked = s.sites_linked;
     LINKED_SITES[c.serverOrgId] = s.venues || [];
+    PLANNED_SITES[c.serverOrgId] = s.planned || [];
+    // A site linked from a code PP Command made for one of our venues ties to that venue.
+    LINKED_SITES[c.serverOrgId].forEach(site => {
+      const v = site.canopy_venue_id && (c.venues || []).find(v => v.id === site.canopy_venue_id);
+      if (v && v.serverSiteId !== site.id) { v.serverSiteId = site.id; renamed = true; }
+    });
     // A billing-list venue with the same name as a linked site gets tied to it, so later renames carry over.
     LINKED_SITES[c.serverOrgId].forEach(site => {
       if ((c.venues || []).some(v => v.serverSiteId === site.id)) return;
@@ -1122,7 +1131,31 @@ const sameName = (a, b) => String(a||'').trim().toLowerCase() === String(b||'').
 // Which billing-list venue a linked site corresponds to: tied by id, else same name (and not tied elsewhere).
 function venueForSite(client, site){
   const vs = client.venues || [];
-  return vs.find(v => v.serverSiteId === site.id) || vs.find(v => !v.serverSiteId && sameName(v.name, site.name)) || null;
+  return vs.find(v => v.serverSiteId === site.id) || (site.canopy_venue_id && vs.find(v => v.id === site.canopy_venue_id))
+      || vs.find(v => !v.serverSiteId && sameName(v.name, site.name)) || null;
+}
+const PLANNED_SITES = {};   // server org id → waiting sites PPcanopy has sent to PP Command (in memory)
+function isVenueWaiting(c, v){
+  const planned = c.serverOrgId && PLANNED_SITES[c.serverOrgId];
+  return !!(planned && planned.some(p => p.canopy_venue_id === v.id));
+}
+// Where a billing venue stands with PP Command: linked, waiting for a café to link, or not sent yet.
+function venueCommandStatus(c, v){
+  if (!c.serverOrgId || !SERVER.on() || !LINKED_SITES[c.serverOrgId]) return '';
+  if (isVenueLinked(c, v)) return '';
+  if (isVenueWaiting(c, v)) return `<span class="vstate" title="In PP Command under Sites → Waiting to link. It links when the café enters the code PP Command generates for it.">⏳ waiting</span>`;
+  return `<button class="vsend" data-action="send-venue" data-vid="${v.id}" title="Put this venue in PP Command under Sites → Waiting to link">Send to PP Command</button>`;
+}
+// Tell PP Command about a billing venue (upsert by venue id). Best-effort: the venue is saved either way.
+async function sendVenueToCommand(client, v){
+  if (!client.serverOrgId || !SERVER.on()) return false;
+  try {
+    const r = await SERVER.req('POST', `/api/pp/clients/${client.serverOrgId}/planned-sites`, { name: v.name, tier: v.tier, canopy_venue_id: v.id });
+    if (!r.ok) return false;
+    const list = PLANNED_SITES[client.serverOrgId] = (PLANNED_SITES[client.serverOrgId] || []).filter(p => p.canopy_venue_id !== v.id);
+    list.push({ id: r.data.id, name: r.data.name, canopy_venue_id: v.id });
+    return true;
+  } catch(e) { return false; }
 }
 function isVenueLinked(c, v){
   const sites = c.serverOrgId && LINKED_SITES[c.serverOrgId];
@@ -2025,7 +2058,7 @@ function renderClients(){
         ${c.venues.map(v=>`<span class="vtag${isVenueLinked(c, v)?' linked':''}" title="${isVenueLinked(c, v)?'Linked in PP Command. ':''}${escapeAttr([v.address, [v.contactName, v.contactPhone, v.contactEmail].filter(Boolean).join(' · ')].filter(Boolean).join(' — ') || 'No address or contact yet (add them in Quote Builder → Sites)')}">${escapeHtml(v.name || '(unnamed site)')}
           <select data-action="set-venue-tier" data-vid="${v.id}" style="border:none;background:transparent;font-size:11px;font-family:inherit;margin:0 2px;">
             ${pricing.ppTiers.map(t=>`<option value="${escapeAttr(t.label)}" ${t.label===(v.tier||pricing.ppTiers[0].label)?'selected':''}>${escapeHtml(t.label)}</option>`).join('')}
-          </select>
+          </select>${venueCommandStatus(c, v)}
           <button data-action="remove-venue" data-vid="${v.id}">×</button></span>`).join('')}
       </div>
       ${linkedSitesHtml(c)}
@@ -2097,12 +2130,29 @@ document.getElementById('client-list').addEventListener('click', async e=>{
     const val = input.value.trim();
     if(!val){ input.classList.add('needs-value'); input.placeholder = 'Type the venue name here first, then Add venue'; input.focus(); return; }
     if(!Array.isArray(client.venues)) client.venues = [];
-    client.venues.push({id:uid(), name:val, tier: pricing.ppTiers[0] ? pricing.ppTiers[0].label : 'T1'});
-    await saveClients(); renderClients(); return;
+    const nv = {id:uid(), name:val, tier: pricing.ppTiers[0] ? pricing.ppTiers[0].label : 'T1'};
+    client.venues.push(nv);
+    await saveClients();
+    // Client already set up with PP Command → the venue shows there as "Waiting to link".
+    if(client.serverClaimed) await sendVenueToCommand(client, nv);
+    renderClients(); return;
+  }
+  if(action==='send-venue'){
+    const v = client.venues.find(x=>x.id===e.target.dataset.vid); if(!v) return;
+    if(!client.serverClaimed){ alert(`${client.name}'s PP Command isn't linked yet. Give them their linking code first, then send venues.`); return; }
+    if(!(await sendVenueToCommand(client, v))) alert('Could not reach the PP server. The venue is saved here; try again in a moment.');
+    renderClients(); return;
   }
   if(action==='remove-venue'){
+    const gone = client.venues.find(v=>v.id===e.target.dataset.vid);
     client.venues = client.venues.filter(v=>v.id!==e.target.dataset.vid);
-    await saveClients(); renderClients(); return;
+    await saveClients();
+    const waiting = gone && (PLANNED_SITES[client.serverOrgId] || []).find(p => p.canopy_venue_id === gone.id);
+    if(waiting && SERVER.on()){
+      try { await SERVER.req('DELETE', `/api/pp/clients/${client.serverOrgId}/planned-sites/${waiting.id}`); } catch(e){}
+      PLANNED_SITES[client.serverOrgId] = PLANNED_SITES[client.serverOrgId].filter(p => p !== waiting);
+    }
+    renderClients(); return;
   }
 });
 // Enter in a "New venue name" box adds it, same as the button.
@@ -2119,6 +2169,7 @@ document.getElementById('client-list').addEventListener('change', async e=>{
     if(!venue) return;
     venue.tier = e.target.value;
     await saveClients();
+    if(isVenueWaiting(client, venue)) sendVenueToCommand(client, venue);
     renderDashboard(); // MRR depends on venue tiers, keep it current
   }
 });
