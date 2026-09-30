@@ -24,7 +24,7 @@ const RedeemBody = z.object({
 async function redeem(req, res) {
   const { code, venue } = RedeemBody.parse(req.body);
   const out = await tx(async c => {
-    const { rows: [lc] } = await c.query('SELECT * FROM link_codes WHERE code=$1 FOR UPDATE', [code.trim().toUpperCase()]);
+    const { rows: [lc] } = await c.query(`SELECT * FROM link_codes WHERE code=$1 AND kind='site' FOR UPDATE`, [code.trim().toUpperCase()]);
     if (!lc) throw notFound('unknown code');
     if (lc.status === 'used') throw conflict('code already used');
     if (lc.status === 'revoked') throw conflict('code revoked');

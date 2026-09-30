@@ -24,7 +24,7 @@ async function serializeSite(s) {
 }
 
 // ── 4.1 Sites + link codes ─────────────────────────────────────────────────
-org.get('/api/org', requireOrg, wrap(async (req, res) => res.json({ id: req.org.id, name: req.org.name, sector: req.org.sector, command_tier: req.org.command_tier })));
+org.get('/api/org', requireOrg, wrap(async (req, res) => res.json({ id: req.org.id, name: req.org.name, sector: req.org.sector, command_tier: req.org.command_tier, parent_org_id: req.org.parent_org_id || null, region_name: req.org.region_name || null })));
 
 org.get('/api/org/sites', requireOrg, wrap(async (req, res) => {
   const { rows } = await q('SELECT * FROM sites WHERE org_id=$1 ORDER BY linked_at', [req.org.id]);
@@ -40,7 +40,10 @@ async function issueSiteLinkCode(orgId, hint, plannedSiteId = null) {
   }
   throw new Error('could not allocate a unique code');
 }
-org.post('/api/org/link-codes', requireOrg, wrap(async (req, res) => {
+function refuseHeadOffice(req, _res, next) {
+  next(req.org.command_tier === 'head_office' ? conflict('a head-office PP Command has no sites of its own — link regions instead') : undefined);
+}
+org.post('/api/org/link-codes', requireOrg, refuseHeadOffice, wrap(async (req, res) => {
   const hint = String(req.body?.hint || '').slice(0, 120) || null;
   res.status(201).json(await issueSiteLinkCode(req.org.id, hint));
 }));
@@ -55,7 +58,7 @@ org.get('/api/org/planned-sites', requireOrg, wrap(async (req, res) => {
     WHERE p.org_id=$1 AND p.status='waiting' ORDER BY p.created_at`, [req.org.id]);
   res.json({ planned_sites: rows });
 }));
-org.post('/api/org/planned-sites/:id/link-code', requireOrg, wrap(async (req, res) => {
+org.post('/api/org/planned-sites/:id/link-code', requireOrg, refuseHeadOffice, wrap(async (req, res) => {
   const { rows: [p] } = await q(`SELECT id, name FROM planned_sites WHERE id=$1 AND org_id=$2 AND status='waiting'`, [req.params.id, req.org.id]);
   if (!p) throw notFound('waiting site not found');
   await q(`UPDATE link_codes SET status='revoked' WHERE planned_site_id=$1 AND status='pending'`, [p.id]);   // one live code per waiting site
@@ -69,7 +72,7 @@ org.post('/api/org/planned-sites/:id/dismiss', requireOrg, wrap(async (req, res)
 }));
 org.get('/api/org/link-codes', requireOrg, wrap(async (req, res) => {
   await q(`UPDATE link_codes SET status='expired' WHERE org_id=$1 AND status='pending' AND expires_at < now()`, [req.org.id]);
-  const { rows } = await q('SELECT id, code, hint, status, created_at, expires_at, used_at, site_id, planned_site_id FROM link_codes WHERE org_id=$1 ORDER BY created_at DESC LIMIT 100', [req.org.id]);
+  const { rows } = await q('SELECT id, code, hint, status, created_at, expires_at, used_at, site_id, planned_site_id FROM link_codes WHERE org_id=$1 AND kind=\'site\' ORDER BY created_at DESC LIMIT 100', [req.org.id]);
   res.json({ codes: rows });
 }));
 org.delete('/api/org/link-codes/:id', requireOrg, wrap(async (req, res) => {

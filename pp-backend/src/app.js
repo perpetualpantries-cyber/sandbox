@@ -7,6 +7,7 @@ import { scheduledPos } from './routes/scheduled-pos.js';
 import { cron } from './routes/cron.js';
 import { canopyStore } from './routes/canopy-store.js';
 import { notify } from './routes/notify.js';
+import { group } from './routes/group.js';
 import { errorMiddleware } from './lib/errors.js';
 
 export function createApp() {
@@ -39,7 +40,7 @@ export function createApp() {
   // Never log bodies for the backup route.
   app.use((req, _res, next) => { if (process.env.LOG_REQUESTS && !req.path.startsWith('/api/venue/sync')) console.log(req.method, req.path); next(); });
 
-  app.use(site); app.use(org); app.use(pp); app.use(link); app.use(scheduledPos); app.use(cron); app.use(canopyStore); app.use(notify);
+  app.use(site); app.use(org); app.use(pp); app.use(link); app.use(scheduledPos); app.use(cron); app.use(canopyStore); app.use(notify); app.use(group);
   app.use((_req, res) => res.status(404).json({ error: 'no such route' }));
   app.use(errorMiddleware);
   return app;

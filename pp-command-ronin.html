@@ -211,6 +211,7 @@ label{font-family:var(--mono);font-size:10.5px;color:var(--sub);text-transform:u
     <button type="button" class="nav-item" data-tab="chat"><span class="nav-icon">◈</span>Chat with Ronin</button>
     <button type="button" class="nav-item" data-tab="messages"><span class="nav-icon">≡</span>Ronin log</button>
     <button type="button" class="nav-item" data-tab="notifications"><span class="nav-icon">●</span>Notifications<span class="nav-badge hidden" id="notif-badge">0</span></button>
+    <button type="button" class="nav-item" data-tab="headoffice"><span class="nav-icon">▲</span>Head office<span class="nav-badge hidden" id="hq-badge">0</span></button>
     <button type="button" class="nav-item" data-tab="email"><span class="nav-icon">✉</span>Email</button>
     <div class="nav-group">Money</div>
     <button type="button" class="nav-item" data-tab="finance"><span class="nav-icon">$</span>Finance</button>
@@ -248,7 +249,7 @@ label{font-family:var(--mono);font-size:10.5px;color:var(--sub);text-transform:u
           <input id="chat-input" placeholder="Ask Ronin about your sites…" onkeydown="if(event.key==='Enter')sendChatMessage()">
           <button class="btn" onclick="sendChatMessage()">Send</button>
         </div>
-        <div class="hierarchy-note">Gavin (per-site) → <b style="color:var(--text)">Ronin</b> (this org, PP Command) → Canopy (PP company-wide, across every org)</div>
+        <div class="hierarchy-note" id="hierarchy-note"></div>
       </div>
     </section>
 
@@ -392,6 +393,54 @@ label{font-family:var(--mono);font-size:10.5px;color:var(--sub);text-transform:u
         <div id="payroll-runs-table"></div>
       </div>
     </section>
+
+    <!-- Head office -->
+    <section id="tab-headoffice" class="hidden">
+      <div class="page-head">
+        <div><div class="page-title">Head office</div><div class="page-sub" id="hq-sub">not linked — this PP Command runs standalone</div></div>
+      </div>
+      <div id="hq-is-hq" class="panel hidden"><div style="padding:14px 16px" class="page-sub">This org is set up as a head office. Open it in pp-command-hq.html — this console is for a region or a standalone group.</div></div>
+      <div id="hq-unlinked" class="panel hidden">
+        <div class="panel-head">Link to a head office</div>
+        <div style="padding:16px">
+          <div class="page-sub" style="margin-bottom:12px;line-height:1.6">Only if this org is one region of a larger group. Enter the one-time code the group's head office generated (their Regions tab). Head office then sees this region's headline figures — revenue, GP%, labour%, covers, stock-out and stock-low counts per café — never which items, your menus or your staff. You'll follow its group policy and can escalate decisions to it. The link is permanent.</div>
+          <div class="row">
+            <div class="field"><label>Head-office code</label><input id="hq-code" class="mono" placeholder="e.g. 7K2QXPMA" maxlength="16" style="text-transform:uppercase;letter-spacing:2px" autocomplete="off"></div>
+            <div class="field"><label>Region name (as head office sees it)</label><input id="hq-region-name" placeholder="e.g. VIC"></div>
+          </div>
+          <button class="btn" onclick="linkHeadOffice()">Link</button>
+        </div>
+      </div>
+      <div id="hq-linked" class="hidden">
+        <div class="panel">
+          <div class="panel-head">Requests from head office</div>
+          <div class="log" id="hq-requests-log"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">Group policy (from head office)</div>
+          <div id="hq-policy"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">Escalate to head office</div>
+          <div style="padding:16px">
+            <div class="page-sub" style="margin-bottom:12px">For decisions this region can't make alone — a supplier not on the approved list, spend at or above the group threshold, an exception to group policy. Nothing proceeds until head office decides.</div>
+            <div class="field"><label>Subject</label><input id="esc-subject" placeholder="e.g. New dairy supplier for Surry Hills"></div>
+            <div class="field"><label>Details</label><textarea id="esc-body" rows="3"></textarea></div>
+            <div class="field"><label>Amount ($, optional)</label><input id="esc-amount" type="number" min="0"></div>
+            <button class="btn" onclick="submitEscalation()">Escalate</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">Escalations</div>
+          <div class="log" id="hq-escalations-log"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">What head office sees of this region</div>
+          <div id="hq-visible"></div>
+        </div>
+        <div class="page-sub" id="hq-linked-meta" style="margin-bottom:20px"></div>
+      </div>
+    </section>
   </div>
 </div>
 
@@ -473,9 +522,10 @@ const SERVER = {
     return { ok: r.ok, status: r.status, data };
   },
   async load(){
-    const [org, sites, msgs, notifs, canopy, labour] = await Promise.all([
+    const [org, sites, msgs, notifs, canopy, labour, hq] = await Promise.all([
       this.req('GET', '/api/org'), this.req('GET', '/api/org/sites'), this.req('GET', '/api/org/messages?limit=300'),
       this.req('GET', '/api/org/notifications'), this.req('GET', '/api/org/canopy-requests'), this.req('GET', '/api/org/labour'),
+      this.req('GET', '/api/org/head-office'),
     ]);
     if (!org.ok) throw new Error(org.data.error || 'server error');
     const prev = STATE || {};
@@ -488,6 +538,7 @@ const SERVER = {
       notifications: notifs.data.notifications || [],
       canopyRequests: canopy.data.requests || [],
       labour: labour.data,
+      headOffice: hq.ok ? hq.data : null,
       invoices: prev.invoices || [], emailConnections: prev.emailConnections || [], financeEntries: prev.financeEntries || {},
       payroll: prev.payroll || { entity: { name: org.data.name, abn: '' }, payRuns: [] },
       chat: prev.chat || [],
@@ -593,6 +644,7 @@ async function loadState(){
   if (!STATE.chat) STATE.chat = [];
   if (!STATE.payroll) STATE.payroll = { entity: { name: STATE.orgName || 'Untitled entity', abn: '' }, payRuns: [] };
   if (STATE.demoMode === undefined) STATE.demoMode = STATE.orgName === 'Demo Café Group';
+  if (STATE.headOffice === undefined) STATE.headOffice = null;
   // Migrate any pre-boundary state: move staff out of ocData into the
   // explicitly promoted sharedPayroll block, drop inventory/suppliers.
   STATE.sites.forEach(site => {
@@ -742,7 +794,10 @@ function renderOverview(){
   const msgWaiting = (STATE.messages || []).filter(m => m.status === 'awaiting_approval').length;
   const canopyWaiting = (STATE.canopyRequests || []).filter(r => r.status === 'awaiting_approval').length;
   const unread = (STATE.notifications || []).filter(n => n.status === 'unread').length;
+  const hqOpen = hqLinked() ? STATE.headOffice.requests.filter(r => r.status === 'sent').length : 0;
+  const { gp: gpTarget, labour: labourCap, from: targetFrom } = targets();
   const attn = [];
+  if (hqOpen) attn.push({ tone:'', n:hqOpen, text:`${plural(hqOpen,'request','requests')} from head office`, sub:'Answer in the Head office tab', tab:'headoffice', go:'Open Head office' });
   if (t.stock_out) attn.push({ tone:'danger', n:t.stock_out, text:`${plural(t.stock_out,'item','items')} out of stock`, sub:listNames(sitesWith('stock_out')), tab:'overview-sites', go:'See sites' });
   if (canopyWaiting) attn.push({ tone:'', n:canopyWaiting, text:`${plural(canopyWaiting,'request','requests')} from Perpetual Pantries need your answer`, sub:'Approve, answer or decline', tab:'messages', go:'Open Ronin log' });
   if (msgWaiting) attn.push({ tone:'', n:msgWaiting, text:`${plural(msgWaiting,'request is','requests are')} waiting on a site manager`, sub:'Sent by Ronin, approved on the site’s own screen', tab:'messages', go:'Open Ronin log' });
@@ -763,8 +818,8 @@ function renderOverview(){
     <div class="section-label">This week</div>
     <div class="tiles hero">
       <div class="tile"><div class="tile-label">Revenue (7d)</div><div class="tile-value">${fmtMoney(t.revenue_week*100)}</div><div class="tile-note">Across ${report.reporting_sites} reporting ${plural(report.reporting_sites,'site','sites')}</div></div>
-      <div class="tile"><div class="tile-label">Avg GP%</div><div class="tile-value ${t.avg_gp_pct<60?'warn':'ok'}">${t.avg_gp_pct}%</div><div class="tile-note">Target 60% or more</div></div>
-      <div class="tile"><div class="tile-label">Avg labour%</div><div class="tile-value ${t.avg_labour_pct>32?'warn':'ok'}">${t.avg_labour_pct}%</div><div class="tile-note">Target 32% or less</div></div>
+      <div class="tile"><div class="tile-label">Avg GP%</div><div class="tile-value ${t.avg_gp_pct<gpTarget?'warn':'ok'}">${t.avg_gp_pct}%</div><div class="tile-note">${targetFrom} ${gpTarget}% or more</div></div>
+      <div class="tile"><div class="tile-label">Avg labour%</div><div class="tile-value ${t.avg_labour_pct>labourCap?'warn':'ok'}">${t.avg_labour_pct}%</div><div class="tile-note">${targetFrom} ${labourCap}% or less</div></div>
     </div>
     <div class="tiles minor">
       <div class="tile"><div class="tile-label">Covers (7d)</div><div class="tile-value">${(t.covers_week||0).toLocaleString()}</div></div>
@@ -1401,6 +1456,157 @@ async function runPayroll(){
 // API access. Inside a claude.ai artifact the platform proxies api.anthropic.com
 // and injects auth; anywhere else a key must be set in Settings (stored locally).
 // Long-term this should go through the PP backend so no key sits in a browser.
+// ══════════════════════════════════════════════════════════════════════════
+// Head office — optional. When this org is one region of a larger group, it
+// links to that group's head-office PP Command (pp-command-hq.html) with a
+// one-time code. Head office then reads this region's headline figures from
+// the PP server (never item names, menus or staff), sets group policy this
+// region follows, answers escalations, and can send requests to Ronin here.
+// STATE.headOffice uses the server's shape (GET /api/org/head-office) in both modes.
+// ══════════════════════════════════════════════════════════════════════════
+const DEMO_GROUP_POLICY = { gp_target_pct: 60, labour_cap_pct: 32, spend_approval_cents: 500000, approved_suppliers: ['Bean & Co Roasters', 'Metro Dairy'], notes: '', version: 1 };
+function hqLinked(){ return !!(STATE.headOffice && STATE.headOffice.linked); }
+function targets(){
+  const p = hqLinked() ? STATE.headOffice.policy : null;
+  return p ? { gp: p.gp_target_pct, labour: p.labour_cap_pct, from: 'Group policy' } : { gp: 60, labour: 32, from: 'Target' };
+}
+// What head office can see of this region: the same headline figures the server's
+// regionReport() returns. The server's own copy wins in server mode.
+function visibleToHeadOffice(){
+  if (SERVER.on() && STATE.headOffice && STATE.headOffice.visible_to_head_office) return STATE.headOffice.visible_to_head_office;
+  const org = computeOrgTotals();
+  return { site_count: org.site_count, reporting_sites: org.reporting_sites,
+    totals: { revenue_week: org.totals.revenue_week, avg_gp_pct: org.totals.avg_gp_pct, avg_labour_pct: org.totals.avg_labour_pct, covers_week: org.totals.covers_week || 0, stock_out: org.totals.stock_out, stock_low: org.totals.stock_low, open_orders: org.totals.open_orders || 0 },
+    sites: STATE.sites.map(s => s.snapshot ? { name: s.name, revenue_week: s.snapshot.revenue_week, gp_pct: s.snapshot.gp_pct, labour_pct: s.snapshot.labour_pct, covers_week: s.snapshot.covers_week || 0, stock_out: s.snapshot.stock_out, stock_low: s.snapshot.stock_low, open_orders: s.snapshot.open_orders || 0 } : { name: s.name }),
+    approvals_pending: STATE.messages.filter(m => m.status === 'awaiting_approval').length };
+}
+async function hqServerDo(method, path, body, okMsg){
+  const r = await SERVER.req(method, path, body);
+  if (!r.ok) { toastMsg(r.data.error || ('HTTP ' + r.status)); return null; }
+  await refreshFromServer();
+  if (okMsg) toastMsg(okMsg);
+  return r.data;
+}
+async function linkHeadOffice(){
+  const code = document.getElementById('hq-code').value.trim().toUpperCase();
+  const region_name = document.getElementById('hq-region-name').value.trim();
+  if (!/^[A-Z0-9]{6,16}$/.test(code)) return toastMsg('Enter the code head office gave you.');
+  if (!confirm('Link this PP Command to that head office? Head office will see this region\'s headline figures, and the link is permanent.')) return;
+  if (SERVER.on()) {
+    const out = await hqServerDo('POST', '/api/org/head-office/claim', { code, ...(region_name ? { region_name } : {}) });
+    if (out) toastMsg(`Linked to ${out.head_office.name} as ${out.region_name}.`);
+    return;
+  }
+  if (!isDemoMode()) { toastMsg('Connect PP Command to the PP server first — a real head office can only be linked through it.'); openSettings(); return; }
+  STATE.headOffice = { role: 'region', linked: true, head_office: { id: uid('org'), name: 'Demo head office' }, region_name: region_name || STATE.orgName, linked_at: nowIso(),
+    policy: { ...DEMO_GROUP_POLICY, approved_suppliers: [...DEMO_GROUP_POLICY.approved_suppliers], updated_at: nowIso() }, escalations: [],
+    requests: [{ id: uid('hqreq'), intent: 'review_labour_roster', note: 'Labour is close to the group cap — can you check next week\'s roster?', status: 'sent', created_at: nowIso() }] };
+  STATE.notifications.unshift({ id: uid('notif'), type: 'task_done', subject: 'Linked to head office (demo)', body: `Reporting as ${STATE.headOffice.region_name}.`, status: 'unread', created_at: nowIso() });
+  await saveState(true); renderAll();
+}
+function createHeadOfficeEscalationLocal(subject, body, amount_cents){
+  const e = { id: uid('esc'), subject, body: body || null, amount_cents: amount_cents || null, status: 'awaiting_decision', created_at: nowIso() };
+  STATE.headOffice.escalations.unshift(e);
+  return e;
+}
+async function escalateToHeadOffice(subject, body, amount_cents){
+  if (!hqLinked()) return { error: 'not linked to a head office — this PP Command runs standalone' };
+  if (SERVER.on()) {
+    const r = await SERVER.req('POST', '/api/org/head-office/escalations', { subject, ...(body ? { body } : {}), ...(amount_cents ? { amount_cents } : {}) });
+    if (!r.ok) return { error: r.data.error || ('HTTP ' + r.status) };
+    await refreshFromServer();
+    return { ok: true, escalation: r.data.escalation };
+  }
+  const e = createHeadOfficeEscalationLocal(subject, body, amount_cents);
+  await saveState(true); renderAll();
+  return { ok: true, escalation: e };
+}
+async function submitEscalation(){
+  const subject = document.getElementById('esc-subject').value.trim();
+  if (!subject) return toastMsg('Give the escalation a subject.');
+  const amount = Number(document.getElementById('esc-amount').value);
+  const out = await escalateToHeadOffice(subject, document.getElementById('esc-body').value.trim(), amount > 0 ? Math.round(amount * 100) : null);
+  if (out.error) return toastMsg(out.error);
+  ['esc-subject','esc-body','esc-amount'].forEach(id => document.getElementById(id).value = '');
+  toastMsg('Escalated to head office.');
+}
+async function withdrawEscalation(id){
+  if (SERVER.on()) return hqServerDo('POST', `/api/org/head-office/escalations/${id}/withdraw`, {}, 'Withdrawn.');
+  const e = STATE.headOffice.escalations.find(x => x.id === id);
+  if (e && e.status === 'awaiting_decision') Object.assign(e, { status: 'withdrawn', decided_at: nowIso() });
+  await saveState(true); renderAll();
+}
+// Demo only: act out head office deciding.
+async function simulateHeadOfficeDecision(id, status){
+  const e = STATE.headOffice.escalations.find(x => x.id === id);
+  if (!e || e.status !== 'awaiting_decision') return;
+  Object.assign(e, { status, decision_note: '(simulated head-office decision)', decided_at: nowIso() });
+  STATE.notifications.unshift({ id: uid('notif'), type: 'task_done', subject: `Head office ${status}: ${e.subject}`, body: null, status: 'unread', created_at: nowIso() });
+  await saveState(true); renderAll();
+}
+async function answerHeadOfficeRequest(id){
+  const text = prompt('Your answer to head office:');
+  if (!text || !text.trim()) return;
+  if (SERVER.on()) return hqServerDo('POST', `/api/org/head-office/requests/${id}/answer`, { response_text: text.trim() }, 'Answer sent to head office.');
+  const r = STATE.headOffice.requests.find(x => x.id === id);
+  if (r && r.status === 'sent') Object.assign(r, { status: 'answered', response_text: text.trim(), answered_at: nowIso() });
+  await saveState(true); renderAll();
+}
+function renderHeadOffice(){
+  const ho = STATE.headOffice;
+  const isHq = !!(ho && ho.role === 'head_office');
+  const linked = hqLinked();
+  const open = linked ? ho.requests.filter(r => r.status === 'sent').length : 0;
+  document.getElementById('hq-badge').textContent = open;
+  document.getElementById('hq-badge').classList.toggle('hidden', open === 0);
+  document.getElementById('hierarchy-note').innerHTML = linked
+    ? `Gavin (per café) → <b style="color:var(--text)">Ronin</b> (this region, PP Command) → Ronin (${escapeHtml(ho.head_office.name)}, head office)`
+    : `Gavin (per café) → <b style="color:var(--text)">Ronin</b> (this org, PP Command)`;
+  document.getElementById('hq-is-hq').classList.toggle('hidden', !isHq);
+  document.getElementById('hq-unlinked').classList.toggle('hidden', isHq || linked);
+  document.getElementById('hq-linked').classList.toggle('hidden', !linked);
+  document.getElementById('hq-sub').textContent = isHq ? 'this org is a head office' : linked ? `${ho.region_name} region of ${ho.head_office.name} · group policy v${ho.policy.version}` : 'not linked — this PP Command runs standalone';
+  if (!linked) return;
+
+  document.getElementById('hq-requests-log').innerHTML = ho.requests.length ? ho.requests.map(r => `
+    <div class="log-entry ${r.status === 'answered' ? 'completed' : 'approval'}">
+      <div class="log-time">${fmtTime(r.created_at)}</div><div class="log-dir">hq → ronin</div>
+      <div class="log-body"><span class="tag">${escapeHtml(r.intent)}</span> <span class="pill muted">${r.status === 'sent' ? 'needs your answer' : 'answered'}</span>
+        ${r.note ? `<div class="log-note">${escapeHtml(r.note)}</div>` : ''}
+        ${r.response_text ? `<div class="log-note" style="color:var(--text)">↳ ${escapeHtml(r.response_text)}</div>` : ''}
+        ${r.status === 'sent' ? `<div style="margin-top:6px"><button class="btn small" onclick="answerHeadOfficeRequest('${r.id}')">Answer</button></div>` : ''}
+      </div></div>`).join('') : `<div class="empty">No requests from head office.</div>`;
+
+  const p = ho.policy, t = computeOrgTotals().totals;
+  document.getElementById('hq-policy').innerHTML = `<table>
+    <tr><td>GP% target (minimum)</td><td class="mono">${p.gp_target_pct}%</td><td>${t.avg_gp_pct < p.gp_target_pct ? `<span class="pill warn">this region ${t.avg_gp_pct}%</span>` : '<span class="pill ok">met</span>'}</td></tr>
+    <tr><td>Labour% cap (maximum)</td><td class="mono">${p.labour_cap_pct}%</td><td>${t.avg_labour_pct > p.labour_cap_pct ? `<span class="pill warn">this region ${t.avg_labour_pct}%</span>` : '<span class="pill ok">met</span>'}</td></tr>
+    <tr><td>Spend needing head-office approval</td><td class="mono">${fmtMoney(p.spend_approval_cents)} and above</td><td></td></tr>
+    <tr><td>Approved suppliers</td><td colspan="2">${(p.approved_suppliers || []).map(escapeHtml).join(', ') || '—'}</td></tr>
+    ${p.notes ? `<tr><td>Notes</td><td colspan="2">${escapeHtml(p.notes)}</td></tr>` : ''}
+  </table>`;
+
+  document.getElementById('hq-escalations-log').innerHTML = ho.escalations.length ? ho.escalations.map(e => {
+    const cls = e.status === 'awaiting_decision' ? 'approval' : e.status === 'approved' ? 'completed' : 'declined';
+    const actions = e.status !== 'awaiting_decision' ? '' : `<div style="display:flex;gap:6px;margin-top:6px">
+      <button class="btn small ghost" onclick="withdrawEscalation('${e.id}')">Withdraw</button>
+      ${isDemoMode() && !SERVER.on() ? `<button class="btn small ghost" onclick="simulateHeadOfficeDecision('${e.id}','approved')">Simulate HQ approve</button><button class="btn small ghost" onclick="simulateHeadOfficeDecision('${e.id}','declined')">Simulate HQ decline</button>` : ''}</div>`;
+    return `<div class="log-entry ${cls}">
+      <div class="log-time">${fmtTime(e.created_at)}</div><div class="log-dir">region → hq</div>
+      <div class="log-body"><span class="tag">${escapeHtml(e.subject)}</span>${e.amount_cents ? ` <span class="pill info">${fmtMoney(e.amount_cents)}</span>` : ''} <span class="pill muted">${e.status.replace('_', ' ')}</span>
+        ${e.body ? `<div class="log-note">${escapeHtml(e.body)}</div>` : ''}
+        ${e.decision_note ? `<div class="log-note">Head office: ${escapeHtml(e.decision_note)}</div>` : ''}
+        ${actions}</div></div>`;
+  }).join('') : `<div class="empty">No escalations yet.</div>`;
+
+  const v = visibleToHeadOffice();
+  document.getElementById('hq-visible').innerHTML = `<table><tr><th>Café</th><th>Revenue</th><th>GP%</th><th>Labour%</th><th>Covers</th><th>Stock out</th><th>Stock low</th></tr>${
+    v.sites.map(s => s.revenue_week == null ? `<tr><td>${escapeHtml(s.name)}</td><td colspan="6" class="mono" style="color:var(--faint)">no snapshot yet</td></tr>`
+      : `<tr><td>${escapeHtml(s.name)}</td><td class="mono">${fmtMoney(s.revenue_week*100)}</td><td class="mono">${s.gp_pct}%</td><td class="mono">${s.labour_pct}%</td><td class="mono">${s.covers_week}</td><td class="mono">${s.stock_out}</td><td class="mono">${s.stock_low}</td></tr>`).join('')
+  }</table><div class="page-sub" style="padding:10px 16px">Plus totals and the number of café approvals pending (${v.approvals_pending}). Not which items are out or low, menus, staff, invoices or payroll lines.</div>`;
+  document.getElementById('hq-linked-meta').textContent = `Linked ${fmtTime(ho.linked_at)}. The link is permanent — contact Perpetual Pantries if this region moves to a different head office.`;
+}
+
 const RONIN_API_URL = 'https://api.anthropic.com/v1/messages';
 function getRoninKey(){ try { return localStorage.getItem('ppcommand_api_key') || ''; } catch(e){ return ''; } }
 function roninHeaders(){
@@ -1412,6 +1618,9 @@ function roninHeaders(){
 }
 
 const RONIN_TOOLS = [
+  { name: 'get_head_office', description: "Whether this org reports to a head-office PP Command. If so: the group policy it follows (GP target, labour cap, spend approval threshold, approved suppliers), where this region breaches it, requests head office has sent (answered by a person in the Head office tab) and escalations raised to head office.", input_schema: { type: 'object', properties: {} } },
+  { name: 'escalate_to_head_office', description: "Raise a decision to head office — a supplier not on the approved list, spend at or above the group approval threshold, or an exception to group policy. Only when linked to a head office. A person at head office decides; nothing proceeds until then.",
+    input_schema: { type: 'object', properties: { subject: { type: 'string' }, body: { type: 'string', description: 'what is being asked and why' }, amount_cents: { type: 'integer', description: 'optional — amount involved, in cents' } }, required: ['subject', 'body'] } },
   { name: 'list_canopy_requests', description: "Requests Perpetual Pantries' own company agent (Canopy) has asked of this org. Each needs this org's operator to approve, decline or answer — Ronin never acts on one without that.", input_schema: { type: 'object', properties: { status: { type: 'string', enum: ['awaiting_approval','approved','declined','answered'] } } } },
   { name: 'respond_to_canopy_request', description: "Record the operator's decision on a Canopy request: approve, decline, or answer with text. Only call this after the operator has told you their decision in this conversation.", input_schema: { type: 'object', properties: { request_id: { type: 'string' }, status: { type: 'string', enum: ['approved','declined','answered'] }, response_text: { type: 'string' } }, required: ['request_id','status'] } },
   {
@@ -1493,6 +1702,18 @@ async function executeRoninTool(name, input, actionsTaken){
       if (name === 'respond_to_canopy_request') { const r = await SERVER.req('POST', '/api/org/canopy-requests/' + input.request_id + '/respond', { status: input.status, response_text: input.response_text }); return r.ok ? { ok: true } : { error: r.data.error }; }
       if (name === 'get_org_overview') { const r = await SERVER.req('GET', '/api/org/overview'); return r.data; }
     } catch(e){ return { error: e.message }; }
+  }
+  if (name === 'get_head_office') {
+    if (!hqLinked()) return { linked: false, role: (STATE.headOffice && STATE.headOffice.role) || 'standalone' };
+    const ho = STATE.headOffice, t = computeOrgTotals().totals, breaches = [];
+    if (t.avg_gp_pct < ho.policy.gp_target_pct) breaches.push(`GP ${t.avg_gp_pct}% is under the ${ho.policy.gp_target_pct}% target`);
+    if (t.avg_labour_pct > ho.policy.labour_cap_pct) breaches.push(`Labour ${t.avg_labour_pct}% is over the ${ho.policy.labour_cap_pct}% cap`);
+    return { linked: true, head_office: ho.head_office.name, region_name: ho.region_name, policy: ho.policy, breaches, requests: ho.requests, escalations: ho.escalations };
+  }
+  if (name === 'escalate_to_head_office') {
+    const out = await escalateToHeadOffice(input.subject, input.body, input.amount_cents);
+    if (out.ok && actionsTaken) actionsTaken.push({ site: 'head office', intent: 'escalation: ' + input.subject, status: 'awaiting_approval' });
+    return out.ok ? { ok: true, escalation_id: out.escalation.id, status: out.escalation.status } : out;
   }
   if (name === 'list_canopy_requests') return { requests: (STATE.canopyRequests || []).filter(r => !input.status || r.status === input.status) };
   if (name === 'respond_to_canopy_request') return { error: 'Only available in server mode.' };
@@ -1584,8 +1805,9 @@ function setTyping(on){
 }
 
 function appendActionLine(a){
-  const label = a.status === 'awaiting_approval' ? 'awaiting manager approval' : 'completed';
-  const html = `<div style="align-self:flex-start;font-family:var(--mono);font-size:11px;color:var(--amber);border-left:2px solid var(--amber);padding-left:8px">→ sent to ${escapeHtml(a.site)}: ${escapeHtml(a.intent)} — ${label} (see Ronin log)</div>`;
+  const toHq = a.site === 'head office';
+  const label = toHq ? 'awaiting head-office decision' : a.status === 'awaiting_approval' ? 'awaiting manager approval' : 'completed';
+  const html = `<div style="align-self:flex-start;font-family:var(--mono);font-size:11px;color:var(--amber);border-left:2px solid var(--amber);padding-left:8px">→ sent to ${escapeHtml(a.site)}: ${escapeHtml(a.intent)} — ${label} (see ${toHq ? 'Head office tab' : 'Ronin log'})</div>`;
   CHAT_SURFACES.forEach(s => {
     const el = document.getElementById(s.messages);
     if (!el) return;
@@ -1623,7 +1845,7 @@ async function sendChatMessage(source){
 
   try {
     const actionsTaken = [];
-    const sys = `You are Ronin, the AI operations assistant for "${STATE.orgName}" inside PP Command. Requests from Perpetual Pantries' own agent, Canopy, arrive via list_canopy_requests; never act on or answer one until the operator here decides, then record it with respond_to_canopy_request. You sit above each individual site's own assistant, Gavin — Gavin runs one cafe day-to-day, you oversee every site in this org. Above you sits Canopy, PP's own company-wide agent, which you never interact with directly. Sites never talk to each other's Gavin directly — if two sites need to coordinate (covering stock, staff, or anything else between venues), you relay it via coordinate_between_sites so it's logged and each site's manager approval still applies. Use your tools to ground every answer in this org's real data rather than guessing. Keep replies concise and operational. When you send a request to a site's Gavin, or coordinate between two sites, always say plainly in your reply what you asked and whether it needs manager approval.`;
+    const sys = `You are Ronin, the AI operations assistant for "${STATE.orgName}" inside PP Command. Requests from Perpetual Pantries' own agent, Canopy, arrive via list_canopy_requests; never act on or answer one until the operator here decides, then record it with respond_to_canopy_request. You sit above each individual site's own assistant, Gavin — Gavin runs one cafe day-to-day, you oversee every site in this org. ${hqLinked() ? `This org is the "${STATE.headOffice.region_name}" region of a group whose head-office PP Command, ${STATE.headOffice.head_office.name}, sits above you with its own Ronin. Head office sees this region's headline figures (never item names, menus or staff), sets group policy you must follow, and decides anything beyond your authority: check the policy with get_head_office, and use escalate_to_head_office for a supplier not on the approved list, spend at or above the group approval threshold, or an exception to policy — never act on those yourself. Requests from head office are answered by a person in the Head office tab; you can help draft an answer.` : 'This org runs standalone, with no head office above it.'} Sites never talk to each other's Gavin directly — if two sites need to coordinate (covering stock, staff, or anything else between venues), you relay it via coordinate_between_sites so it's logged and each site's manager approval still applies. Use your tools to ground every answer in this org's real data rather than guessing. Keep replies concise and operational. When you send a request to a site's Gavin, or coordinate between two sites, always say plainly in your reply what you asked and whether it needs manager approval.`;
 
     // Conversation memory: the last 10 turns before this message.
     const history = STATE.chat.slice(-11, -1).filter(m => m.content && !/^Error/.test(m.content)).map(m => ({ role: m.role, content: m.content }));
@@ -1689,6 +1911,7 @@ function renderConnection(){
 
 function renderAll(skipChat){
   document.getElementById('org-name-label').textContent = STATE.orgName || 'org';
+  renderHeadOffice();
   renderConnection();
   renderOverview();
   renderSites();
