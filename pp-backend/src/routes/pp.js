@@ -74,6 +74,16 @@ pp.post('/api/pp/clients/:id/link-code', requireStaff('Sales Manager'), wrap(asy
   await q(`UPDATE link_codes SET status='expired' WHERE org_id=$1 AND kind='org' AND status='pending'`, [o.id]);
   res.status(201).json(await issueOrgLinkCode(o.id));
 }));
+// Relink PP Command (Owner): for when the console that claimed the org is lost or
+// on another device. Issues a fresh single-use org code even though the org is
+// already claimed. Claiming it replaces the org key, so the old console stops
+// working at that moment (not before). Sites stay linked; only Command's key changes.
+pp.post('/api/pp/clients/:id/relink', requireStaff('Owner'), wrap(async (req, res) => {
+  const { rows: [o] } = await q('SELECT id FROM orgs WHERE id=$1', [req.params.id]);
+  if (!o) throw notFound('client not found');
+  await q(`UPDATE link_codes SET status='expired' WHERE org_id=$1 AND kind='org' AND status='pending'`, [o.id]);
+  res.status(201).json(await issueOrgLinkCode(o.id));
+}));
 pp.post('/api/pp/clients/:id/rotate-key', requireStaff('Owner'), wrap(async (req, res) => {
   const key = orgApiKey();
   const { rowCount } = await q('UPDATE orgs SET api_key_hash=$2, api_key_hint=$3 WHERE id=$1', [req.params.id, await hash(key), key.slice(-4)]);
