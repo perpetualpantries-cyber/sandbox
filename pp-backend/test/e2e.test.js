@@ -611,3 +611,38 @@ test('PPcanopy store: versioned saves, conflicts, role rules', async () => {
   assert.equal((await api('GET', '/api/pp/store', { headers: { Authorization: 'Bearer ' + S.siteTok } })).status, 401);   // venue tokens can't read it
   assert.equal((await api('GET', '/api/pp/store')).status, 401);
 });
+
+test('notifications: push key, subscriptions, approval notify (email + push), client email', async () => {
+  const sales = { Authorization: 'Bearer ' + S.sales }, owner = { Authorization: 'Bearer ' + S.owner };
+  const c1 = await api('GET', '/api/pp/notify/config', { headers: sales });
+  assert.equal(c1.status, 200); assert.equal(c1.json.email, false); assert.ok(c1.json.push_public_key.length > 40);
+  assert.equal((await api('GET', '/api/pp/notify/config', { headers: owner })).json.push_public_key, c1.json.push_public_key);   // generated once
+  assert.equal((await api('GET', '/api/pp/notify/config')).status, 401);
+
+  // A push that fails is counted, not fatal (real push services are https; this local one can't answer).
+  const gone = base + '/no-such-push-service';
+  const crypto = await import('node:crypto');
+  const ecdh = crypto.createECDH('prime256v1'); ecdh.generateKeys();
+  const sub = { endpoint: gone, keys: { p256dh: ecdh.getPublicKey().toString('base64url'), auth: crypto.randomBytes(16).toString('base64url') } };
+  assert.equal((await api('POST', '/api/pp/push/subscribe', { headers: sales, body: { subscription: sub } })).status, 201);
+  const n1 = await api('POST', '/api/pp/notify', { headers: sales, body: { title: 'Canopy needs your OK', body: 'Send quote to Bellbird' } });
+  assert.equal(n1.status, 200); assert.equal(n1.json.email_error, 'email not configured'); assert.equal(n1.json.push_failed, 1);
+  assert.equal((await api('POST', '/api/pp/push/unsubscribe', { headers: sales, body: { endpoint: gone } })).status, 200);
+  assert.equal((await pool.query('SELECT count(*)::int n FROM push_subscriptions WHERE endpoint=$1', [gone])).rows[0].n, 0);
+  assert.equal((await api('POST', '/api/pp/notify', { headers: sales, body: { title: '' } })).status, 400);
+
+  // Email via a fake Resend.
+  const http = await import('node:http');
+  const got = [];
+  const fake = http.createServer((req, res) => { let d = ''; req.on('data', c => d += c); req.on('end', () => { got.push(JSON.parse(d)); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"id":"em_1"}'); }); }).listen(0);
+  process.env.RESEND_API_KEY = 'test'; process.env.RESEND_API_URL = 'http://127.0.0.1:' + fake.address().port;
+  try {
+    assert.equal((await api('GET', '/api/pp/notify/config', { headers: sales })).json.email, true);
+    const n2 = await api('POST', '/api/pp/notify', { headers: sales, body: { title: 'Canopy needs your OK', body: 'Accept Bellbird quote' } });
+    assert.equal(n2.json.emailed, 2); assert.deepEqual(got[0].to.sort(), ['josh@pp.example', 'sam@pp.example']);
+    const e = await api('POST', '/api/pp/email', { headers: sales, body: { to: 'ops@bellbird.example', subject: 'Your quote', text: 'Attached.', attachment: { filename: 'quote.pdf', content_base64: 'JVBERi0=' } } });
+    assert.equal(e.status, 200); assert.equal(got[1].to[0], 'ops@bellbird.example'); assert.equal(got[1].attachments[0].filename, 'quote.pdf'); assert.equal(got[1].reply_to, 'sam@pp.example');
+    assert.equal((await api('POST', '/api/pp/email', { headers: sales, body: { to: 'not-an-email', subject: 's', text: 't' } })).status, 400);
+  } finally { delete process.env.RESEND_API_KEY; delete process.env.RESEND_API_URL; fake.close(); }
+  assert.equal((await api('POST', '/api/pp/email', { headers: sales, body: { to: 'a@b.example', subject: 's', text: 't' } })).status, 503);
+});
