@@ -58,7 +58,7 @@ The Vercel project `pp-backend-staging` (served at `pp-backend-staging.vercel.ap
 | site or org | `POST /api/org/messages/:id/approve|decline` | org only if `sites.org_may_approve` |
 | org | `GET /api/org/canopy-requests`, `POST …/:id/respond` | operator answers Canopy |
 | staff | `POST /api/pp/staff/login|bootstrap`, `GET|POST /api/pp/staff`, `POST /api/pp/staff/password` | argon2, roles Owner / Sales Manager / IT Staff |
-| staff | `POST|GET /api/pp/clients`, `POST …/:id/link-code` (regenerate, pre-claim only), `POST …/:id/rotate-key` (Owner) | client = org; `create` returns an org-level link code, not a key |
+| staff | `POST|GET /api/pp/clients`, `POST …/:id/link-code` (regenerate, pre-claim only), `POST …/:id/relink` (Owner: new org code for an already-claimed client; claiming it replaces the old PP Command key), `POST …/:id/rotate-key` (Owner) | client = org; `create` returns an org-level link code, not a key |
 | staff | `GET /api/pp/clients/:id/products|overview|sales-trend` | menu items and aggregates only |
 | staff | `POST|GET /api/pp/ronin-asks`, `POST …/:id/withdraw` | Canopy→Ronin queue |
 | staff | `GET /api/pp/store`, `PUT /api/pp/store/:key` | PPcanopy's own collections (clients, quotes, invoices, pricing, team, …) as versioned JSON; a stale `version` → 409 with the current copy; per-collection role rules (IT Staff never sees client data, pricing is Owner-only to change) |

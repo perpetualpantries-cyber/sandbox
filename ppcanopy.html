@@ -1967,6 +1967,7 @@ function renderClients(){
         </div>
         <div style="display:flex;gap:6px;">
           ${SERVER.on() && c.serverOrgId && !c.serverClaimed ? `<button class="btn secondary" data-action="regen-link-code">Get linking code</button>` : ''}
+          ${SERVER.on() && c.serverOrgId && c.serverClaimed ? `<button class="btn secondary" data-action="relink-command" title="Owner only. For when this client's PP Command is lost or on a new device.">Relink PP Command</button>` : ''}
           <button class="btn secondary" data-action="edit-client">Edit</button>
           <button class="btn danger" data-action="remove-client">Remove</button>
         </div>
@@ -1991,6 +1992,15 @@ document.getElementById('client-list').addEventListener('click', async e=>{
   const item = e.target.closest('.client-list-item'); if(!item) return;
   const client = clients.find(c=>c.id===item.dataset.id);
   const action = e.target.dataset.action;
+  if(action==='relink-command'){
+    if(!confirm(`Get a new PP Command linking code for ${client.name}?\n\nWhen it's entered in PP Command, the PP Command currently linked to this client stops working. Their sites stay linked.`)) return;
+    try {
+      const r = await SERVER.req('POST', `/api/pp/clients/${client.serverOrgId}/relink`, {});
+      if(!r.ok) throw new Error(r.status===403 ? 'only the Owner can relink PP Command' : (r.data.error || ('HTTP ' + r.status)));
+      showOrgLinkCodeOnce(client, r.data);
+    } catch(e){ alert('Could not relink: ' + e.message); }
+    return;
+  }
   if(action==='regen-link-code'){
     try { showOrgLinkCodeOnce(client, await serverRegenerateOrgLinkCode(client)); }
     catch(e){ alert('Could not get a linking code: ' + e.message); }

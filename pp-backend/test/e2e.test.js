@@ -295,6 +295,23 @@ test('rotate-key (Owner) issues a working key directly, bypassing the code-claim
   assert.equal(missing.status, 404);
 });
 
+test('relink (Owner) issues a new org code for an already-claimed org; claiming it retires the old key', async () => {
+  const created = await api('POST', '/api/pp/clients', { headers: { Authorization: 'Bearer ' + S.sales }, body: { name: 'Relink Test Co' } });
+  const orgId = created.json.client.id;
+  const first = await api('POST', '/api/org/link/claim', { body: { code: created.json.linkCode.code } });
+  assert.equal(first.status, 200); const oldKey = first.json.api_key;
+  assert.equal((await api('POST', `/api/pp/clients/${orgId}/link-code`, { headers: { Authorization: 'Bearer ' + S.sales } })).status, 409);
+  assert.equal((await api('POST', `/api/pp/clients/${orgId}/relink`, { headers: { Authorization: 'Bearer ' + S.sales } })).status, 403);
+  const rl = await api('POST', `/api/pp/clients/${orgId}/relink`, { headers: { Authorization: 'Bearer ' + S.owner } });
+  assert.equal(rl.status, 201); assert.match(rl.json.code, /^[A-Z0-9]{8}$/);
+  assert.equal((await api('GET', '/api/org', { headers: { 'X-Org-Key': oldKey } })).status, 200);   // old console works until the new code is used
+  const second = await api('POST', '/api/org/link/claim', { body: { code: rl.json.code } });
+  assert.equal(second.status, 200); assert.equal(second.json.org_name, 'Relink Test Co');
+  assert.equal((await api('GET', '/api/org', { headers: { 'X-Org-Key': second.json.api_key } })).status, 200);
+  assert.equal((await api('GET', '/api/org', { headers: { 'X-Org-Key': oldKey } })).status, 401);
+  assert.equal((await api('POST', '/api/pp/clients/00000000-0000-0000-0000-000000000000/relink', { headers: { Authorization: 'Bearer ' + S.owner } })).status, 404);
+});
+
 test('org site tier patch: happy path, invalid enum, not found', async () => {
   const patched = await api('PATCH', `/api/org/sites/${S.siteId}`, { headers: { 'X-Org-Key': S.orgKey }, body: { tier: 'T3' } });
   assert.equal(patched.status, 200); assert.equal(patched.json.tier, 'T3');
